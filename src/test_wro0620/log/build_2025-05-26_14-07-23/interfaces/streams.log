@@ -1,0 +1,919 @@
+[1.403s] Invoking command in '/home/ubuntu/test_wro0620/build/interfaces': CMAKE_PREFIX_PATH=/home/ubuntu/test_wro/install/ros_robot_controller_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/ydlidar_ros2_driver:/home/ubuntu/third_party_ros2/third_party_ws/install/web_video_server:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_local_planner:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/sllidar_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/rf2o_laser_odometry:/home/ubuntu/third_party_ros2/third_party_ws/install/ldlidar_stl_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/laser_filters:/home/ubuntu/third_party_ros2/third_party_ws/install/imu_calib:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter_msgs:/home/ubuntu/test_wro/install/sdk:/home/ubuntu/test_wro/install/ros_robot_controller:/home/ubuntu/test_wro/install/peripherals:/home/ubuntu/test_wro/install/mentorpi_straight_mover:/home/ubuntu/test_wro/install/controller:/home/ubuntu/ros2_ws/install/yolov5_ros2:/home/ubuntu/ros2_ws/install/slam:/home/ubuntu/ros2_ws/install/sdk:/home/ubuntu/ros2_ws/install/ros_robot_controller:/home/ubuntu/ros2_ws/install/peripherals:/home/ubuntu/ros2_ws/install/navigation:/home/ubuntu/ros2_ws/install/multi:/home/ubuntu/ros2_ws/install/mentorpi_description:/home/ubuntu/ros2_ws/install/example:/home/ubuntu/ros2_ws/install/controller:/home/ubuntu/ros2_ws/install/calibration:/home/ubuntu/ros2_ws/install/bringup:/home/ubuntu/ros2_ws/install/app:/home/ubuntu/hiwonder_ws/install/topic_demo:/home/ubuntu/hiwonder_ws/install/service_demo:/home/ubuntu/hiwonder_ws/install/param_demo:/home/ubuntu/hiwonder_ws/install/hello_world_demo:/home/ubuntu/hiwonder_ws/install/action_demo:/opt/ros/humble:/home/ubuntu/third_party_ros2/third_party_ws/install/async_web_server_cpp:/home/ubuntu/third_party_ros2/third_party_ws/install/ascamera:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_ros:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_msgs:/home/ubuntu/ros2_ws/install/ros_robot_controller_msgs:/home/ubuntu/ros2_ws/install/interfaces:/home/ubuntu/hiwonder_ws/install/demo_interfaces /usr/bin/cmake /home/ubuntu/test_wro0620/src/interfaces -DCMAKE_INSTALL_PREFIX=/home/ubuntu/test_wro0620/install/interfaces
+[1.900s] -- The C compiler identification is GNU 11.4.0
+[2.281s] -- The CXX compiler identification is GNU 11.4.0
+[2.300s] -- Detecting C compiler ABI info
+[2.473s] -- Detecting C compiler ABI info - done
+[2.484s] -- Check for working C compiler: /usr/bin/cc - skipped
+[2.486s] -- Detecting C compile features
+[2.487s] -- Detecting C compile features - done
+[2.493s] -- Detecting CXX compiler ABI info
+[2.668s] -- Detecting CXX compiler ABI info - done
+[2.684s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[2.684s] -- Detecting CXX compile features
+[2.685s] -- Detecting CXX compile features - done
+[2.717s] -- Found ament_cmake: 1.3.8 (/opt/ros/humble/share/ament_cmake/cmake)
+[4.347s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[4.994s] -- Found std_msgs: 4.2.3 (/opt/ros/humble/share/std_msgs/cmake)
+[5.181s] -- Found rosidl_generator_c: 3.1.5 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[5.203s] -- Found rosidl_adapter: 3.1.5 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[5.297s] -- Found rosidl_generator_cpp: 3.1.5 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[5.404s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[5.526s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[5.846s] -- Found std_srvs: 4.2.4 (/opt/ros/humble/share/std_srvs/cmake)
+[5.951s] -- Found geometry_msgs: 4.2.3 (/opt/ros/humble/share/geometry_msgs/cmake)
+[6.203s] -- Found rosidl_default_generators: 1.2.0 (/opt/ros/humble/share/rosidl_default_generators/cmake)
+[8.069s] -- Found ament_cmake_ros: 0.10.0 (/opt/ros/humble/share/ament_cmake_ros/cmake)
+[9.518s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[10.007s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[10.094s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.10.12", minimum required is "3.6") 
+[10.104s] -- Found python_cmake_module: 0.10.0 (/opt/ros/humble/share/python_cmake_module/cmake)
+[10.234s] -- Found PythonLibs: /usr/lib/aarch64-linux-gnu/libpython3.10.so (found suitable version "3.10.12", minimum required is "3.5") 
+[10.235s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[10.235s] -- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.10
+[10.235s] -- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.10.so
+[10.337s] -- Found PythonExtra: .so  
+[10.743s] -- Found ament_lint_auto: 0.12.10 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[11.000s] -- Added test 'copyright' to check source files copyright and LICENSE
+[11.012s] -- Added test 'lint_cmake' to check CMake code style
+[11.017s] -- Added test 'xmllint' to check XML markup files
+[11.027s] -- Configuring done
+[11.252s] -- Generating done
+[11.256s] -- Build files have been written to: /home/ubuntu/test_wro0620/build/interfaces
+[11.326s] Invoked command in '/home/ubuntu/test_wro0620/build/interfaces' returned '0': CMAKE_PREFIX_PATH=/home/ubuntu/test_wro/install/ros_robot_controller_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/ydlidar_ros2_driver:/home/ubuntu/third_party_ros2/third_party_ws/install/web_video_server:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_local_planner:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/sllidar_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/rf2o_laser_odometry:/home/ubuntu/third_party_ros2/third_party_ws/install/ldlidar_stl_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/laser_filters:/home/ubuntu/third_party_ros2/third_party_ws/install/imu_calib:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter_msgs:/home/ubuntu/test_wro/install/sdk:/home/ubuntu/test_wro/install/ros_robot_controller:/home/ubuntu/test_wro/install/peripherals:/home/ubuntu/test_wro/install/mentorpi_straight_mover:/home/ubuntu/test_wro/install/controller:/home/ubuntu/ros2_ws/install/yolov5_ros2:/home/ubuntu/ros2_ws/install/slam:/home/ubuntu/ros2_ws/install/sdk:/home/ubuntu/ros2_ws/install/ros_robot_controller:/home/ubuntu/ros2_ws/install/peripherals:/home/ubuntu/ros2_ws/install/navigation:/home/ubuntu/ros2_ws/install/multi:/home/ubuntu/ros2_ws/install/mentorpi_description:/home/ubuntu/ros2_ws/install/example:/home/ubuntu/ros2_ws/install/controller:/home/ubuntu/ros2_ws/install/calibration:/home/ubuntu/ros2_ws/install/bringup:/home/ubuntu/ros2_ws/install/app:/home/ubuntu/hiwonder_ws/install/topic_demo:/home/ubuntu/hiwonder_ws/install/service_demo:/home/ubuntu/hiwonder_ws/install/param_demo:/home/ubuntu/hiwonder_ws/install/hello_world_demo:/home/ubuntu/hiwonder_ws/install/action_demo:/opt/ros/humble:/home/ubuntu/third_party_ros2/third_party_ws/install/async_web_server_cpp:/home/ubuntu/third_party_ros2/third_party_ws/install/ascamera:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_ros:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_msgs:/home/ubuntu/ros2_ws/install/ros_robot_controller_msgs:/home/ubuntu/ros2_ws/install/interfaces:/home/ubuntu/hiwonder_ws/install/demo_interfaces /usr/bin/cmake /home/ubuntu/test_wro0620/src/interfaces -DCMAKE_INSTALL_PREFIX=/home/ubuntu/test_wro0620/install/interfaces
+[11.334s] Invoking command in '/home/ubuntu/test_wro0620/build/interfaces': CMAKE_PREFIX_PATH=/home/ubuntu/test_wro/install/ros_robot_controller_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/ydlidar_ros2_driver:/home/ubuntu/third_party_ros2/third_party_ws/install/web_video_server:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_local_planner:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/sllidar_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/rf2o_laser_odometry:/home/ubuntu/third_party_ros2/third_party_ws/install/ldlidar_stl_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/laser_filters:/home/ubuntu/third_party_ros2/third_party_ws/install/imu_calib:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter_msgs:/home/ubuntu/test_wro/install/sdk:/home/ubuntu/test_wro/install/ros_robot_controller:/home/ubuntu/test_wro/install/peripherals:/home/ubuntu/test_wro/install/mentorpi_straight_mover:/home/ubuntu/test_wro/install/controller:/home/ubuntu/ros2_ws/install/yolov5_ros2:/home/ubuntu/ros2_ws/install/slam:/home/ubuntu/ros2_ws/install/sdk:/home/ubuntu/ros2_ws/install/ros_robot_controller:/home/ubuntu/ros2_ws/install/peripherals:/home/ubuntu/ros2_ws/install/navigation:/home/ubuntu/ros2_ws/install/multi:/home/ubuntu/ros2_ws/install/mentorpi_description:/home/ubuntu/ros2_ws/install/example:/home/ubuntu/ros2_ws/install/controller:/home/ubuntu/ros2_ws/install/calibration:/home/ubuntu/ros2_ws/install/bringup:/home/ubuntu/ros2_ws/install/app:/home/ubuntu/hiwonder_ws/install/topic_demo:/home/ubuntu/hiwonder_ws/install/service_demo:/home/ubuntu/hiwonder_ws/install/param_demo:/home/ubuntu/hiwonder_ws/install/hello_world_demo:/home/ubuntu/hiwonder_ws/install/action_demo:/opt/ros/humble:/home/ubuntu/third_party_ros2/third_party_ws/install/async_web_server_cpp:/home/ubuntu/third_party_ros2/third_party_ws/install/ascamera:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_ros:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_msgs:/home/ubuntu/ros2_ws/install/ros_robot_controller_msgs:/home/ubuntu/ros2_ws/install/interfaces:/home/ubuntu/hiwonder_ws/install/demo_interfaces /usr/bin/cmake --build /home/ubuntu/test_wro0620/build/interfaces -- -j4 -l4
+[11.504s] [  1%] [34m[1mGenerating C code for ROS interfaces[0m
+[11.510s] [  1%] [34m[1mGenerating C++ code for ROS interfaces[0m
+[11.573s] [  1%] Built target ament_cmake_python_copy_interfaces
+[12.724s] running egg_info
+[12.724s] creating interfaces.egg-info
+[12.822s] writing interfaces.egg-info/PKG-INFO
+[12.823s] writing dependency_links to interfaces.egg-info/dependency_links.txt
+[12.827s] writing top-level names to interfaces.egg-info/top_level.txt
+[13.364s] writing manifest file 'interfaces.egg-info/SOURCES.txt'
+[13.486s] reading manifest file 'interfaces.egg-info/SOURCES.txt'
+[13.489s] writing manifest file 'interfaces.egg-info/SOURCES.txt'
+[13.699s] [  1%] Built target ament_cmake_python_build_interfaces_egg
+[17.935s] [  1%] Built target interfaces__cpp
+[17.975s] [  2%] [34m[1mGenerating C++ type support dispatch for ROS interfaces[0m
+[18.023s] [  3%] [34m[1mGenerating C++ type support for eProsima Fast-RTPS[0m
+[18.125s] [  4%] [34m[1mGenerating C++ introspection for ROS interfaces[0m
+[20.392s] [  4%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/color_detect__functions.c.o[0m
+[20.712s] [  5%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/color_info__functions.c.o[0m
+[20.918s] [  5%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/colors_info__functions.c.o[0m
+[21.125s] [  6%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/line_roi__functions.c.o[0m
+[21.260s] [  6%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/object_info__functions.c.o[0m
+[21.488s] [  7%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/objects_info__functions.c.o[0m
+[21.704s] [  7%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/pixel_position__functions.c.o[0m
+[21.888s] [  8%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/point2_d__functions.c.o[0m
+[22.186s] [  8%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/points__functions.c.o[0m
+[22.606s] [  9%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/pose2_d__functions.c.o[0m
+[22.833s] [  9%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/msg/detail/roi__functions.c.o[0m
+[23.117s] [  9%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/get_pose__functions.c.o[0m
+[23.297s] [ 10%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_circle_roi__functions.c.o[0m
+[23.502s] [ 10%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/color_detect__type_support.cpp.o[0m
+[23.679s] [ 10%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_color_detect_param__functions.c.o[0m
+[23.896s] [ 11%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_color_rgba__functions.c.o[0m
+[24.334s] [ 11%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_float64_list__functions.c.o[0m
+[24.766s] [ 12%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_float64__functions.c.o[0m
+[25.187s] [ 12%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_int64__functions.c.o[0m
+[25.279s] [ 12%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/color_detect__type_support.cpp.o[0m
+[25.840s] [ 13%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_line_roi__functions.c.o[0m
+[26.263s] [ 13%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_point__functions.c.o[0m
+[26.687s] [ 14%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_pose2_d__functions.c.o[0m
+[26.805s] [ 15%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/color_info__type_support.cpp.o[0m
+[26.931s] [ 15%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_pose__functions.c.o[0m
+[27.195s] [ 15%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/color_detect__type_support.cpp.o[0m
+[27.223s] [ 16%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_string_list__functions.c.o[0m
+[27.562s] [ 16%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_c.dir/rosidl_generator_c/interfaces/srv/detail/set_string__functions.c.o[0m
+[27.860s] [ 17%] [32m[1mLinking C shared library libinterfaces__rosidl_generator_c.so[0m
+[28.270s] [ 17%] Built target interfaces__rosidl_generator_c
+[28.324s] [ 18%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/color_info__type_support.cpp.o[0m
+[28.797s] [ 18%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/colors_info__type_support.cpp.o[0m
+[28.906s] [ 19%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/color_info__type_support.cpp.o[0m
+[30.257s] [ 20%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/line_roi__type_support.cpp.o[0m
+[30.470s] [ 20%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/colors_info__type_support.cpp.o[0m
+[30.795s] [ 20%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/colors_info__type_support.cpp.o[0m
+[31.287s] [ 20%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/object_info__type_support.cpp.o[0m
+[31.909s] [ 21%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/line_roi__type_support.cpp.o[0m
+[32.110s] [ 22%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/line_roi__type_support.cpp.o[0m
+[32.384s] [ 22%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/objects_info__type_support.cpp.o[0m
+[33.182s] [ 22%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/object_info__type_support.cpp.o[0m
+[33.208s] [ 23%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/pixel_position__type_support.cpp.o[0m
+[33.374s] [ 23%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/object_info__type_support.cpp.o[0m
+[33.955s] [ 23%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/point2_d__type_support.cpp.o[0m
+[34.760s] [ 24%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/objects_info__type_support.cpp.o[0m
+[34.968s] [ 25%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/objects_info__type_support.cpp.o[0m
+[35.219s] [ 26%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/points__type_support.cpp.o[0m
+[36.691s] [ 26%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/pose2_d__type_support.cpp.o[0m
+[36.874s] [ 26%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/pixel_position__type_support.cpp.o[0m
+[37.159s] [ 26%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/pixel_position__type_support.cpp.o[0m
+[37.961s] [ 27%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/msg/roi__type_support.cpp.o[0m
+[38.579s] [ 28%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/point2_d__type_support.cpp.o[0m
+[38.914s] [ 28%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/get_pose__type_support.cpp.o[0m
+[38.937s] [ 28%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/point2_d__type_support.cpp.o[0m
+[39.695s] [ 29%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_circle_roi__type_support.cpp.o[0m
+[39.958s] [ 29%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/points__type_support.cpp.o[0m
+[40.344s] [ 30%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/points__type_support.cpp.o[0m
+[40.587s] [ 30%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_color_detect_param__type_support.cpp.o[0m
+[41.087s] [ 31%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/pose2_d__type_support.cpp.o[0m
+[41.189s] [ 32%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_color_rgba__type_support.cpp.o[0m
+[41.582s] [ 32%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/pose2_d__type_support.cpp.o[0m
+[41.885s] [ 32%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_float64_list__type_support.cpp.o[0m
+[42.124s] [ 32%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/msg/detail/roi__type_support.cpp.o[0m
+[42.519s] [ 33%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_float64__type_support.cpp.o[0m
+[42.521s] [ 34%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/msg/detail/dds_fastrtps/roi__type_support.cpp.o[0m
+[43.059s] [ 34%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/get_pose__type_support.cpp.o[0m
+[43.156s] [ 34%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_int64__type_support.cpp.o[0m
+[43.512s] [ 34%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/get_pose__type_support.cpp.o[0m
+[43.805s] [ 34%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_line_roi__type_support.cpp.o[0m
+[44.187s] [ 35%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_circle_roi__type_support.cpp.o[0m
+[44.681s] [ 36%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_point__type_support.cpp.o[0m
+[44.989s] [ 37%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_circle_roi__type_support.cpp.o[0m
+[45.528s] [ 37%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_color_detect_param__type_support.cpp.o[0m
+[45.715s] [ 37%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_pose2_d__type_support.cpp.o[0m
+[46.415s] [ 38%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_pose__type_support.cpp.o[0m
+[46.590s] [ 38%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_color_detect_param__type_support.cpp.o[0m
+[46.765s] [ 39%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_color_rgba__type_support.cpp.o[0m
+[47.287s] [ 39%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_string_list__type_support.cpp.o[0m
+[47.875s] [ 39%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_float64_list__type_support.cpp.o[0m
+[48.000s] [ 40%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_color_rgba__type_support.cpp.o[0m
+[48.134s] [ 41%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/interfaces/srv/set_string__type_support.cpp.o[0m
+[48.991s] [ 41%] [32m[1mLinking CXX shared library libinterfaces__rosidl_typesupport_cpp.so[0m
+[49.198s] [ 41%] Built target interfaces__rosidl_typesupport_cpp
+[49.351s] [ 41%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_float64_list__type_support.cpp.o[0m
+[49.428s] [ 42%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_float64__type_support.cpp.o[0m
+[50.156s] [ 42%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_int64__type_support.cpp.o[0m
+[50.241s] [ 43%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_float64__type_support.cpp.o[0m
+[50.907s] [ 44%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_line_roi__type_support.cpp.o[0m
+[51.043s] [ 44%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_int64__type_support.cpp.o[0m
+[51.625s] [ 44%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_point__type_support.cpp.o[0m
+[51.854s] [ 45%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_line_roi__type_support.cpp.o[0m
+[52.337s] [ 46%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_pose2_d__type_support.cpp.o[0m
+[52.656s] [ 46%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_point__type_support.cpp.o[0m
+[53.059s] [ 46%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_pose__type_support.cpp.o[0m
+[53.441s] [ 47%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_pose2_d__type_support.cpp.o[0m
+[53.856s] [ 48%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_string_list__type_support.cpp.o[0m
+[54.305s] [ 48%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_pose__type_support.cpp.o[0m
+[55.125s] [ 48%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/interfaces/srv/detail/set_string__type_support.cpp.o[0m
+[55.548s] [ 48%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_string_list__type_support.cpp.o[0m
+[56.041s] [ 49%] [32m[1mLinking CXX shared library libinterfaces__rosidl_typesupport_introspection_cpp.so[0m
+[56.355s] [ 49%] Built target interfaces__rosidl_typesupport_introspection_cpp
+[56.731s] [ 50%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/interfaces/srv/detail/dds_fastrtps/set_string__type_support.cpp.o[0m
+[57.589s] [ 50%] [32m[1mLinking CXX shared library libinterfaces__rosidl_typesupport_fastrtps_cpp.so[0m
+[57.836s] [ 50%] Built target interfaces__rosidl_typesupport_fastrtps_cpp
+[57.856s] [ 51%] [34m[1mGenerating C type support dispatch for ROS interfaces[0m
+[60.152s] [ 51%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/color_detect__type_support.cpp.o[0m
+[60.203s] [ 52%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/color_info__type_support.cpp.o[0m
+[60.254s] [ 52%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/colors_info__type_support.cpp.o[0m
+[60.303s] [ 52%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/line_roi__type_support.cpp.o[0m
+[60.367s] [ 53%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/object_info__type_support.cpp.o[0m
+[60.446s] [ 53%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/objects_info__type_support.cpp.o[0m
+[60.495s] [ 54%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/pixel_position__type_support.cpp.o[0m
+[60.547s] [ 54%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/point2_d__type_support.cpp.o[0m
+[60.592s] [ 55%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/points__type_support.cpp.o[0m
+[60.642s] [ 55%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/pose2_d__type_support.cpp.o[0m
+[60.689s] [ 56%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/msg/roi__type_support.cpp.o[0m
+[60.753s] [ 56%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/get_pose__type_support.cpp.o[0m
+[60.810s] [ 57%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_circle_roi__type_support.cpp.o[0m
+[60.893s] [ 57%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_color_detect_param__type_support.cpp.o[0m
+[60.969s] [ 58%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_color_rgba__type_support.cpp.o[0m
+[61.025s] [ 58%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_float64_list__type_support.cpp.o[0m
+[61.085s] [ 59%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_float64__type_support.cpp.o[0m
+[61.155s] [ 59%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_int64__type_support.cpp.o[0m
+[61.203s] [ 59%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_line_roi__type_support.cpp.o[0m
+[61.267s] [ 60%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_point__type_support.cpp.o[0m
+[61.351s] [ 60%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_pose2_d__type_support.cpp.o[0m
+[61.446s] [ 61%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_pose__type_support.cpp.o[0m
+[61.517s] [ 61%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_string_list__type_support.cpp.o[0m
+[61.594s] [ 62%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/interfaces/srv/set_string__type_support.cpp.o[0m
+[61.669s] [ 62%] [32m[1mLinking CXX shared library libinterfaces__rosidl_typesupport_c.so[0m
+[61.776s] [ 62%] Built target interfaces__rosidl_typesupport_c
+[61.806s] [ 63%] [34m[1mGenerating C introspection for ROS interfaces[0m
+[64.770s] [ 63%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/color_detect__type_support.c.o[0m
+[64.834s] [ 63%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/colors_info__type_support.c.o[0m
+[64.901s] [ 64%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/line_roi__type_support.c.o[0m
+[64.966s] [ 64%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/object_info__type_support.c.o[0m
+[65.031s] [ 65%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/objects_info__type_support.c.o[0m
+[65.111s] [ 65%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/pixel_position__type_support.c.o[0m
+[65.175s] [ 66%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/point2_d__type_support.c.o[0m
+[65.230s] [ 66%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/points__type_support.c.o[0m
+[65.308s] [ 67%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/pose2_d__type_support.c.o[0m
+[65.366s] [ 67%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/roi__type_support.c.o[0m
+[65.439s] [ 67%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/get_pose__type_support.c.o[0m
+[65.519s] [ 68%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_circle_roi__type_support.c.o[0m
+[65.589s] [ 68%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_color_detect_param__type_support.c.o[0m
+[65.690s] [ 69%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_color_rgba__type_support.c.o[0m
+[65.779s] [ 69%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_float64_list__type_support.c.o[0m
+[65.894s] [ 70%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_float64__type_support.c.o[0m
+[65.956s] [ 70%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_int64__type_support.c.o[0m
+[66.026s] [ 71%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_line_roi__type_support.c.o[0m
+[66.091s] [ 71%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_point__type_support.c.o[0m
+[66.146s] [ 72%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_pose2_d__type_support.c.o[0m
+[66.216s] [ 72%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_pose__type_support.c.o[0m
+[66.307s] [ 73%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_string_list__type_support.c.o[0m
+[66.381s] [ 73%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/srv/detail/set_string__type_support.c.o[0m
+[66.437s] [ 74%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/interfaces/msg/detail/color_info__type_support.c.o[0m
+[66.498s] [ 74%] [32m[1mLinking C shared library libinterfaces__rosidl_typesupport_introspection_c.so[0m
+[66.568s] [ 74%] Built target interfaces__rosidl_typesupport_introspection_c
+[66.588s] [ 75%] [34m[1mGenerating C type support for eProsima Fast-RTPS[0m
+[69.463s] [ 75%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/color_detect__type_support_c.cpp.o[0m
+[70.049s] [ 76%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/line_roi__type_support_c.cpp.o[0m
+[70.528s] [ 76%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/object_info__type_support_c.cpp.o[0m
+[71.073s] [ 77%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/objects_info__type_support_c.cpp.o[0m
+[71.877s] [ 77%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/pixel_position__type_support_c.cpp.o[0m
+[72.544s] [ 77%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/point2_d__type_support_c.cpp.o[0m
+[73.168s] [ 78%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/points__type_support_c.cpp.o[0m
+[73.876s] [ 78%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/pose2_d__type_support_c.cpp.o[0m
+[74.387s] [ 79%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/roi__type_support_c.cpp.o[0m
+[74.891s] [ 79%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/get_pose__type_support_c.cpp.o[0m
+[75.401s] [ 80%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_circle_roi__type_support_c.cpp.o[0m
+[75.992s] [ 80%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_color_detect_param__type_support_c.cpp.o[0m
+[76.578s] [ 81%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_color_rgba__type_support_c.cpp.o[0m
+[77.152s] [ 81%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_float64_list__type_support_c.cpp.o[0m
+[77.683s] [ 82%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_float64__type_support_c.cpp.o[0m
+[78.172s] [ 82%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_int64__type_support_c.cpp.o[0m
+[78.760s] [ 83%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_line_roi__type_support_c.cpp.o[0m
+[79.597s] [ 83%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_point__type_support_c.cpp.o[0m
+[80.310s] [ 84%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_pose2_d__type_support_c.cpp.o[0m
+[80.939s] [ 84%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_pose__type_support_c.cpp.o[0m
+[81.566s] [ 84%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_string_list__type_support_c.cpp.o[0m
+[82.144s] [ 85%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/srv/detail/set_string__type_support_c.cpp.o[0m
+[82.700s] [ 85%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/colors_info__type_support_c.cpp.o[0m
+[83.243s] [ 86%] [32mBuilding CXX object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/interfaces/msg/detail/color_info__type_support_c.cpp.o[0m
+[83.810s] [ 86%] [32m[1mLinking CXX shared library libinterfaces__rosidl_typesupport_fastrtps_c.so[0m
+[84.019s] [ 86%] Built target interfaces__rosidl_typesupport_fastrtps_c
+[84.059s] [ 86%] Built target interfaces
+[84.107s] [ 86%] [34m[1mGenerating Python code for ROS interfaces[0m
+[90.117s] [ 86%] Built target interfaces__py
+[90.153s] [ 86%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_color_detect_s.c.o[0m
+[90.395s] [ 86%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_line_roi_s.c.o[0m
+[90.561s] [ 87%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_object_info_s.c.o[0m
+[90.742s] [ 87%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_objects_info_s.c.o[0m
+[90.913s] [ 88%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_pixel_position_s.c.o[0m
+[91.072s] [ 88%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_point2_d_s.c.o[0m
+[91.242s] [ 89%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_points_s.c.o[0m
+[91.417s] [ 89%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_pose2_d_s.c.o[0m
+[91.600s] [ 90%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_roi_s.c.o[0m
+[91.765s] [ 90%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_get_pose_s.c.o[0m
+[91.957s] [ 91%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_circle_roi_s.c.o[0m
+[92.137s] [ 91%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_color_detect_param_s.c.o[0m
+[92.318s] [ 92%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_color_rgba_s.c.o[0m
+[92.489s] [ 92%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_float64_list_s.c.o[0m
+[92.679s] [ 92%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_float64_s.c.o[0m
+[92.851s] [ 93%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_int64_s.c.o[0m
+[93.029s] [ 93%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_line_roi_s.c.o[0m
+[93.204s] [ 94%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_point_s.c.o[0m
+[93.370s] [ 94%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_pose2_d_s.c.o[0m
+[93.555s] [ 95%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_pose_s.c.o[0m
+[93.838s] [ 95%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_string_list_s.c.o[0m
+[94.098s] [ 96%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/srv/_set_string_s.c.o[0m
+[94.369s] [ 97%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_colors_info_s.c.o[0m
+[94.592s] [ 97%] [32mBuilding C object CMakeFiles/interfaces__rosidl_generator_py.dir/rosidl_generator_py/interfaces/msg/_color_info_s.c.o[0m
+[94.806s] [ 97%] [32m[1mLinking C shared library rosidl_generator_py/interfaces/libinterfaces__rosidl_generator_py.so[0m
+[94.934s] [ 97%] Built target interfaces__rosidl_generator_py
+[94.970s] [ 98%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_fastrtps_c__pyext.dir/rosidl_generator_py/interfaces/_interfaces_s.ep.rosidl_typesupport_fastrtps_c.c.o[0m
+[95.436s] [ 98%] [32m[1mLinking C shared library rosidl_generator_py/interfaces/interfaces_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so[0m
+[95.538s] [ 98%] Built target interfaces__rosidl_typesupport_fastrtps_c__pyext
+[95.574s] [ 99%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_c__pyext.dir/rosidl_generator_py/interfaces/_interfaces_s.ep.rosidl_typesupport_c.c.o[0m
+[96.034s] [ 99%] [32m[1mLinking C shared library rosidl_generator_py/interfaces/interfaces_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so[0m
+[96.147s] [ 99%] Built target interfaces__rosidl_typesupport_c__pyext
+[96.185s] [100%] [32mBuilding C object CMakeFiles/interfaces__rosidl_typesupport_introspection_c__pyext.dir/rosidl_generator_py/interfaces/_interfaces_s.ep.rosidl_typesupport_introspection_c.c.o[0m
+[96.605s] [100%] [32m[1mLinking C shared library rosidl_generator_py/interfaces/interfaces_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so[0m
+[96.685s] [100%] Built target interfaces__rosidl_typesupport_introspection_c__pyext
+[96.707s] Invoked command in '/home/ubuntu/test_wro0620/build/interfaces' returned '0': CMAKE_PREFIX_PATH=/home/ubuntu/test_wro/install/ros_robot_controller_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/ydlidar_ros2_driver:/home/ubuntu/third_party_ros2/third_party_ws/install/web_video_server:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_local_planner:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/sllidar_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/rf2o_laser_odometry:/home/ubuntu/third_party_ros2/third_party_ws/install/ldlidar_stl_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/laser_filters:/home/ubuntu/third_party_ros2/third_party_ws/install/imu_calib:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter_msgs:/home/ubuntu/test_wro/install/sdk:/home/ubuntu/test_wro/install/ros_robot_controller:/home/ubuntu/test_wro/install/peripherals:/home/ubuntu/test_wro/install/mentorpi_straight_mover:/home/ubuntu/test_wro/install/controller:/home/ubuntu/ros2_ws/install/yolov5_ros2:/home/ubuntu/ros2_ws/install/slam:/home/ubuntu/ros2_ws/install/sdk:/home/ubuntu/ros2_ws/install/ros_robot_controller:/home/ubuntu/ros2_ws/install/peripherals:/home/ubuntu/ros2_ws/install/navigation:/home/ubuntu/ros2_ws/install/multi:/home/ubuntu/ros2_ws/install/mentorpi_description:/home/ubuntu/ros2_ws/install/example:/home/ubuntu/ros2_ws/install/controller:/home/ubuntu/ros2_ws/install/calibration:/home/ubuntu/ros2_ws/install/bringup:/home/ubuntu/ros2_ws/install/app:/home/ubuntu/hiwonder_ws/install/topic_demo:/home/ubuntu/hiwonder_ws/install/service_demo:/home/ubuntu/hiwonder_ws/install/param_demo:/home/ubuntu/hiwonder_ws/install/hello_world_demo:/home/ubuntu/hiwonder_ws/install/action_demo:/opt/ros/humble:/home/ubuntu/third_party_ros2/third_party_ws/install/async_web_server_cpp:/home/ubuntu/third_party_ros2/third_party_ws/install/ascamera:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_ros:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_msgs:/home/ubuntu/ros2_ws/install/ros_robot_controller_msgs:/home/ubuntu/ros2_ws/install/interfaces:/home/ubuntu/hiwonder_ws/install/demo_interfaces /usr/bin/cmake --build /home/ubuntu/test_wro0620/build/interfaces -- -j4 -l4
+[97.550s] Invoking command in '/home/ubuntu/test_wro0620/build/interfaces': CMAKE_PREFIX_PATH=/home/ubuntu/test_wro/install/ros_robot_controller_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/ydlidar_ros2_driver:/home/ubuntu/third_party_ros2/third_party_ws/install/web_video_server:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_local_planner:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/sllidar_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/rf2o_laser_odometry:/home/ubuntu/third_party_ros2/third_party_ws/install/ldlidar_stl_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/laser_filters:/home/ubuntu/third_party_ros2/third_party_ws/install/imu_calib:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter_msgs:/home/ubuntu/test_wro/install/sdk:/home/ubuntu/test_wro/install/ros_robot_controller:/home/ubuntu/test_wro/install/peripherals:/home/ubuntu/test_wro/install/mentorpi_straight_mover:/home/ubuntu/test_wro/install/controller:/home/ubuntu/ros2_ws/install/yolov5_ros2:/home/ubuntu/ros2_ws/install/slam:/home/ubuntu/ros2_ws/install/sdk:/home/ubuntu/ros2_ws/install/ros_robot_controller:/home/ubuntu/ros2_ws/install/peripherals:/home/ubuntu/ros2_ws/install/navigation:/home/ubuntu/ros2_ws/install/multi:/home/ubuntu/ros2_ws/install/mentorpi_description:/home/ubuntu/ros2_ws/install/example:/home/ubuntu/ros2_ws/install/controller:/home/ubuntu/ros2_ws/install/calibration:/home/ubuntu/ros2_ws/install/bringup:/home/ubuntu/ros2_ws/install/app:/home/ubuntu/hiwonder_ws/install/topic_demo:/home/ubuntu/hiwonder_ws/install/service_demo:/home/ubuntu/hiwonder_ws/install/param_demo:/home/ubuntu/hiwonder_ws/install/hello_world_demo:/home/ubuntu/hiwonder_ws/install/action_demo:/opt/ros/humble:/home/ubuntu/third_party_ros2/third_party_ws/install/async_web_server_cpp:/home/ubuntu/third_party_ros2/third_party_ws/install/ascamera:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_ros:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_msgs:/home/ubuntu/ros2_ws/install/ros_robot_controller_msgs:/home/ubuntu/ros2_ws/install/interfaces:/home/ubuntu/hiwonder_ws/install/demo_interfaces /usr/bin/cmake --install /home/ubuntu/test_wro0620/build/interfaces
+[97.563s] -- Install configuration: ""
+[97.563s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/ament_index/resource_index/rosidl_interfaces/interfaces
+[97.563s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces
+[97.564s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg
+[97.564s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/point2_d.h
+[97.564s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/color_detect.h
+[97.564s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/pixel_position.h
+[97.564s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/roi.h
+[97.565s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/object_info.h
+[97.565s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/points.h
+[97.565s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/rosidl_generator_c__visibility_control.h
+[97.565s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/colors_info.h
+[97.565s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail
+[97.566s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__functions.c
+[97.566s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__functions.h
+[97.566s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__functions.c
+[97.566s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__functions.c
+[97.567s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__functions.h
+[97.567s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__functions.c
+[97.567s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__type_support.h
+[97.567s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__type_support.h
+[97.568s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__functions.h
+[97.568s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__functions.h
+[97.568s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__struct.h
+[97.569s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__struct.h
+[97.569s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__type_support.h
+[97.569s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__struct.h
+[97.569s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__type_support.h
+[97.569s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__functions.c
+[97.570s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__functions.c
+[97.570s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__functions.h
+[97.570s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__struct.h
+[97.571s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__type_support.h
+[97.571s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__functions.c
+[97.571s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__functions.h
+[97.571s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__type_support.h
+[97.572s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__struct.h
+[97.572s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__struct.h
+[97.572s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__functions.h
+[97.573s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__functions.h
+[97.573s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__functions.c
+[97.573s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__functions.c
+[97.573s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__functions.c
+[97.574s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__type_support.h
+[97.574s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__functions.h
+[97.574s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__struct.h
+[97.574s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__struct.h
+[97.574s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__struct.h
+[97.575s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__type_support.h
+[97.575s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__functions.h
+[97.575s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__type_support.h
+[97.575s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__type_support.h
+[97.575s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__functions.h
+[97.576s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__struct.h
+[97.577s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__functions.c
+[97.577s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__type_support.h
+[97.577s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__struct.h
+[97.577s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/line_roi.h
+[97.577s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/objects_info.h
+[97.578s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/pose2_d.h
+[97.578s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/color_info.h
+[97.578s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv
+[97.578s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_circle_roi.h
+[97.579s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_string.h
+[97.579s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_float64_list.h
+[97.579s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_color_rgba.h
+[97.579s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/get_pose.h
+[97.579s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_color_detect_param.h
+[97.580s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_float64.h
+[97.580s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_string_list.h
+[97.580s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_line_roi.h
+[97.581s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_pose.h
+[97.581s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail
+[97.581s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__type_support.h
+[97.581s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__struct.h
+[97.582s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__type_support.h
+[97.582s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__functions.h
+[97.582s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__type_support.h
+[97.582s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__type_support.h
+[97.582s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__functions.c
+[97.583s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__functions.h
+[97.583s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__functions.h
+[97.583s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__type_support.h
+[97.584s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__struct.h
+[97.584s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__functions.c
+[97.584s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__functions.h
+[97.584s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__struct.h
+[97.584s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__functions.c
+[97.584s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__type_support.h
+[97.585s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__functions.c
+[97.585s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__struct.h
+[97.585s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__functions.c
+[97.585s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__functions.h
+[97.585s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__functions.h
+[97.586s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__functions.h
+[97.586s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__struct.h
+[97.586s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__functions.h
+[97.586s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__functions.c
+[97.586s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__functions.h
+[97.587s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__type_support.h
+[97.587s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__type_support.h
+[97.587s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__struct.h
+[97.587s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__struct.h
+[97.587s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__struct.h
+[97.588s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__functions.h
+[97.592s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__functions.c
+[97.592s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__type_support.h
+[97.592s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__functions.h
+[97.593s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__struct.h
+[97.593s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__functions.c
+[97.593s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__type_support.h
+[97.593s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__type_support.h
+[97.594s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__functions.c
+[97.594s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__functions.h
+[97.594s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__type_support.h
+[97.594s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__functions.h
+[97.595s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__type_support.h
+[97.595s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__functions.c
+[97.595s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__struct.h
+[97.595s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__functions.c
+[97.595s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__struct.h
+[97.595s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__struct.h
+[97.595s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__struct.h
+[97.596s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__functions.c
+[97.596s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__functions.c
+[97.596s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_int64.h
+[97.596s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_pose2_d.h
+[97.596s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_point.h
+[97.596s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/environment/library_path.sh
+[97.596s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/environment/library_path.dsv
+[97.596s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_generator_c.so
+[97.596s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_generator_c.so" to ""
+[97.597s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces
+[97.597s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/rosidl_typesupport_fastrtps_c__visibility_control.h
+[97.597s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__rosidl_typesupport_fastrtps_c.h
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__rosidl_typesupport_fastrtps_c.h
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__rosidl_typesupport_fastrtps_c.h
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__rosidl_typesupport_fastrtps_c.h
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__rosidl_typesupport_fastrtps_c.h
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__rosidl_typesupport_fastrtps_c.h
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__rosidl_typesupport_fastrtps_c.h
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__rosidl_typesupport_fastrtps_c.h
+[97.597s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv
+[97.598s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__rosidl_typesupport_fastrtps_c.h
+[97.598s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__rosidl_typesupport_fastrtps_c.h
+[97.599s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__rosidl_typesupport_fastrtps_c.h
+[97.599s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__rosidl_typesupport_fastrtps_c.h
+[97.599s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__rosidl_typesupport_fastrtps_c.h
+[97.599s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__rosidl_typesupport_fastrtps_c.h
+[97.599s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_fastrtps_c.so
+[97.599s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_fastrtps_c.so" to ""
+[97.599s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces
+[97.599s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg
+[97.600s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/object_info.hpp
+[97.600s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/points.hpp
+[97.600s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/pixel_position.hpp
+[97.600s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/roi.hpp
+[97.600s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/color_detect.hpp
+[97.600s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/colors_info.hpp
+[97.601s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/pose2_d.hpp
+[97.601s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/objects_info.hpp
+[97.601s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/point2_d.hpp
+[97.601s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail
+[97.601s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__struct.hpp
+[97.601s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__builder.hpp
+[97.602s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__struct.hpp
+[97.602s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__builder.hpp
+[97.602s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__traits.hpp
+[97.602s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__struct.hpp
+[97.602s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__builder.hpp
+[97.602s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__builder.hpp
+[97.603s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__traits.hpp
+[97.603s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__traits.hpp
+[97.603s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__builder.hpp
+[97.603s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__traits.hpp
+[97.603s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__struct.hpp
+[97.603s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__builder.hpp
+[97.603s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__traits.hpp
+[97.604s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__struct.hpp
+[97.604s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__traits.hpp
+[97.604s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__struct.hpp
+[97.604s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__builder.hpp
+[97.604s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__struct.hpp
+[97.604s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__traits.hpp
+[97.605s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__traits.hpp
+[97.605s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__struct.hpp
+[97.605s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__builder.hpp
+[97.605s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__traits.hpp
+[97.606s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__builder.hpp
+[97.607s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__struct.hpp
+[97.607s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__traits.hpp
+[97.607s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__builder.hpp
+[97.609s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__traits.hpp
+[97.609s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__struct.hpp
+[97.609s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__struct.hpp
+[97.609s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__builder.hpp
+[97.610s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/color_info.hpp
+[97.610s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/line_roi.hpp
+[97.610s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv
+[97.610s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/get_pose.hpp
+[97.610s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_color_detect_param.hpp
+[97.610s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_int64.hpp
+[97.610s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_point.hpp
+[97.610s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_string.hpp
+[97.610s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_pose2_d.hpp
+[97.611s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_circle_roi.hpp
+[97.611s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_float64_list.hpp
+[97.611s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_float64.hpp
+[97.611s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_line_roi.hpp
+[97.611s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_string_list.hpp
+[97.611s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail
+[97.611s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__traits.hpp
+[97.611s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__builder.hpp
+[97.612s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__struct.hpp
+[97.612s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__builder.hpp
+[97.612s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__traits.hpp
+[97.612s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__traits.hpp
+[97.612s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__builder.hpp
+[97.612s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__struct.hpp
+[97.612s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__builder.hpp
+[97.613s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__struct.hpp
+[97.614s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__traits.hpp
+[97.619s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__struct.hpp
+[97.619s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__traits.hpp
+[97.619s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__builder.hpp
+[97.624s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__traits.hpp
+[97.625s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__struct.hpp
+[97.625s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__builder.hpp
+[97.625s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__builder.hpp
+[97.625s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__traits.hpp
+[97.625s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__traits.hpp
+[97.626s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__struct.hpp
+[97.626s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__struct.hpp
+[97.626s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__traits.hpp
+[97.626s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__struct.hpp
+[97.626s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__struct.hpp
+[97.626s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__builder.hpp
+[97.626s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__builder.hpp
+[97.627s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__struct.hpp
+[97.627s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__traits.hpp
+[97.627s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__struct.hpp
+[97.627s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__builder.hpp
+[97.627s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__builder.hpp
+[97.628s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__traits.hpp
+[97.628s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__traits.hpp
+[97.628s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__struct.hpp
+[97.628s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__traits.hpp
+[97.628s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__builder.hpp
+[97.628s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__builder.hpp
+[97.628s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__struct.hpp
+[97.628s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_color_rgba.hpp
+[97.628s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/set_pose.hpp
+[97.628s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces
+[97.629s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg
+[97.629s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
+[97.629s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail
+[97.629s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__rosidl_typesupport_fastrtps_cpp.hpp
+[97.629s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__rosidl_typesupport_fastrtps_cpp.hpp
+[97.629s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__rosidl_typesupport_fastrtps_cpp.hpp
+[97.630s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/dds_fastrtps
+[97.633s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__rosidl_typesupport_fastrtps_cpp.hpp
+[97.633s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv
+[97.634s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__rosidl_typesupport_fastrtps_cpp.hpp
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/dds_fastrtps
+[97.634s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__rosidl_typesupport_fastrtps_cpp.hpp
+[97.635s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__rosidl_typesupport_fastrtps_cpp.hpp
+[97.635s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__rosidl_typesupport_fastrtps_cpp.hpp
+[97.635s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__rosidl_typesupport_fastrtps_cpp.hpp
+[97.635s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__rosidl_typesupport_fastrtps_cpp.hpp
+[97.636s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__rosidl_typesupport_fastrtps_cpp.hpp
+[97.636s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__rosidl_typesupport_fastrtps_cpp.hpp
+[97.636s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__rosidl_typesupport_fastrtps_cpp.hpp
+[97.637s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_fastrtps_cpp.so
+[97.637s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_fastrtps_cpp.so" to ""
+[97.637s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces
+[97.637s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg
+[97.637s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/rosidl_typesupport_introspection_c__visibility_control.h
+[97.637s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail
+[97.637s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__rosidl_typesupport_introspection_c.h
+[97.637s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__type_support.c
+[97.637s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__type_support.c
+[97.637s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__rosidl_typesupport_introspection_c.h
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__type_support.c
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__type_support.c
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__rosidl_typesupport_introspection_c.h
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__type_support.c
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__type_support.c
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__rosidl_typesupport_introspection_c.h
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__type_support.c
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__rosidl_typesupport_introspection_c.h
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__rosidl_typesupport_introspection_c.h
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__type_support.c
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__rosidl_typesupport_introspection_c.h
+[97.638s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__type_support.c
+[97.639s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__type_support.c
+[97.639s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__rosidl_typesupport_introspection_c.h
+[97.639s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__rosidl_typesupport_introspection_c.h
+[97.639s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__rosidl_typesupport_introspection_c.h
+[97.639s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__type_support.c
+[97.639s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__rosidl_typesupport_introspection_c.h
+[97.639s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv
+[97.640s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail
+[97.640s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__rosidl_typesupport_introspection_c.h
+[97.641s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__type_support.c
+[97.641s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__type_support.c
+[97.641s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__type_support.c
+[97.641s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__type_support.c
+[97.641s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__type_support.c
+[97.641s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__type_support.c
+[97.641s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__rosidl_typesupport_introspection_c.h
+[97.641s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__rosidl_typesupport_introspection_c.h
+[97.641s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__rosidl_typesupport_introspection_c.h
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__type_support.c
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__rosidl_typesupport_introspection_c.h
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__rosidl_typesupport_introspection_c.h
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__rosidl_typesupport_introspection_c.h
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__type_support.c
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__type_support.c
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__type_support.c
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__rosidl_typesupport_introspection_c.h
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__rosidl_typesupport_introspection_c.h
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__type_support.c
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__type_support.c
+[97.642s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__rosidl_typesupport_introspection_c.h
+[97.643s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__rosidl_typesupport_introspection_c.h
+[97.643s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__rosidl_typesupport_introspection_c.h
+[97.643s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__rosidl_typesupport_introspection_c.h
+[97.643s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__type_support.c
+[97.643s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_introspection_c.so
+[97.644s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_introspection_c.so" to ""
+[97.644s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_c.so
+[97.645s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_c.so" to ""
+[97.645s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces
+[97.645s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg
+[97.645s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail
+[97.645s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__rosidl_typesupport_introspection_cpp.hpp
+[97.646s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__rosidl_typesupport_introspection_cpp.hpp
+[97.646s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__rosidl_typesupport_introspection_cpp.hpp
+[97.646s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__type_support.cpp
+[97.646s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__rosidl_typesupport_introspection_cpp.hpp
+[97.646s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__type_support.cpp
+[97.646s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/roi__type_support.cpp
+[97.647s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_detect__type_support.cpp
+[97.647s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pose2_d__rosidl_typesupport_introspection_cpp.hpp
+[97.647s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__type_support.cpp
+[97.647s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/point2_d__type_support.cpp
+[97.647s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__rosidl_typesupport_introspection_cpp.hpp
+[97.647s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__type_support.cpp
+[97.647s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/colors_info__rosidl_typesupport_introspection_cpp.hpp
+[97.648s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__type_support.cpp
+[97.648s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/points__rosidl_typesupport_introspection_cpp.hpp
+[97.648s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__rosidl_typesupport_introspection_cpp.hpp
+[97.648s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/objects_info__rosidl_typesupport_introspection_cpp.hpp
+[97.648s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/line_roi__type_support.cpp
+[97.649s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/object_info__rosidl_typesupport_introspection_cpp.hpp
+[97.649s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/pixel_position__type_support.cpp
+[97.649s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/msg/detail/color_info__type_support.cpp
+[97.649s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv
+[97.649s] -- Up-to-date: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail
+[97.649s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__rosidl_typesupport_introspection_cpp.hpp
+[97.649s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__type_support.cpp
+[97.649s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__rosidl_typesupport_introspection_cpp.hpp
+[97.650s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__rosidl_typesupport_introspection_cpp.hpp
+[97.650s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__type_support.cpp
+[97.650s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__type_support.cpp
+[97.650s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__type_support.cpp
+[97.650s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__rosidl_typesupport_introspection_cpp.hpp
+[97.651s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__rosidl_typesupport_introspection_cpp.hpp
+[97.651s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__type_support.cpp
+[97.651s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__rosidl_typesupport_introspection_cpp.hpp
+[97.651s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_point__rosidl_typesupport_introspection_cpp.hpp
+[97.651s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__rosidl_typesupport_introspection_cpp.hpp
+[97.651s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string_list__type_support.cpp
+[97.652s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_rgba__type_support.cpp
+[97.652s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose__rosidl_typesupport_introspection_cpp.hpp
+[97.652s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_int64__type_support.cpp
+[97.652s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_color_detect_param__type_support.cpp
+[97.652s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_line_roi__type_support.cpp
+[97.652s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__rosidl_typesupport_introspection_cpp.hpp
+[97.653s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64_list__rosidl_typesupport_introspection_cpp.hpp
+[97.653s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/get_pose__rosidl_typesupport_introspection_cpp.hpp
+[97.653s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_string__type_support.cpp
+[97.653s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_float64__type_support.cpp
+[97.653s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_pose2_d__rosidl_typesupport_introspection_cpp.hpp
+[97.653s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/include/interfaces/interfaces/srv/detail/set_circle_roi__type_support.cpp
+[97.654s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_introspection_cpp.so
+[97.655s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_introspection_cpp.so" to ""
+[97.655s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_cpp.so
+[97.655s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_typesupport_cpp.so" to ""
+[97.656s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/environment/pythonpath.sh
+[97.656s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/environment/pythonpath.dsv
+[97.656s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces-0.0.0-py3.10.egg-info
+[97.656s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces-0.0.0-py3.10.egg-info/SOURCES.txt
+[97.656s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces-0.0.0-py3.10.egg-info/dependency_links.txt
+[97.657s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces-0.0.0-py3.10.egg-info/top_level.txt
+[97.657s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces-0.0.0-py3.10.egg-info/PKG-INFO
+[97.658s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces
+[97.658s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/_interfaces_s.ep.rosidl_typesupport_c.c
+[97.658s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/interfaces_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so
+[97.658s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg
+[97.658s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_colors_info.py
+[97.658s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_color_info_s.c
+[97.659s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_colors_info_s.c
+[97.659s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_objects_info_s.c
+[97.659s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_roi_s.c
+[97.659s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_pixel_position.py
+[97.659s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_object_info_s.c
+[97.659s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_pixel_position_s.c
+[97.660s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_line_roi.py
+[97.660s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_points_s.c
+[97.660s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_point2_d.py
+[97.661s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_pose2_d_s.c
+[97.661s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_roi.py
+[97.661s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_color_info.py
+[97.661s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_color_detect_s.c
+[97.661s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_pose2_d.py
+[97.661s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_color_detect.py
+[97.661s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_objects_info.py
+[97.662s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_object_info.py
+[97.662s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_points.py
+[97.662s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_line_roi_s.c
+[97.662s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_point2_d_s.c
+[97.662s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/__init__.py
+[97.662s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv
+[97.662s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_pose_s.c
+[97.662s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_color_rgba.py
+[97.663s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_int64_s.c
+[97.663s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_color_rgba_s.c
+[97.663s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_point_s.c
+[97.663s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_get_pose_s.c
+[97.663s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_string_list.py
+[97.663s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_get_pose.py
+[97.663s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_string_s.c
+[97.664s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_float64_list_s.c
+[97.664s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_circle_roi_s.c
+[97.664s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_pose2_d_s.c
+[97.664s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_string.py
+[97.664s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_float64_list.py
+[97.664s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_float64_s.c
+[97.664s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_point.py
+[97.665s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_string_list_s.c
+[97.665s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_pose2_d.py
+[97.665s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_float64.py
+[97.665s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_pose.py
+[97.665s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_color_detect_param_s.c
+[97.665s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_line_roi_s.c
+[97.666s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_circle_roi.py
+[97.666s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_int64.py
+[97.666s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_line_roi.py
+[97.666s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_color_detect_param.py
+[97.666s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/__init__.py
+[97.666s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/interfaces_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so
+[97.667s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/_interfaces_s.ep.rosidl_typesupport_introspection_c.c
+[97.667s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/interfaces_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so
+[97.667s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/_interfaces_s.ep.rosidl_typesupport_fastrtps_c.c
+[97.668s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/libinterfaces__rosidl_generator_py.so
+[97.668s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/__init__.py
+[97.817s] Listing '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces'...
+[97.817s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/__init__.py'...
+[97.817s] Listing '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg'...
+[97.817s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/__init__.py'...
+[97.817s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_color_detect.py'...
+[97.817s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_color_info.py'...
+[97.818s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_colors_info.py'...
+[97.818s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_line_roi.py'...
+[97.818s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_object_info.py'...
+[97.818s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_objects_info.py'...
+[97.818s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_pixel_position.py'...
+[97.818s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_point2_d.py'...
+[97.818s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_points.py'...
+[97.818s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_pose2_d.py'...
+[97.818s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/msg/_roi.py'...
+[97.819s] Listing '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv'...
+[97.819s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/__init__.py'...
+[97.819s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_get_pose.py'...
+[97.819s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_circle_roi.py'...
+[97.819s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_color_detect_param.py'...
+[97.819s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_color_rgba.py'...
+[97.819s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_float64.py'...
+[97.823s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_float64_list.py'...
+[97.823s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_int64.py'...
+[97.823s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_line_roi.py'...
+[97.823s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_point.py'...
+[97.823s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_pose.py'...
+[97.833s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_pose2_d.py'...
+[97.833s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_string.py'...
+[97.833s] Compiling '/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/srv/_set_string_list.py'...
+[97.834s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/interfaces_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so
+[97.835s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/interfaces_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so" to ""
+[97.836s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/interfaces_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so
+[97.837s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/interfaces_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so" to ""
+[97.837s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/interfaces_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so
+[97.838s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/local/lib/python3.10/dist-packages/interfaces/interfaces_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so" to ""
+[97.838s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_generator_py.so
+[97.839s] -- Set runtime path of "/home/ubuntu/test_wro0620/install/interfaces/lib/libinterfaces__rosidl_generator_py.so" to ""
+[97.839s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ColorDetect.idl
+[97.840s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ColorInfo.idl
+[97.841s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ColorsInfo.idl
+[97.841s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/LineROI.idl
+[97.842s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ObjectInfo.idl
+[97.844s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ObjectsInfo.idl
+[97.846s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/PixelPosition.idl
+[97.846s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/Point2D.idl
+[97.847s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/Points.idl
+[97.847s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/Pose2D.idl
+[97.847s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ROI.idl
+[97.848s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/GetPose.idl
+[97.848s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetCircleROI.idl
+[97.849s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetColorDetectParam.idl
+[97.849s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetColorRGBA.idl
+[97.849s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetFloat64List.idl
+[97.850s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetFloat64.idl
+[97.850s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetInt64.idl
+[97.850s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetLineROI.idl
+[97.850s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPoint.idl
+[97.850s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPose2D.idl
+[97.851s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPose.idl
+[97.851s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetStringList.idl
+[97.852s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetString.idl
+[97.852s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ColorDetect.msg
+[97.852s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ColorInfo.msg
+[97.853s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ColorsInfo.msg
+[97.853s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/LineROI.msg
+[97.853s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ObjectInfo.msg
+[97.853s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ObjectsInfo.msg
+[97.854s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/PixelPosition.msg
+[97.854s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/Point2D.msg
+[97.855s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/Points.msg
+[97.855s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/Pose2D.msg
+[97.855s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/msg/ROI.msg
+[97.856s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/GetPose.srv
+[97.856s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/GetPose_Request.msg
+[97.856s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/GetPose_Response.msg
+[97.856s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetCircleROI.srv
+[97.857s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetCircleROI_Request.msg
+[97.857s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetCircleROI_Response.msg
+[97.857s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetColorDetectParam.srv
+[97.857s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetColorDetectParam_Request.msg
+[97.858s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetColorDetectParam_Response.msg
+[97.858s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetColorRGBA.srv
+[97.858s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetColorRGBA_Request.msg
+[97.859s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetColorRGBA_Response.msg
+[97.859s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetFloat64List.srv
+[97.859s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetFloat64List_Request.msg
+[97.860s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetFloat64List_Response.msg
+[97.860s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetFloat64.srv
+[97.860s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetFloat64_Request.msg
+[97.861s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetFloat64_Response.msg
+[97.861s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetInt64.srv
+[97.862s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetInt64_Request.msg
+[97.862s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetInt64_Response.msg
+[97.862s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetLineROI.srv
+[97.863s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetLineROI_Request.msg
+[97.863s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetLineROI_Response.msg
+[97.863s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPoint.srv
+[97.863s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPoint_Request.msg
+[97.864s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPoint_Response.msg
+[97.864s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPose2D.srv
+[97.864s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPose2D_Request.msg
+[97.865s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPose2D_Response.msg
+[97.865s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPose.srv
+[97.865s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPose_Request.msg
+[97.865s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetPose_Response.msg
+[97.866s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetStringList.srv
+[97.866s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetStringList_Request.msg
+[97.866s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetStringList_Response.msg
+[97.868s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetString.srv
+[97.868s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetString_Request.msg
+[97.868s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/srv/SetString_Response.msg
+[97.868s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/mapping_rules.yaml
+[97.868s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/ament_index/resource_index/package_run_dependencies/interfaces
+[97.868s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/ament_index/resource_index/parent_prefix_path/interfaces
+[97.868s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/environment/ament_prefix_path.sh
+[97.868s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/environment/ament_prefix_path.dsv
+[97.868s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/environment/path.sh
+[97.869s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/environment/path.dsv
+[97.869s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/local_setup.bash
+[97.869s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/local_setup.sh
+[97.871s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/local_setup.zsh
+[97.871s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/local_setup.dsv
+[97.871s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/package.dsv
+[97.871s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/ament_index/resource_index/packages/interfaces
+[97.872s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/export_interfaces__rosidl_generator_cExport.cmake
+[97.873s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/export_interfaces__rosidl_generator_cExport-noconfig.cmake
+[97.873s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/export_interfaces__rosidl_typesupport_fastrtps_cExport.cmake
+[97.873s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/export_interfaces__rosidl_typesupport_fastrtps_cExport-noconfig.cmake
+[97.873s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/export_interfaces__rosidl_generator_cppExport.cmake
+[97.874s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/export_interfaces__rosidl_typesupport_fastrtps_cppExport.cmake
+[97.874s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/export_interfaces__rosidl_typesupport_fastrtps_cppExport-noconfig.cmake
+[97.875s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfaces__rosidl_typesupport_introspection_cExport.cmake
+[97.875s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfaces__rosidl_typesupport_introspection_cExport-noconfig.cmake
+[97.875s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfaces__rosidl_typesupport_cExport.cmake
+[97.876s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfaces__rosidl_typesupport_cExport-noconfig.cmake
+[97.876s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfaces__rosidl_typesupport_introspection_cppExport.cmake
+[97.876s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfaces__rosidl_typesupport_introspection_cppExport-noconfig.cmake
+[97.877s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfaces__rosidl_typesupport_cppExport.cmake
+[97.877s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfaces__rosidl_typesupport_cppExport-noconfig.cmake
+[97.878s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/export_interfaces__rosidl_generator_pyExport.cmake
+[97.878s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/export_interfaces__rosidl_generator_pyExport-noconfig.cmake
+[97.878s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/rosidl_cmake-extras.cmake
+[97.878s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/ament_cmake_export_dependencies-extras.cmake
+[97.879s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/ament_cmake_export_include_directories-extras.cmake
+[97.879s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/ament_cmake_export_libraries-extras.cmake
+[97.879s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/ament_cmake_export_targets-extras.cmake
+[97.879s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake
+[97.880s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake
+[97.880s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfacesConfig.cmake
+[97.881s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/cmake/interfacesConfig-version.cmake
+[97.881s] -- Installing: /home/ubuntu/test_wro0620/install/interfaces/share/interfaces/package.xml
+[97.888s] Invoked command in '/home/ubuntu/test_wro0620/build/interfaces' returned '0': CMAKE_PREFIX_PATH=/home/ubuntu/test_wro/install/ros_robot_controller_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/ydlidar_ros2_driver:/home/ubuntu/third_party_ros2/third_party_ws/install/web_video_server:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_local_planner:/home/ubuntu/third_party_ros2/third_party_ws/install/teb_msgs:/home/ubuntu/third_party_ros2/third_party_ws/install/sllidar_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/rf2o_laser_odometry:/home/ubuntu/third_party_ros2/third_party_ws/install/ldlidar_stl_ros2:/home/ubuntu/third_party_ros2/third_party_ws/install/laser_filters:/home/ubuntu/third_party_ros2/third_party_ws/install/imu_calib:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter:/home/ubuntu/third_party_ros2/third_party_ws/install/costmap_converter_msgs:/home/ubuntu/test_wro/install/sdk:/home/ubuntu/test_wro/install/ros_robot_controller:/home/ubuntu/test_wro/install/peripherals:/home/ubuntu/test_wro/install/mentorpi_straight_mover:/home/ubuntu/test_wro/install/controller:/home/ubuntu/ros2_ws/install/yolov5_ros2:/home/ubuntu/ros2_ws/install/slam:/home/ubuntu/ros2_ws/install/sdk:/home/ubuntu/ros2_ws/install/ros_robot_controller:/home/ubuntu/ros2_ws/install/peripherals:/home/ubuntu/ros2_ws/install/navigation:/home/ubuntu/ros2_ws/install/multi:/home/ubuntu/ros2_ws/install/mentorpi_description:/home/ubuntu/ros2_ws/install/example:/home/ubuntu/ros2_ws/install/controller:/home/ubuntu/ros2_ws/install/calibration:/home/ubuntu/ros2_ws/install/bringup:/home/ubuntu/ros2_ws/install/app:/home/ubuntu/hiwonder_ws/install/topic_demo:/home/ubuntu/hiwonder_ws/install/service_demo:/home/ubuntu/hiwonder_ws/install/param_demo:/home/ubuntu/hiwonder_ws/install/hello_world_demo:/home/ubuntu/hiwonder_ws/install/action_demo:/opt/ros/humble:/home/ubuntu/third_party_ros2/third_party_ws/install/async_web_server_cpp:/home/ubuntu/third_party_ros2/third_party_ws/install/ascamera:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_ros:/home/ubuntu/third_party_ros2/third_party_ws/install/apriltag_msgs:/home/ubuntu/ros2_ws/install/ros_robot_controller_msgs:/home/ubuntu/ros2_ws/install/interfaces:/home/ubuntu/hiwonder_ws/install/demo_interfaces /usr/bin/cmake --install /home/ubuntu/test_wro0620/build/interfaces

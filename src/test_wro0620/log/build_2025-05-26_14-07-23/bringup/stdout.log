@@ -1,0 +1,37 @@
+running egg_info
+creating ../../build/bringup/bringup.egg-info
+writing ../../build/bringup/bringup.egg-info/PKG-INFO
+writing dependency_links to ../../build/bringup/bringup.egg-info/dependency_links.txt
+writing entry points to ../../build/bringup/bringup.egg-info/entry_points.txt
+writing requirements to ../../build/bringup/bringup.egg-info/requires.txt
+writing top-level names to ../../build/bringup/bringup.egg-info/top_level.txt
+writing manifest file '../../build/bringup/bringup.egg-info/SOURCES.txt'
+reading manifest file '../../build/bringup/bringup.egg-info/SOURCES.txt'
+writing manifest file '../../build/bringup/bringup.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/ubuntu/test_wro0620/build/bringup/build
+creating /home/ubuntu/test_wro0620/build/bringup/build/lib
+creating /home/ubuntu/test_wro0620/build/bringup/build/lib/bringup
+copying bringup/startup_check.py -> /home/ubuntu/test_wro0620/build/bringup/build/lib/bringup
+copying bringup/__init__.py -> /home/ubuntu/test_wro0620/build/bringup/build/lib/bringup
+running install
+running install_lib
+creating /home/ubuntu/test_wro0620/install/bringup/lib/python3.10/site-packages/bringup
+copying /home/ubuntu/test_wro0620/build/bringup/build/lib/bringup/startup_check.py -> /home/ubuntu/test_wro0620/install/bringup/lib/python3.10/site-packages/bringup
+copying /home/ubuntu/test_wro0620/build/bringup/build/lib/bringup/__init__.py -> /home/ubuntu/test_wro0620/install/bringup/lib/python3.10/site-packages/bringup
+byte-compiling /home/ubuntu/test_wro0620/install/bringup/lib/python3.10/site-packages/bringup/startup_check.py to startup_check.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/bringup/lib/python3.10/site-packages/bringup/__init__.py to __init__.cpython-310.pyc
+running install_data
+creating /home/ubuntu/test_wro0620/install/bringup/share/ament_index
+creating /home/ubuntu/test_wro0620/install/bringup/share/ament_index/resource_index
+creating /home/ubuntu/test_wro0620/install/bringup/share/ament_index/resource_index/packages
+copying resource/bringup -> /home/ubuntu/test_wro0620/install/bringup/share/ament_index/resource_index/packages
+copying package.xml -> /home/ubuntu/test_wro0620/install/bringup/share/bringup
+creating /home/ubuntu/test_wro0620/install/bringup/share/bringup/launch
+copying launch/bringup.launch.py -> /home/ubuntu/test_wro0620/install/bringup/share/bringup/launch
+running install_egg_info
+Copying ../../build/bringup/bringup.egg-info to /home/ubuntu/test_wro0620/install/bringup/lib/python3.10/site-packages/bringup-0.0.0-py3.10.egg-info
+running install_scripts
+Installing startup_check script to /home/ubuntu/test_wro0620/install/bringup/lib/bringup
+writing list of installed files to '/home/ubuntu/test_wro0620/build/bringup/install.log'

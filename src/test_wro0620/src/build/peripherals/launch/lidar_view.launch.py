@@ -1,0 +1,1 @@
+/home/ubuntu/ros2_ws/src/peripherals/launch/lidar_view.launch.py

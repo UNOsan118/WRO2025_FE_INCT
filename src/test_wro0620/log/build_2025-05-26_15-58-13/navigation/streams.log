@@ -1,0 +1,48 @@
+[12.578s] Invoking command in '/home/ubuntu/test_wro0620/src/navigation': PYTHONPATH=/home/ubuntu/test_wro0620/build/navigation/prefix_override:/home/ubuntu/test_wro0620/install/navigation/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/navigation build --build-base /home/ubuntu/test_wro0620/build/navigation/build install --record /home/ubuntu/test_wro0620/build/navigation/install.log --single-version-externally-managed
+[14.134s] running egg_info
+[14.186s] writing ../../build/navigation/navigation.egg-info/PKG-INFO
+[14.187s] writing dependency_links to ../../build/navigation/navigation.egg-info/dependency_links.txt
+[14.193s] writing requirements to ../../build/navigation/navigation.egg-info/requires.txt
+[14.194s] writing top-level names to ../../build/navigation/navigation.egg-info/top_level.txt
+[15.009s] reading manifest file '../../build/navigation/navigation.egg-info/SOURCES.txt'
+[15.017s] writing manifest file '../../build/navigation/navigation.egg-info/SOURCES.txt'
+[15.018s] running build
+[15.018s] running build_py
+[15.025s] copying navigation/__init__.py -> /home/ubuntu/test_wro0620/build/navigation/build/lib/navigation
+[15.041s] running install
+[15.041s] /home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+[15.043s] !!
+[15.043s] 
+[15.043s]         ********************************************************************************
+[15.043s]         Please avoid running ``setup.py`` directly.
+[15.043s]         Instead, use pypa/build, pypa/installer or other
+[15.043s]         standards-based tools.
+[15.043s] 
+[15.043s]         See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+[15.043s]         ********************************************************************************
+[15.044s] 
+[15.044s] !!
+[15.044s]   self.initialize_options()
+[15.085s] running install_lib
+[15.251s] running install_data
+[15.376s] copying resource/navigation -> /home/ubuntu/test_wro0620/install/navigation/share/ament_index/resource_index/packages
+[15.381s] copying package.xml -> /home/ubuntu/test_wro0620/install/navigation/share/navigation
+[15.384s] copying launch/navigation.launch.py -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/launch
+[15.385s] copying launch/rviz_rtabmap_navigation.launch.py -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/launch
+[15.385s] copying launch/rviz_navigation.launch.py -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/launch
+[15.386s] copying launch/rtabmapviz.launch.py -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/launch
+[15.389s] copying launch/rtabmap_navigation.launch.py -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/launch
+[15.389s] copying config/nav2_params.yaml -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/config
+[15.389s] copying config/nav2_controller_teb.yaml -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/config
+[15.392s] copying config/nav2_controller_dwb.yaml -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/config
+[15.393s] copying rviz/navigation_desktop.rviz -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/rviz
+[15.393s] copying rviz/navigation_transport.rviz -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/rviz
+[15.395s] copying rviz/rtabmap.rviz -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/rviz
+[15.396s] copying rviz/rtabmap01.rviz -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/rviz
+[15.397s] copying rviz/navigation.rviz -> /home/ubuntu/test_wro0620/install/navigation/share/navigation/rviz
+[15.397s] running install_egg_info
+[15.551s] removing '/home/ubuntu/test_wro0620/install/navigation/lib/python3.10/site-packages/navigation-0.0.0-py3.10.egg-info' (and everything under it)
+[15.562s] Copying ../../build/navigation/navigation.egg-info to /home/ubuntu/test_wro0620/install/navigation/lib/python3.10/site-packages/navigation-0.0.0-py3.10.egg-info
+[15.581s] running install_scripts
+[15.917s] writing list of installed files to '/home/ubuntu/test_wro0620/build/navigation/install.log'
+[16.482s] Invoked command in '/home/ubuntu/test_wro0620/src/navigation' returned '0': PYTHONPATH=/home/ubuntu/test_wro0620/build/navigation/prefix_override:/home/ubuntu/test_wro0620/install/navigation/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/navigation build --build-base /home/ubuntu/test_wro0620/build/navigation/build install --record /home/ubuntu/test_wro0620/build/navigation/install.log --single-version-externally-managed

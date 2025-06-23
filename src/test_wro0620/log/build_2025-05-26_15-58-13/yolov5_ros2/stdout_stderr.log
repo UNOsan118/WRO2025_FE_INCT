@@ -1,0 +1,46 @@
+running egg_info
+writing ../../build/yolov5_ros2/yolov5_ros2.egg-info/PKG-INFO
+writing dependency_links to ../../build/yolov5_ros2/yolov5_ros2.egg-info/dependency_links.txt
+writing entry points to ../../build/yolov5_ros2/yolov5_ros2.egg-info/entry_points.txt
+writing requirements to ../../build/yolov5_ros2/yolov5_ros2.egg-info/requires.txt
+writing top-level names to ../../build/yolov5_ros2/yolov5_ros2.egg-info/top_level.txt
+reading manifest file '../../build/yolov5_ros2/yolov5_ros2.egg-info/SOURCES.txt'
+writing manifest file '../../build/yolov5_ros2/yolov5_ros2.egg-info/SOURCES.txt'
+running build
+running build_py
+copying yolov5_ros2/cv_tool.py -> /home/ubuntu/test_wro0620/build/yolov5_ros2/build/lib/yolov5_ros2
+copying yolov5_ros2/fps.py -> /home/ubuntu/test_wro0620/build/yolov5_ros2/build/lib/yolov5_ros2
+copying yolov5_ros2/yolo_detect.py -> /home/ubuntu/test_wro0620/build/yolov5_ros2/build/lib/yolov5_ros2
+copying yolov5_ros2/__init__.py -> /home/ubuntu/test_wro0620/build/yolov5_ros2/build/lib/yolov5_ros2
+running install
+/home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` directly.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+        ********************************************************************************
+
+!!
+  self.initialize_options()
+running install_lib
+running install_data
+copying package.xml -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2
+copying launch/yolov5_ros2.launch.py -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2/launch
+copying config/traffic_signs_640s_7_0.pt -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2/config
+copying config/camera_info.yaml -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2/config
+copying config/yolov5s.pt -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2/config
+copying config/best.pt -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2/config
+copying config/garbage_classification.pt -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2/config
+copying resource/mouse.png -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2/resource
+copying resource/yolov5_ros2 -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2/resource
+copying resource/fish.jpg -> /home/ubuntu/test_wro0620/install/yolov5_ros2/share/yolov5_ros2/resource
+running install_egg_info
+removing '/home/ubuntu/test_wro0620/install/yolov5_ros2/lib/python3.10/site-packages/yolov5_ros2-0.0.0-py3.10.egg-info' (and everything under it)
+Copying ../../build/yolov5_ros2/yolov5_ros2.egg-info to /home/ubuntu/test_wro0620/install/yolov5_ros2/lib/python3.10/site-packages/yolov5_ros2-0.0.0-py3.10.egg-info
+running install_scripts
+Installing yolo_detect script to /home/ubuntu/test_wro0620/install/yolov5_ros2/lib/yolov5_ros2
+writing list of installed files to '/home/ubuntu/test_wro0620/build/yolov5_ros2/install.log'

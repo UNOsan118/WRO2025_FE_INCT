@@ -1,0 +1,62 @@
+[2.180s] Invoking command in '/home/ubuntu/test_wro0620/src/mentorpi_straight_mover': PYTHONPATH=/home/ubuntu/test_wro0620/build/mentorpi_straight_mover/prefix_override:/home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/mentorpi_straight_mover build --build-base /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build install --record /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/install.log --single-version-externally-managed
+[2.601s] running egg_info
+[2.601s] creating ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info
+[2.620s] writing ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/PKG-INFO
+[2.622s] writing dependency_links to ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/dependency_links.txt
+[2.622s] writing entry points to ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/entry_points.txt
+[2.622s] writing requirements to ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/requires.txt
+[2.622s] writing top-level names to ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/top_level.txt
+[2.791s] writing manifest file '../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/SOURCES.txt'
+[2.833s] reading manifest file '../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/SOURCES.txt'
+[2.834s] writing manifest file '../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/SOURCES.txt'
+[2.834s] running build
+[2.834s] running build_py
+[2.835s] creating /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build
+[2.835s] creating /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib
+[2.835s] creating /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+[2.835s] copying mentorpi_straight_mover/stop_robot_node.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+[2.835s] copying mentorpi_straight_mover/yaw_controller_node.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+[2.835s] copying mentorpi_straight_mover/imu_subscriber_node.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+[2.836s] /home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+[2.837s] !!
+[2.837s] 
+[2.837s]         ********************************************************************************
+[2.837s]         Please avoid running ``setup.py`` directly.
+[2.837s]         Instead, use pypa/build, pypa/installer or other
+[2.837s]         standards-based tools.
+[2.837s] 
+[2.837s]         See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+[2.837s]         ********************************************************************************
+[2.837s] 
+[2.837s] !!
+[2.837s]   self.initialize_options()
+[2.841s] copying mentorpi_straight_mover/straight_mover_node.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+[2.841s] copying mentorpi_straight_mover/__init__.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+[2.841s] running install
+[2.846s] running install_lib
+[2.877s] creating /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+[2.877s] copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/stop_robot_node.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+[2.877s] copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/yaw_controller_node.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+[2.877s] copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/imu_subscriber_node.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+[2.877s] copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/straight_mover_node.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+[2.877s] copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/__init__.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+[2.879s] byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/stop_robot_node.py to stop_robot_node.cpython-310.pyc
+[2.879s] byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/yaw_controller_node.py to yaw_controller_node.cpython-310.pyc
+[2.880s] byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/imu_subscriber_node.py to imu_subscriber_node.cpython-310.pyc
+[2.881s] byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/straight_mover_node.py to straight_mover_node.cpython-310.pyc
+[2.881s] byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/__init__.py to __init__.cpython-310.pyc
+[2.882s] running install_data
+[2.905s] creating /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/ament_index
+[2.905s] creating /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/ament_index/resource_index
+[2.905s] creating /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/ament_index/resource_index/packages
+[2.905s] copying resource/mentorpi_straight_mover -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/ament_index/resource_index/packages
+[2.905s] copying package.xml -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/mentorpi_straight_mover
+[2.905s] running install_egg_info
+[2.928s] Copying ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover-0.0.0-py3.10.egg-info
+[2.930s] running install_scripts
+[2.995s] Installing imu_subscriber script to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/mentorpi_straight_mover
+[2.996s] Installing robot_movement_tester script to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/mentorpi_straight_mover
+[2.997s] Installing stop_robot script to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/mentorpi_straight_mover
+[2.997s] Installing yaw_controller script to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/mentorpi_straight_mover
+[2.997s] writing list of installed files to '/home/ubuntu/test_wro0620/build/mentorpi_straight_mover/install.log'
+[3.083s] Invoked command in '/home/ubuntu/test_wro0620/src/mentorpi_straight_mover' returned '0': PYTHONPATH=/home/ubuntu/test_wro0620/build/mentorpi_straight_mover/prefix_override:/home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/mentorpi_straight_mover build --build-base /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build install --record /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/install.log --single-version-externally-managed

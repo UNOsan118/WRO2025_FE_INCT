@@ -1,0 +1,57 @@
+[8.191s] Invoking command in '/home/ubuntu/test_wro0620/src/driver/sdk': PYTHONPATH=/home/ubuntu/test_wro0620/build/sdk/prefix_override:/home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../../build/sdk build --build-base /home/ubuntu/test_wro0620/build/sdk/build install --record /home/ubuntu/test_wro0620/build/sdk/install.log --single-version-externally-managed
+[10.373s] running egg_info
+[10.386s] creating ../../../build/sdk/sdk.egg-info
+[10.552s] writing ../../../build/sdk/sdk.egg-info/PKG-INFO
+[10.558s] writing dependency_links to ../../../build/sdk/sdk.egg-info/dependency_links.txt
+[10.558s] writing requirements to ../../../build/sdk/sdk.egg-info/requires.txt
+[10.558s] writing top-level names to ../../../build/sdk/sdk.egg-info/top_level.txt
+[11.497s] writing manifest file '../../../build/sdk/sdk.egg-info/SOURCES.txt'
+[11.780s] reading manifest file '../../../build/sdk/sdk.egg-info/SOURCES.txt'
+[11.788s] writing manifest file '../../../build/sdk/sdk.egg-info/SOURCES.txt'
+[11.788s] running build
+[11.789s] running build_py
+[11.789s] creating /home/ubuntu/test_wro0620/build/sdk/build
+[11.789s] creating /home/ubuntu/test_wro0620/build/sdk/build/lib
+[11.789s] creating /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk
+[11.789s] copying sdk/common.py -> /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk
+[11.791s] copying sdk/led.py -> /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk
+[11.791s] copying sdk/pid.py -> /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk
+[11.791s] copying sdk/fps.py -> /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk
+[11.792s] copying sdk/__init__.py -> /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk
+[11.800s] running install
+[11.800s] /home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+[11.800s] !!
+[11.801s] 
+[11.801s]         ********************************************************************************
+[11.801s]         Please avoid running ``setup.py`` directly.
+[11.801s]         Instead, use pypa/build, pypa/installer or other
+[11.801s]         standards-based tools.
+[11.801s] 
+[11.801s]         See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+[11.801s]         ********************************************************************************
+[11.801s] 
+[11.801s] !!
+[11.801s]   self.initialize_options()
+[11.835s] running install_lib
+[11.975s] creating /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk
+[11.979s] copying /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk/common.py -> /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk
+[11.979s] copying /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk/led.py -> /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk
+[11.979s] copying /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk/pid.py -> /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk
+[11.979s] copying /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk/fps.py -> /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk
+[11.979s] copying /home/ubuntu/test_wro0620/build/sdk/build/lib/sdk/__init__.py -> /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk
+[11.983s] byte-compiling /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk/common.py to common.cpython-310.pyc
+[11.992s] byte-compiling /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk/led.py to led.cpython-310.pyc
+[11.999s] byte-compiling /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk/pid.py to pid.cpython-310.pyc
+[12.004s] byte-compiling /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk/fps.py to fps.cpython-310.pyc
+[12.013s] byte-compiling /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk/__init__.py to __init__.cpython-310.pyc
+[12.019s] running install_data
+[12.174s] creating /home/ubuntu/test_wro0620/install/sdk/share/ament_index
+[12.178s] creating /home/ubuntu/test_wro0620/install/sdk/share/ament_index/resource_index
+[12.182s] creating /home/ubuntu/test_wro0620/install/sdk/share/ament_index/resource_index/packages
+[12.182s] copying resource/sdk -> /home/ubuntu/test_wro0620/install/sdk/share/ament_index/resource_index/packages
+[12.182s] copying package.xml -> /home/ubuntu/test_wro0620/install/sdk/share/sdk
+[12.182s] running install_egg_info
+[12.368s] Copying ../../../build/sdk/sdk.egg-info to /home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages/sdk-0.0.0-py3.10.egg-info
+[12.376s] running install_scripts
+[12.865s] writing list of installed files to '/home/ubuntu/test_wro0620/build/sdk/install.log'
+[14.797s] Invoked command in '/home/ubuntu/test_wro0620/src/driver/sdk' returned '0': PYTHONPATH=/home/ubuntu/test_wro0620/build/sdk/prefix_override:/home/ubuntu/test_wro0620/install/sdk/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../../build/sdk build --build-base /home/ubuntu/test_wro0620/build/sdk/build install --record /home/ubuntu/test_wro0620/build/sdk/install.log --single-version-externally-managed

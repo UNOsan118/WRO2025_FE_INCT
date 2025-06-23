@@ -1,0 +1,64 @@
+[5.049s] Invoking command in '/home/ubuntu/test_wro0620/src/app': PYTHONPATH=/home/ubuntu/test_wro0620/build/app/prefix_override:/home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/app build --build-base /home/ubuntu/test_wro0620/build/app/build install --record /home/ubuntu/test_wro0620/build/app/install.log --single-version-externally-managed
+[5.750s] running egg_info
+[5.777s] writing ../../build/app/app.egg-info/PKG-INFO
+[5.778s] writing dependency_links to ../../build/app/app.egg-info/dependency_links.txt
+[5.778s] writing entry points to ../../build/app/app.egg-info/entry_points.txt
+[5.778s] writing requirements to ../../build/app/app.egg-info/requires.txt
+[5.779s] writing top-level names to ../../build/app/app.egg-info/top_level.txt
+[6.202s] reading manifest file '../../build/app/app.egg-info/SOURCES.txt'
+[6.206s] writing manifest file '../../build/app/app.egg-info/SOURCES.txt'
+[6.207s] running build
+[6.207s] running build_py
+[6.210s] copying app/ar_app.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.210s] copying app/object_tracking.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.210s] copying app/hand_gesture.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.211s] copying app/common.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.211s] copying app/line_following.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.211s] copying app/obj_loader.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.211s] copying app/hand_trajectory_node.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.215s] copying app/lidar_controller.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.216s] copying app/__init__.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.216s] running install
+[6.216s] /home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+[6.216s] !!
+[6.216s] 
+[6.216s]         ********************************************************************************
+[6.216s]         Please avoid running ``setup.py`` directly.
+[6.216s]         Instead, use pypa/build, pypa/installer or other
+[6.217s]         standards-based tools.
+[6.217s] 
+[6.217s]         See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+[6.217s]         ********************************************************************************
+[6.218s] 
+[6.218s] !!
+[6.218s]   self.initialize_options()
+[6.234s] running install_lib
+[6.294s] running install_data
+[6.354s] copying resource/app -> /home/ubuntu/test_wro0620/install/app/share/ament_index/resource_index/packages
+[6.354s] copying package.xml -> /home/ubuntu/test_wro0620/install/app/share/app
+[6.354s] copying launch/line_following_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[6.355s] copying launch/ar_app_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[6.355s] copying launch/hand_gesture_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[6.356s] copying launch/object_tracking_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[6.358s] copying launch/start_app.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[6.358s] copying launch/lidar_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[6.359s] copying models/rat.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[6.359s] copying models/wolf.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[6.362s] copying models/cow.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[6.362s] copying models/fox.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[6.362s] copying models/pirate-ship-fat.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[6.363s] copying models/model.jpg -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[6.367s] copying models/bicycle.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[6.367s] copying models/chair.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[6.369s] running install_egg_info
+[6.445s] removing '/home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app-0.0.0-py3.10.egg-info' (and everything under it)
+[6.449s] Copying ../../build/app/app.egg-info to /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app-0.0.0-py3.10.egg-info
+[6.450s] running install_scripts
+[6.591s] Installing ar_app script to /home/ubuntu/test_wro0620/install/app/lib/app
+[6.592s] Installing hand_gesture script to /home/ubuntu/test_wro0620/install/app/lib/app
+[6.611s] Installing hand_trajectory script to /home/ubuntu/test_wro0620/install/app/lib/app
+[6.611s] Installing lidar_controller script to /home/ubuntu/test_wro0620/install/app/lib/app
+[6.611s] Installing line_following script to /home/ubuntu/test_wro0620/install/app/lib/app
+[6.612s] Installing object_tracking script to /home/ubuntu/test_wro0620/install/app/lib/app
+[6.612s] writing list of installed files to '/home/ubuntu/test_wro0620/build/app/install.log'
+[7.605s] Invoked command in '/home/ubuntu/test_wro0620/src/app' returned '0': PYTHONPATH=/home/ubuntu/test_wro0620/build/app/prefix_override:/home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/app build --build-base /home/ubuntu/test_wro0620/build/app/build install --record /home/ubuntu/test_wro0620/build/app/install.log --single-version-externally-managed

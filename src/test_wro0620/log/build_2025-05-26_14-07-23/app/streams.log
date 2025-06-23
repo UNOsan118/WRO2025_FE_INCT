@@ -1,0 +1,92 @@
+[5.186s] Invoking command in '/home/ubuntu/test_wro0620/src/app': PYTHONPATH=/home/ubuntu/test_wro0620/build/app/prefix_override:/home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/app build --build-base /home/ubuntu/test_wro0620/build/app/build install --record /home/ubuntu/test_wro0620/build/app/install.log --single-version-externally-managed
+[6.219s] running egg_info
+[6.219s] creating ../../build/app/app.egg-info
+[6.249s] writing ../../build/app/app.egg-info/PKG-INFO
+[6.251s] writing dependency_links to ../../build/app/app.egg-info/dependency_links.txt
+[6.251s] writing entry points to ../../build/app/app.egg-info/entry_points.txt
+[6.252s] writing requirements to ../../build/app/app.egg-info/requires.txt
+[6.252s] writing top-level names to ../../build/app/app.egg-info/top_level.txt
+[6.719s] writing manifest file '../../build/app/app.egg-info/SOURCES.txt'
+[6.804s] reading manifest file '../../build/app/app.egg-info/SOURCES.txt'
+[6.805s] writing manifest file '../../build/app/app.egg-info/SOURCES.txt'
+[6.806s] running build
+[6.808s] running build_py
+[6.808s] creating /home/ubuntu/test_wro0620/build/app/build
+[6.809s] creating /home/ubuntu/test_wro0620/build/app/build/lib
+[6.810s] creating /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.811s] copying app/ar_app.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.812s] copying app/object_tracking.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.813s] copying app/hand_gesture.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.815s] copying app/common.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.815s] copying app/line_following.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.816s] copying app/obj_loader.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.818s] copying app/hand_trajectory_node.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.818s] copying app/lidar_controller.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.819s] copying app/__init__.py -> /home/ubuntu/test_wro0620/build/app/build/lib/app
+[6.822s] running install
+[6.824s] /home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+[6.824s] !!
+[6.824s] 
+[6.824s]         ********************************************************************************
+[6.825s]         Please avoid running ``setup.py`` directly.
+[6.825s]         Instead, use pypa/build, pypa/installer or other
+[6.825s]         standards-based tools.
+[6.825s] 
+[6.825s]         See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+[6.827s]         ********************************************************************************
+[6.827s] 
+[6.827s] !!
+[6.827s]   self.initialize_options()
+[6.836s] running install_lib
+[6.864s] creating /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.866s] copying /home/ubuntu/test_wro0620/build/app/build/lib/app/ar_app.py -> /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.867s] copying /home/ubuntu/test_wro0620/build/app/build/lib/app/object_tracking.py -> /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.868s] copying /home/ubuntu/test_wro0620/build/app/build/lib/app/hand_gesture.py -> /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.869s] copying /home/ubuntu/test_wro0620/build/app/build/lib/app/common.py -> /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.869s] copying /home/ubuntu/test_wro0620/build/app/build/lib/app/line_following.py -> /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.870s] copying /home/ubuntu/test_wro0620/build/app/build/lib/app/obj_loader.py -> /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.870s] copying /home/ubuntu/test_wro0620/build/app/build/lib/app/hand_trajectory_node.py -> /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.871s] copying /home/ubuntu/test_wro0620/build/app/build/lib/app/lidar_controller.py -> /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.872s] copying /home/ubuntu/test_wro0620/build/app/build/lib/app/__init__.py -> /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app
+[6.876s] byte-compiling /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app/ar_app.py to ar_app.cpython-310.pyc
+[6.880s] byte-compiling /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app/object_tracking.py to object_tracking.cpython-310.pyc
+[6.885s] byte-compiling /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app/hand_gesture.py to hand_gesture.cpython-310.pyc
+[6.891s] byte-compiling /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app/common.py to common.cpython-310.pyc
+[6.897s] byte-compiling /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app/line_following.py to line_following.cpython-310.pyc
+[6.907s] byte-compiling /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app/obj_loader.py to obj_loader.cpython-310.pyc
+[6.907s] byte-compiling /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app/hand_trajectory_node.py to hand_trajectory_node.cpython-310.pyc
+[6.914s] byte-compiling /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app/lidar_controller.py to lidar_controller.cpython-310.pyc
+[6.921s] byte-compiling /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app/__init__.py to __init__.cpython-310.pyc
+[6.922s] running install_data
+[6.997s] creating /home/ubuntu/test_wro0620/install/app/share/ament_index
+[6.999s] creating /home/ubuntu/test_wro0620/install/app/share/ament_index/resource_index
+[7.000s] creating /home/ubuntu/test_wro0620/install/app/share/ament_index/resource_index/packages
+[7.000s] copying resource/app -> /home/ubuntu/test_wro0620/install/app/share/ament_index/resource_index/packages
+[7.001s] copying package.xml -> /home/ubuntu/test_wro0620/install/app/share/app
+[7.001s] creating /home/ubuntu/test_wro0620/install/app/share/app/launch
+[7.001s] copying launch/line_following_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[7.001s] copying launch/ar_app_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[7.001s] copying launch/hand_gesture_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[7.005s] copying launch/object_tracking_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[7.005s] copying launch/start_app.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[7.005s] copying launch/lidar_node.launch.py -> /home/ubuntu/test_wro0620/install/app/share/app/launch
+[7.006s] creating /home/ubuntu/test_wro0620/install/app/share/app/models
+[7.006s] copying models/rat.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[7.007s] copying models/wolf.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[7.007s] copying models/cow.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[7.007s] copying models/fox.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[7.007s] copying models/pirate-ship-fat.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[7.007s] copying models/model.jpg -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[7.007s] copying models/bicycle.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[7.007s] copying models/chair.obj -> /home/ubuntu/test_wro0620/install/app/share/app/models
+[7.008s] running install_egg_info
+[7.060s] Copying ../../build/app/app.egg-info to /home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages/app-0.0.0-py3.10.egg-info
+[7.060s] running install_scripts
+[7.174s] Installing ar_app script to /home/ubuntu/test_wro0620/install/app/lib/app
+[7.174s] Installing hand_gesture script to /home/ubuntu/test_wro0620/install/app/lib/app
+[7.174s] Installing hand_trajectory script to /home/ubuntu/test_wro0620/install/app/lib/app
+[7.175s] Installing lidar_controller script to /home/ubuntu/test_wro0620/install/app/lib/app
+[7.175s] Installing line_following script to /home/ubuntu/test_wro0620/install/app/lib/app
+[7.176s] Installing object_tracking script to /home/ubuntu/test_wro0620/install/app/lib/app
+[7.177s] writing list of installed files to '/home/ubuntu/test_wro0620/build/app/install.log'
+[7.353s] Invoked command in '/home/ubuntu/test_wro0620/src/app' returned '0': PYTHONPATH=/home/ubuntu/test_wro0620/build/app/prefix_override:/home/ubuntu/test_wro0620/install/app/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/app build --build-base /home/ubuntu/test_wro0620/build/app/build install --record /home/ubuntu/test_wro0620/build/app/install.log --single-version-externally-managed

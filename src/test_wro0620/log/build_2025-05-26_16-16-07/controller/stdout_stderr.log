@@ -1,0 +1,50 @@
+running egg_info
+writing ../../../build/controller/controller.egg-info/PKG-INFO
+writing dependency_links to ../../../build/controller/controller.egg-info/dependency_links.txt
+writing entry points to ../../../build/controller/controller.egg-info/entry_points.txt
+writing requirements to ../../../build/controller/controller.egg-info/requires.txt
+writing top-level names to ../../../build/controller/controller.egg-info/top_level.txt
+reading manifest file '../../../build/controller/controller.egg-info/SOURCES.txt'
+writing manifest file '../../../build/controller/controller.egg-info/SOURCES.txt'
+running build
+running build_py
+/home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` directly.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+        ********************************************************************************
+
+!!
+  self.initialize_options()
+copying controller/init_pose.py -> /home/ubuntu/test_wro0620/build/controller/build/lib/controller
+copying controller/mecanum.py -> /home/ubuntu/test_wro0620/build/controller/build/lib/controller
+copying controller/ackermann_original.py -> /home/ubuntu/test_wro0620/build/controller/build/lib/controller
+copying controller/ackermann.py -> /home/ubuntu/test_wro0620/build/controller/build/lib/controller
+copying controller/odom_publisher_node.py -> /home/ubuntu/test_wro0620/build/controller/build/lib/controller
+copying controller/__init__.py -> /home/ubuntu/test_wro0620/build/controller/build/lib/controller
+running install
+running install_lib
+copying /home/ubuntu/test_wro0620/build/controller/build/lib/controller/odom_publisher_node.py -> /home/ubuntu/test_wro0620/install/controller/lib/python3.10/site-packages/controller
+byte-compiling /home/ubuntu/test_wro0620/install/controller/lib/python3.10/site-packages/controller/odom_publisher_node.py to odom_publisher_node.cpython-310.pyc
+running install_data
+copying resource/controller -> /home/ubuntu/test_wro0620/install/controller/share/ament_index/resource_index/packages
+copying package.xml -> /home/ubuntu/test_wro0620/install/controller/share/controller
+copying launch/init_pose.launch.py -> /home/ubuntu/test_wro0620/install/controller/share/controller/launch
+copying launch/controller.launch.py -> /home/ubuntu/test_wro0620/install/controller/share/controller/launch
+copying launch/odom_publisher.launch.py -> /home/ubuntu/test_wro0620/install/controller/share/controller/launch
+copying launch/rf2o_laser_odometry.launch.py -> /home/ubuntu/test_wro0620/install/controller/share/controller/launch
+copying config/calibrate_params.yaml -> /home/ubuntu/test_wro0620/install/controller/share/controller/config
+copying config/ekf.yaml -> /home/ubuntu/test_wro0620/install/controller/share/controller/config
+copying config/init_pose.yaml -> /home/ubuntu/test_wro0620/install/controller/share/controller/config
+running install_egg_info
+removing '/home/ubuntu/test_wro0620/install/controller/lib/python3.10/site-packages/controller-0.0.0-py3.10.egg-info' (and everything under it)
+Copying ../../../build/controller/controller.egg-info to /home/ubuntu/test_wro0620/install/controller/lib/python3.10/site-packages/controller-0.0.0-py3.10.egg-info
+running install_scripts
+Installing init_pose script to /home/ubuntu/test_wro0620/install/controller/lib/controller
+Installing odom_publisher script to /home/ubuntu/test_wro0620/install/controller/lib/controller
+writing list of installed files to '/home/ubuntu/test_wro0620/build/controller/install.log'

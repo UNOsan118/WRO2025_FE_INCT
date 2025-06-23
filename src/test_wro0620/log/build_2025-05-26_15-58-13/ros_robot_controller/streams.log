@@ -1,0 +1,40 @@
+[11.035s] Invoking command in '/home/ubuntu/test_wro0620/src/driver/ros_robot_controller': PYTHONPATH=/home/ubuntu/test_wro0620/build/ros_robot_controller/prefix_override:/home/ubuntu/test_wro0620/install/ros_robot_controller/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../../build/ros_robot_controller build --build-base /home/ubuntu/test_wro0620/build/ros_robot_controller/build install --record /home/ubuntu/test_wro0620/build/ros_robot_controller/install.log --single-version-externally-managed
+[12.248s] running egg_info
+[12.312s] writing ../../../build/ros_robot_controller/ros_robot_controller.egg-info/PKG-INFO
+[12.317s] writing dependency_links to ../../../build/ros_robot_controller/ros_robot_controller.egg-info/dependency_links.txt
+[12.317s] writing entry points to ../../../build/ros_robot_controller/ros_robot_controller.egg-info/entry_points.txt
+[12.317s] writing requirements to ../../../build/ros_robot_controller/ros_robot_controller.egg-info/requires.txt
+[12.333s] writing top-level names to ../../../build/ros_robot_controller/ros_robot_controller.egg-info/top_level.txt
+[13.510s] reading manifest file '../../../build/ros_robot_controller/ros_robot_controller.egg-info/SOURCES.txt'
+[13.510s] writing manifest file '../../../build/ros_robot_controller/ros_robot_controller.egg-info/SOURCES.txt'
+[13.510s] running build
+[13.510s] running build_py
+[13.511s] copying ros_robot_controller/ros_robot_controller_sdk.py -> /home/ubuntu/test_wro0620/build/ros_robot_controller/build/lib/ros_robot_controller
+[13.511s] copying ros_robot_controller/ros_robot_controller_node.py -> /home/ubuntu/test_wro0620/build/ros_robot_controller/build/lib/ros_robot_controller
+[13.511s] copying ros_robot_controller/__init__.py -> /home/ubuntu/test_wro0620/build/ros_robot_controller/build/lib/ros_robot_controller
+[13.511s] running install
+[13.515s] /home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+[13.515s] !!
+[13.516s] 
+[13.516s]         ********************************************************************************
+[13.516s]         Please avoid running ``setup.py`` directly.
+[13.516s]         Instead, use pypa/build, pypa/installer or other
+[13.516s]         standards-based tools.
+[13.516s] 
+[13.516s]         See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+[13.516s]         ********************************************************************************
+[13.516s] 
+[13.516s] !!
+[13.516s]   self.initialize_options()
+[13.538s] running install_lib
+[13.671s] running install_data
+[13.752s] copying resource/ros_robot_controller -> /home/ubuntu/test_wro0620/install/ros_robot_controller/share/ament_index/resource_index/packages
+[13.764s] copying package.xml -> /home/ubuntu/test_wro0620/install/ros_robot_controller/share/ros_robot_controller
+[13.764s] copying launch/ros_robot_controller.launch.py -> /home/ubuntu/test_wro0620/install/ros_robot_controller/share/ros_robot_controller/launch
+[13.764s] running install_egg_info
+[13.855s] removing '/home/ubuntu/test_wro0620/install/ros_robot_controller/lib/python3.10/site-packages/ros_robot_controller-0.0.0-py3.10.egg-info' (and everything under it)
+[13.855s] Copying ../../../build/ros_robot_controller/ros_robot_controller.egg-info to /home/ubuntu/test_wro0620/install/ros_robot_controller/lib/python3.10/site-packages/ros_robot_controller-0.0.0-py3.10.egg-info
+[13.859s] running install_scripts
+[14.187s] Installing ros_robot_controller script to /home/ubuntu/test_wro0620/install/ros_robot_controller/lib/ros_robot_controller
+[14.199s] writing list of installed files to '/home/ubuntu/test_wro0620/build/ros_robot_controller/install.log'
+[15.505s] Invoked command in '/home/ubuntu/test_wro0620/src/driver/ros_robot_controller' returned '0': PYTHONPATH=/home/ubuntu/test_wro0620/build/ros_robot_controller/prefix_override:/home/ubuntu/test_wro0620/install/ros_robot_controller/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../../build/ros_robot_controller build --build-base /home/ubuntu/test_wro0620/build/ros_robot_controller/build install --record /home/ubuntu/test_wro0620/build/ros_robot_controller/install.log --single-version-externally-managed

@@ -1,0 +1,82 @@
+[8.236s] Invoking command in '/home/ubuntu/test_wro0620/src/example': PYTHONPATH=/home/ubuntu/test_wro0620/build/example/prefix_override:/home/ubuntu/test_wro0620/install/example/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/example build --build-base /home/ubuntu/test_wro0620/build/example/build install --record /home/ubuntu/test_wro0620/build/example/install.log --single-version-externally-managed
+[9.759s] running egg_info
+[9.839s] writing ../../build/example/example.egg-info/PKG-INFO
+[9.845s] writing dependency_links to ../../build/example/example.egg-info/dependency_links.txt
+[9.845s] writing entry points to ../../build/example/example.egg-info/entry_points.txt
+[9.855s] writing requirements to ../../build/example/example.egg-info/requires.txt
+[9.855s] writing top-level names to ../../build/example/example.egg-info/top_level.txt
+[10.547s] reading manifest file '../../build/example/example.egg-info/SOURCES.txt'
+[10.548s] writing manifest file '../../build/example/example.egg-info/SOURCES.txt'
+[10.548s] running build
+[10.548s] running build_py
+[10.552s] copying example/__init__.py -> /home/ubuntu/test_wro0620/build/example/build/lib/example
+[10.554s] /home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+[10.554s] !!
+[10.554s] 
+[10.554s]         ********************************************************************************
+[10.554s]         Please avoid running ``setup.py`` directly.
+[10.554s]         Instead, use pypa/build, pypa/installer or other
+[10.555s]         standards-based tools.
+[10.555s] 
+[10.555s]         See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+[10.555s]         ********************************************************************************
+[10.555s] 
+[10.555s] !!
+[10.555s]   self.initialize_options()
+[10.555s] running install
+[10.591s] running install_lib
+[10.622s] running install_data
+[10.687s] copying resource/example -> /home/ubuntu/test_wro0620/install/example/share/ament_index/resource_index/packages
+[10.695s] copying package.xml -> /home/ubuntu/test_wro0620/install/example/share/example
+[10.695s] copying example/color_detect/color_detect_node.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.695s] copying example/color_track/color_track_node.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.695s] copying example/hand_trajectory/finger_control.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.695s] copying example/hand_trajectory/hand_trajectory_node.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.695s] copying example/self_driving/self_driving.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.695s] copying example/hand_track/hand_track_node.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.695s] copying example/color_sorting/color_sorting_node.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.696s] copying example/hand_gesture_control/hand_gesture_control_node.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.696s] copying example/body_control/body_control.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.696s] copying example/body_control/body_track.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.696s] copying example/body_control/fall_down_detect.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.697s] copying example/body_control/body_and_rgb_control.launch.py -> /home/ubuntu/test_wro0620/install/example/share/example/launch
+[10.698s] copying config/color_sorting_roi.yaml -> /home/ubuntu/test_wro0620/install/example/share/example/config
+[10.700s] copying config/garbage_classification_roi.yaml -> /home/ubuntu/test_wro0620/install/example/share/example/config
+[10.702s] copying config/bridge_plane_distance.yaml -> /home/ubuntu/test_wro0620/install/example/share/example/config
+[10.711s] copying config/roi.yaml -> /home/ubuntu/test_wro0620/install/example/share/example/config
+[10.711s] copying config/line_follow_clean_roi.yaml -> /home/ubuntu/test_wro0620/install/example/share/example/config
+[10.711s] copying config/plane_distance.yaml -> /home/ubuntu/test_wro0620/install/example/share/example/config
+[10.711s] copying config/automatic_pick_roi.yaml -> /home/ubuntu/test_wro0620/install/example/share/example/config
+[10.711s] copying config/object_classification_plane_distance.yaml -> /home/ubuntu/test_wro0620/install/example/share/example/config
+[10.711s] copying resource/flag.dae -> /home/ubuntu/test_wro0620/install/example/share/example/resource
+[10.711s] running install_egg_info
+[10.789s] removing '/home/ubuntu/test_wro0620/install/example/lib/python3.10/site-packages/example-0.0.0-py3.10.egg-info' (and everything under it)
+[10.797s] Copying ../../build/example/example.egg-info to /home/ubuntu/test_wro0620/install/example/lib/python3.10/site-packages/example-0.0.0-py3.10.egg-info
+[10.800s] running install_scripts
+[10.991s] Installing automatic_pick script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.991s] Installing body_and_rgb_control script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.991s] Installing body_control script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.991s] Installing body_track script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.991s] Installing color_detect script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.991s] Installing color_sorting script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.991s] Installing color_track script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing cross_bridge script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing fall_down_detect script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing finger_control script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing garbage_classification script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing hand_detect script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing hand_gesture_control script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing hand_track script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing hand_trajectory script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing line_follow_clean script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.992s] Installing navigation_transport script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.993s] Installing object_classification script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.994s] Installing prevent_falling script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.994s] Installing self_driving script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.994s] Installing track_and_grab script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.995s] Installing track_object script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.999s] Installing vc_object_classification script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.999s] Installing vc_track_and_grab script to /home/ubuntu/test_wro0620/install/example/lib/example
+[10.999s] Installing yolov5_node script to /home/ubuntu/test_wro0620/install/example/lib/example
+[11.007s] writing list of installed files to '/home/ubuntu/test_wro0620/build/example/install.log'
+[11.261s] Invoked command in '/home/ubuntu/test_wro0620/src/example' returned '0': PYTHONPATH=/home/ubuntu/test_wro0620/build/example/prefix_override:/home/ubuntu/test_wro0620/install/example/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../../build/example build --build-base /home/ubuntu/test_wro0620/build/example/build install --record /home/ubuntu/test_wro0620/build/example/install.log --single-version-externally-managed

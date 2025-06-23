@@ -1,0 +1,6 @@
+source;share/mentorpi_straight_mover/hook/pythonpath.ps1
+source;share/mentorpi_straight_mover/hook/pythonpath.dsv
+source;share/mentorpi_straight_mover/hook/pythonpath.sh
+source;share/mentorpi_straight_mover/hook/ament_prefix_path.ps1
+source;share/mentorpi_straight_mover/hook/ament_prefix_path.dsv
+source;share/mentorpi_straight_mover/hook/ament_prefix_path.sh

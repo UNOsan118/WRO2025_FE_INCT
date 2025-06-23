@@ -1,0 +1,85 @@
+running egg_info
+creating ../../build/multi/multi.egg-info
+writing ../../build/multi/multi.egg-info/PKG-INFO
+writing dependency_links to ../../build/multi/multi.egg-info/dependency_links.txt
+writing entry points to ../../build/multi/multi.egg-info/entry_points.txt
+writing requirements to ../../build/multi/multi.egg-info/requires.txt
+writing top-level names to ../../build/multi/multi.egg-info/top_level.txt
+writing manifest file '../../build/multi/multi.egg-info/SOURCES.txt'
+reading manifest file '../../build/multi/multi.egg-info/SOURCES.txt'
+writing manifest file '../../build/multi/multi.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/ubuntu/test_wro0620/build/multi/build
+creating /home/ubuntu/test_wro0620/build/multi/build/lib
+creating /home/ubuntu/test_wro0620/build/multi/build/lib/multi
+copying multi/slave_tf_listener.py -> /home/ubuntu/test_wro0620/build/multi/build/lib/multi
+copying multi/tf_listen.py -> /home/ubuntu/test_wro0620/build/multi/build/lib/multi
+copying multi/set_odom.py -> /home/ubuntu/test_wro0620/build/multi/build/lib/multi
+copying multi/costmap_publish.py -> /home/ubuntu/test_wro0620/build/multi/build/lib/multi
+copying multi/tf_publish.py -> /home/ubuntu/test_wro0620/build/multi/build/lib/multi
+copying multi/formation_update.py -> /home/ubuntu/test_wro0620/build/multi/build/lib/multi
+copying multi/tf_follower.py -> /home/ubuntu/test_wro0620/build/multi/build/lib/multi
+copying multi/__init__.py -> /home/ubuntu/test_wro0620/build/multi/build/lib/multi
+/home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` directly.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+        ********************************************************************************
+
+!!
+  self.initialize_options()
+running install
+running install_lib
+creating /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi
+copying /home/ubuntu/test_wro0620/build/multi/build/lib/multi/slave_tf_listener.py -> /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi
+copying /home/ubuntu/test_wro0620/build/multi/build/lib/multi/tf_listen.py -> /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi
+copying /home/ubuntu/test_wro0620/build/multi/build/lib/multi/set_odom.py -> /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi
+copying /home/ubuntu/test_wro0620/build/multi/build/lib/multi/costmap_publish.py -> /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi
+copying /home/ubuntu/test_wro0620/build/multi/build/lib/multi/tf_publish.py -> /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi
+copying /home/ubuntu/test_wro0620/build/multi/build/lib/multi/formation_update.py -> /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi
+copying /home/ubuntu/test_wro0620/build/multi/build/lib/multi/tf_follower.py -> /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi
+copying /home/ubuntu/test_wro0620/build/multi/build/lib/multi/__init__.py -> /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi
+byte-compiling /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi/slave_tf_listener.py to slave_tf_listener.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi/tf_listen.py to tf_listen.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi/set_odom.py to set_odom.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi/costmap_publish.py to costmap_publish.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi/tf_publish.py to tf_publish.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi/formation_update.py to formation_update.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi/tf_follower.py to tf_follower.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi/__init__.py to __init__.cpython-310.pyc
+running install_data
+creating /home/ubuntu/test_wro0620/install/multi/share/ament_index
+creating /home/ubuntu/test_wro0620/install/multi/share/ament_index/resource_index
+creating /home/ubuntu/test_wro0620/install/multi/share/ament_index/resource_index/packages
+copying resource/multi -> /home/ubuntu/test_wro0620/install/multi/share/ament_index/resource_index/packages
+copying package.xml -> /home/ubuntu/test_wro0620/install/multi/share/multi
+creating /home/ubuntu/test_wro0620/install/multi/share/multi/launch
+copying launch/joystick_control_multi.py -> /home/ubuntu/test_wro0620/install/multi/share/multi/launch
+copying launch/joy_control.launch.py -> /home/ubuntu/test_wro0620/install/multi/share/multi/launch
+copying launch/multi_controller.launch.py -> /home/ubuntu/test_wro0620/install/multi/share/multi/launch
+creating /home/ubuntu/test_wro0620/install/multi/share/multi/launch/include
+creating /home/ubuntu/test_wro0620/install/multi/share/multi/config
+copying config/camera_info.yaml -> /home/ubuntu/test_wro0620/install/multi/share/multi/config
+copying config/usb_cam_param.yaml -> /home/ubuntu/test_wro0620/install/multi/share/multi/config
+copying config/lidar_filters_config_ld14p.yaml -> /home/ubuntu/test_wro0620/install/multi/share/multi/config
+copying config/lidar_filters_config_a1.yaml -> /home/ubuntu/test_wro0620/install/multi/share/multi/config
+copying config/lidar_filters_config_g4.yaml -> /home/ubuntu/test_wro0620/install/multi/share/multi/config
+copying config/lidar_filters_config_ld19.yaml -> /home/ubuntu/test_wro0620/install/multi/share/multi/config
+creating /home/ubuntu/test_wro0620/install/multi/share/multi/rviz
+copying rviz/lidar_view.rviz -> /home/ubuntu/test_wro0620/install/multi/share/multi/rviz
+copying rviz/imu_view.rviz -> /home/ubuntu/test_wro0620/install/multi/share/multi/rviz
+running install_egg_info
+Copying ../../build/multi/multi.egg-info to /home/ubuntu/test_wro0620/install/multi/lib/python3.10/site-packages/multi-0.0.0-py3.10.egg-info
+running install_scripts
+Installing costmap_publish script to /home/ubuntu/test_wro0620/install/multi/lib/multi
+Installing formation_update script to /home/ubuntu/test_wro0620/install/multi/lib/multi
+Installing slave_tf_listener script to /home/ubuntu/test_wro0620/install/multi/lib/multi
+Installing tf_listen script to /home/ubuntu/test_wro0620/install/multi/lib/multi
+Installing tf_publish script to /home/ubuntu/test_wro0620/install/multi/lib/multi
+writing list of installed files to '/home/ubuntu/test_wro0620/build/multi/install.log'

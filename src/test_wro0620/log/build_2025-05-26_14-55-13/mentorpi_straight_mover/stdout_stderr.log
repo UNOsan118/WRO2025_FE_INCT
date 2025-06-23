@@ -1,0 +1,60 @@
+running egg_info
+creating ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info
+writing ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/PKG-INFO
+writing dependency_links to ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/dependency_links.txt
+writing entry points to ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/entry_points.txt
+writing requirements to ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/requires.txt
+writing top-level names to ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/top_level.txt
+writing manifest file '../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/SOURCES.txt'
+reading manifest file '../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/SOURCES.txt'
+writing manifest file '../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build
+creating /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib
+creating /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+copying mentorpi_straight_mover/stop_robot_node.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+copying mentorpi_straight_mover/yaw_controller_node.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+copying mentorpi_straight_mover/imu_subscriber_node.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+/home/ubuntu/.local/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` directly.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+        ********************************************************************************
+
+!!
+  self.initialize_options()
+copying mentorpi_straight_mover/straight_mover_node.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+copying mentorpi_straight_mover/__init__.py -> /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover
+running install
+running install_lib
+creating /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/stop_robot_node.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/yaw_controller_node.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/imu_subscriber_node.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/straight_mover_node.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+copying /home/ubuntu/test_wro0620/build/mentorpi_straight_mover/build/lib/mentorpi_straight_mover/__init__.py -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover
+byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/stop_robot_node.py to stop_robot_node.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/yaw_controller_node.py to yaw_controller_node.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/imu_subscriber_node.py to imu_subscriber_node.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/straight_mover_node.py to straight_mover_node.cpython-310.pyc
+byte-compiling /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover/__init__.py to __init__.cpython-310.pyc
+running install_data
+creating /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/ament_index
+creating /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/ament_index/resource_index
+creating /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/ament_index/resource_index/packages
+copying resource/mentorpi_straight_mover -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/ament_index/resource_index/packages
+copying package.xml -> /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/share/mentorpi_straight_mover
+running install_egg_info
+Copying ../../build/mentorpi_straight_mover/mentorpi_straight_mover.egg-info to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/python3.10/site-packages/mentorpi_straight_mover-0.0.0-py3.10.egg-info
+running install_scripts
+Installing imu_subscriber script to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/mentorpi_straight_mover
+Installing robot_movement_tester script to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/mentorpi_straight_mover
+Installing stop_robot script to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/mentorpi_straight_mover
+Installing yaw_controller script to /home/ubuntu/test_wro0620/install/mentorpi_straight_mover/lib/mentorpi_straight_mover
+writing list of installed files to '/home/ubuntu/test_wro0620/build/mentorpi_straight_mover/install.log'

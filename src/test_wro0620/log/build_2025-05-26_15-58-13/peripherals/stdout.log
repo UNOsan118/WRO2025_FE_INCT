@@ -1,0 +1,50 @@
+running egg_info
+writing ../../build/peripherals/peripherals.egg-info/PKG-INFO
+writing dependency_links to ../../build/peripherals/peripherals.egg-info/dependency_links.txt
+writing entry points to ../../build/peripherals/peripherals.egg-info/entry_points.txt
+writing requirements to ../../build/peripherals/peripherals.egg-info/requires.txt
+writing top-level names to ../../build/peripherals/peripherals.egg-info/top_level.txt
+reading manifest file '../../build/peripherals/peripherals.egg-info/SOURCES.txt'
+writing manifest file '../../build/peripherals/peripherals.egg-info/SOURCES.txt'
+running build
+running build_py
+copying peripherals/joystick_control.py -> /home/ubuntu/test_wro0620/build/peripherals/build/lib/peripherals
+copying peripherals/demo.py -> /home/ubuntu/test_wro0620/build/peripherals/build/lib/peripherals
+copying peripherals/tf_broadcaster_imu.py -> /home/ubuntu/test_wro0620/build/peripherals/build/lib/peripherals
+copying peripherals/teleop_key_control.py -> /home/ubuntu/test_wro0620/build/peripherals/build/lib/peripherals
+copying peripherals/__init__.py -> /home/ubuntu/test_wro0620/build/peripherals/build/lib/peripherals
+running install
+running install_lib
+running install_data
+copying resource/peripherals -> /home/ubuntu/test_wro0620/install/peripherals/share/ament_index/resource_index/packages
+copying package.xml -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals
+copying launch/imu_view.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch
+copying launch/depth_camera.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch
+copying launch/imu_filter.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch
+copying launch/lidar_view.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch
+copying launch/lidar.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch
+copying launch/joystick_control.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch
+copying launch/usb_cam.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch
+copying launch/teleop_key_control.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch
+copying launch/include/ascamera.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch/include
+copying launch/include/hp60c_cp.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch/include
+copying launch/include/sllidar_a1.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch/include
+copying launch/include/hp60c.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch/include
+copying launch/include/ydlidar_g4.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch/include
+copying launch/include/ldlidar_LD19.launch.py -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/launch/include
+copying config/camera_info.yaml -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/config
+copying config/usb_cam_param.yaml -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/config
+copying config/lidar_filters_config_ld14p.yaml -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/config
+copying config/lidar_filters_config_a1.yaml -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/config
+copying config/lidar_filters_config_g4.yaml -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/config
+copying config/lidar_filters_config_ld19.yaml -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/config
+copying rviz/lidar_view.rviz -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/rviz
+copying rviz/imu_view.rviz -> /home/ubuntu/test_wro0620/install/peripherals/share/peripherals/rviz
+running install_egg_info
+removing '/home/ubuntu/test_wro0620/install/peripherals/lib/python3.10/site-packages/peripherals-0.0.0-py3.10.egg-info' (and everything under it)
+Copying ../../build/peripherals/peripherals.egg-info to /home/ubuntu/test_wro0620/install/peripherals/lib/python3.10/site-packages/peripherals-0.0.0-py3.10.egg-info
+running install_scripts
+Installing joystick_control script to /home/ubuntu/test_wro0620/install/peripherals/lib/peripherals
+Installing teleop_key_control script to /home/ubuntu/test_wro0620/install/peripherals/lib/peripherals
+Installing tf_broadcaster_imu script to /home/ubuntu/test_wro0620/install/peripherals/lib/peripherals
+writing list of installed files to '/home/ubuntu/test_wro0620/build/peripherals/install.log'
