@@ -70,7 +70,7 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('camera_move_duration_sec', 0.3)
         self.declare_parameter('planning_detection_threshold', 300)
         
-        # --- NEW: Parameters for Dynamic Camera Aiming ---
+        # --- Parameters for Dynamic Camera Aiming ---
         self.declare_parameter('tilt_position_cw', 500)
         self.declare_parameter('tilt_position_ccw', 2500)
         self.declare_parameter('image_width', 640)
@@ -84,7 +84,7 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('initial_approach_target_dist_m', 0.25)
         self.declare_parameter('initial_approach_target_dist_start_area_m', 0.4)
 
-        # --- NEW: Vision Processing Parameters (from initial_obstacle_detection_node) ---
+        # --- Vision Processing Parameters (from initial_obstacle_detection_node) ---
         self.declare_parameter('red_lower1', [0, 100, 80])
         self.declare_parameter('red_upper1', [3, 255, 243])
         self.declare_parameter('red_lower2', [174, 100, 80])
@@ -101,7 +101,7 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('kp_approach_angle', 0.02)
         self.declare_parameter('reverse_yaw_tolerance_deg', 5.0)
 
-        # NEW: Fixed approach angles based on last path
+        # Fixed approach angles based on last path
         self.declare_parameter('turn_approach_angle_from_outer_path_deg', 35.0)
         self.declare_parameter('turn_approach_angle_from_inner_path_deg', -5.0)
         self.declare_parameter('turn_approach_angle_from_outer_path_and_start_area_deg', 27.0)
@@ -123,21 +123,21 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('gain', 2.0)
         self.declare_parameter('direction', 'ccw')
 
-        # NEW: Parameter for the required clearance distance from an obstacle
+        # Parameter for the required clearance distance from an obstacle
         self.declare_parameter('obstacle_clearance_dist_m', 0.67)
 
-        # --- NEW: Parameters for Avoidance Control ---
+        # --- Parameters for Avoidance Control ---
         self.declare_parameter('avoid_target_outer_dist_m', 0.2)
         self.declare_parameter('avoid_kp_angle', 0.03) # P-gain for yaw control
         self.declare_parameter('avoid_kp_dist', 1.5)  # P-gain for distance control
         self.declare_parameter('avoid_speed', 0.2)
         self.declare_parameter('avoid_inner_pass_thresh_m', 0.6)
 
-        # --- NEW: Parameters for Avoidance Sequence Control ---
+        # --- Parameters for Avoidance Sequence Control ---
         self.declare_parameter('avoid_turn_in_kp_angle', 0.04)
         self.declare_parameter('avoid_turn_in_yaw_tolerance_deg', 5.0)
 
-        # --- NEW: Parameters for Simplified Avoidance Sequence ---
+        # --- Parameters for Simplified Avoidance Sequence ---
         self.declare_parameter('avoid_outer_approach_angle_deg', 65.0)
         self.declare_parameter('avoid_outer_approach_target_dist_m', 0.40)
 
@@ -150,7 +150,7 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('avoidance_path_plan', ['', '', '', ''])
         self.declare_parameter('entrance_obstacle_plan', [False, False, False, False])
 
-        # --- NEW: Parameters for PID-based Wall Following ---
+        # --- Parameters for PID-based Wall Following ---
         self.declare_parameter('align_target_inner_dist_m', 0.2)
         self.declare_parameter('align_dist_tolerance_m', 0.02)
         self.declare_parameter('align_kp_angle', 0.03)
@@ -193,7 +193,7 @@ class ObstacleNavigatorNode(Node):
         self.accept_new_frames = True
         self.waiting_for_first_safe_frame = False
 
-        # NEW: Variables for color detection logic
+        # Variables for color detection logic
         self.latest_frame = None
         self.detection_results = [] # List to store detection results for majority vote
 
@@ -261,7 +261,7 @@ class ObstacleNavigatorNode(Node):
         self.kp_approach_angle = self.get_parameter('kp_approach_angle').get_parameter_value().double_value
         self.reverse_yaw_tolerance_deg = self.get_parameter('reverse_yaw_tolerance_deg').get_parameter_value().double_value
 
-        # NEW: Load fixed approach angles
+        # Load fixed approach angles
         self.turn_approach_dist_from_outer_path = self.get_parameter('turn_approach_dist_from_outer_path').get_parameter_value().double_value
         self.turn_approach_dist_from_inner_path = self.get_parameter('turn_approach_dist_from_inner_path').get_parameter_value().double_value
         self.turn_approach_angle_from_outer_path_deg = self.get_parameter('turn_approach_angle_from_outer_path_deg').get_parameter_value().double_value
@@ -281,7 +281,7 @@ class ObstacleNavigatorNode(Node):
         
         self.obstacle_clearance_dist_m = self.get_parameter('obstacle_clearance_dist_m').get_parameter_value().double_value
 
-        # NEW: Load avoidance parameters
+        # Load avoidance parameters
         self.avoid_target_outer_dist_m = self.get_parameter('avoid_target_outer_dist_m').get_parameter_value().double_value
         self.avoid_kp_angle = self.get_parameter('avoid_kp_angle').get_parameter_value().double_value
         self.avoid_kp_dist = self.get_parameter('avoid_kp_dist').get_parameter_value().double_value
@@ -415,7 +415,7 @@ class ObstacleNavigatorNode(Node):
         try:
             self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "rgb8")
 
-            # --- NEW: Trigger sampling on the first valid frame after camera movement ---
+            # --- Trigger sampling on the first valid frame after camera movement ---
             if self.waiting_for_first_safe_frame:
                 self.get_logger().info("First safe frame received. Starting sampling process.")
                 self.waiting_for_first_safe_frame = False
@@ -438,7 +438,7 @@ class ObstacleNavigatorNode(Node):
 
         if self.determine_course_sub_state == DetermineCourseSubState.INITIALIZING_CAMERA:
             self.get_logger().info("Camera initialization complete. Transitioning to DETECTING_OBSTACLE_COLOR.")
-            # MODIFIED: Transition to the correct new state
+            # Transition to the correct new state
             self.determine_course_sub_state = DetermineCourseSubState.DETECTING_OBSTACLE_COLOR
 
     # --- State Handler Functions ---
@@ -446,7 +446,7 @@ class ObstacleNavigatorNode(Node):
         """Dispatches to the correct handler based on the determine_course_sub_state."""
         if self.determine_course_sub_state == DetermineCourseSubState.INITIALIZING_CAMERA:
             self._handle_determine_sub_initializing_camera()
-        # NEW: Dispatch for the new color detection state
+        # Dispatch for the new color detection state
         elif self.determine_course_sub_state == DetermineCourseSubState.DETECTING_OBSTACLE_COLOR:
             self._handle_determine_sub_detecting_color(msg)
         elif self.determine_course_sub_state == DetermineCourseSubState.PREPARE_TO_START:
@@ -496,7 +496,7 @@ class ObstacleNavigatorNode(Node):
         elif self.turning_sub_state == TurningSubState.FINALIZE_TURN:
             self._handle_turning_sub_finalize_turn()
 
-    # NEW: Handler for the PREPARE_TO_START sub-state
+    # Handler for the PREPARE_TO_START sub-state
     def _handle_determine_sub_initializing_camera(self):
         """
         Sub-state: Sends the command to move the camera to its initial angle
@@ -557,7 +557,7 @@ class ObstacleNavigatorNode(Node):
         left_areas = detection_data['areas']['left']
         right_areas = detection_data['areas']['right']
         
-        # --- MODIFIED: Store detailed detection results ---
+        # --- Store detailed detection results ---
         is_red_left = left_areas['RED'] > self.detection_threshold
         is_red_right = right_areas['RED'] > self.detection_threshold
         is_green_left = left_areas['GREEN'] > self.detection_threshold
@@ -575,7 +575,7 @@ class ObstacleNavigatorNode(Node):
         
         self.detection_results.append(result_data)
 
-        # --- NEW: Save debug images for the first sample in this state ---
+        # --- Save debug images for the first sample in this state ---
         if self.save_debug_images and len(self.detection_results) == 1:
             self._save_annotated_image(
                 base_name="initial_detection",
@@ -626,7 +626,7 @@ class ObstacleNavigatorNode(Node):
         Sub-state: Decides path based on the majority vote from color detection,
         and determines if special start area avoidance is required.
         """
-        # --- MODIFIED: Vote based on the 'color' key in the dictionary ---
+        # --- Vote based on the 'color' key in the dictionary ---
         color_votes = [res['color'] for res in self.detection_results]
         red_votes = color_votes.count("RED")
         green_votes = color_votes.count("GREEN")
@@ -641,7 +641,7 @@ class ObstacleNavigatorNode(Node):
             self.initial_path_is_left = False
             self.initial_path_is_straight = False
             
-            # --- NEW: Check if special avoidance is needed for RED ---
+            # --- Check if special avoidance is needed for RED ---
             left_red_detected_count = sum(1 for res in self.detection_results if res['color'] == 'RED' and res['left'])
             right_red_detected_count = sum(1 for res in self.detection_results if res['color'] == 'RED' and res['right'])
             if left_red_detected_count > right_red_detected_count:
@@ -655,7 +655,7 @@ class ObstacleNavigatorNode(Node):
             self.initial_path_is_left = True
             self.initial_path_is_straight = False
 
-            # --- NEW: Check if special avoidance is needed for GREEN ---
+            # --- Check if special avoidance is needed for GREEN ---
             left_green_detected_count = sum(1 for res in self.detection_results if res['color'] == 'GREEN' and res['left'])
             right_green_detected_count = sum(1 for res in self.detection_results if res['color'] == 'GREEN' and res['right'])
             if right_green_detected_count > left_green_detected_count:
@@ -684,7 +684,7 @@ class ObstacleNavigatorNode(Node):
             
         wall_dist = self.get_distance_at_world_angle(msg, wall_angle_deg)
         
-        # --- MODIFIED: Handle lost wall situation gracefully ---
+        # --- Handle lost wall situation gracefully ---
         if math.isnan(wall_dist):
             self.get_logger().warn(
                 f"Lost sight of the target wall during initial approach. "
@@ -730,7 +730,7 @@ class ObstacleNavigatorNode(Node):
         if course_found:
             self.get_logger().info(f"******* Course direction set to: {self.direction.upper()} *******")
             
-            # --- MODIFIED: Transition to the main STRAIGHT state for planning ---
+            # --- Transition to the main STRAIGHT state for planning ---
             self.get_logger().info("Initial course detected. Transitioning to main state machine for planning.")
 
             # Set the base angle for the very first turn.
@@ -837,7 +837,7 @@ class ObstacleNavigatorNode(Node):
             
             closest_overall_dist = min(self.min_inner_dist_planning_approach, min_dist_scan)
 
-            # --- NEW: Detailed Logging ---
+            # --- Detailed Logging ---
             self.get_logger().info("--- Pre-planning Assessment ---")
             self.get_logger().info(f"- Min dist during APPROACH: {self.min_inner_dist_planning_approach:.4f} m")
             if scan_info:
@@ -858,7 +858,7 @@ class ObstacleNavigatorNode(Node):
                     self.get_logger().error(f"[ENTRANCE ASSESSMENT] OBSTACLE DETECTED! Clearance: {total_dist:.3f}m (< {clearance_threshold}m)")
                     obstacle_detected = True # Set to True if obstacle is found
             
-            # --- NEW: Store the result in the plan ---
+            # --- Store the result in the plan ---
             next_segment_index = (self.wall_segment_index + 1) % len(self.entrance_obstacle_plan)
             self.entrance_obstacle_plan[next_segment_index] = obstacle_detected
             self.get_logger().warn(f"Updated entrance_obstacle_plan at index {next_segment_index} to: {obstacle_detected}")
@@ -888,7 +888,7 @@ class ObstacleNavigatorNode(Node):
 
             self.get_logger().warn(">>> PLAN_NEXT_AVOIDANCE: Initiating planning sequence. <<<")
             self.planning_initiated = True
-            self.detection_results.clear() # <-- MODIFIED: Ensure results are cleared at the start of every plan.
+            self.detection_results.clear() # <-- Ensure results are cleared at the start of every plan.
 
             # Step 1: Determine the fixed tilt position based on direction
             if self.direction == 'ccw':
@@ -1075,7 +1075,7 @@ class ObstacleNavigatorNode(Node):
                 is_oriented_correctly):
                 self.get_logger().warn(">>> Passing obstacle now (during TURN_IN)...")
                 self.is_passing_obstacle = True
-        # --- MODIFIED: Relaxed the isnan check to continue steering ---
+        # --- Relaxed the isnan check to continue steering ---
         if math.isnan(outer_wall_dist):
             self.get_logger().warn("Lost sight of outer wall during approach. Continuing with P-control.", throttle_duration_sec=1.0)
             # Do not return; allow P-control to continue steering
@@ -1085,7 +1085,7 @@ class ObstacleNavigatorNode(Node):
         else:
             approach_target_dist = self.avoid_approach_target_dist_m
 
-        # --- MODIFIED: Added condition to prevent premature completion from noise ---
+        # --- Added condition to prevent premature completion from noise ---
         if not math.isnan(outer_wall_dist) and outer_wall_dist > 0.0 and outer_wall_dist <= approach_target_dist:
             self.get_logger().info(f"Approach complete (Dist: {outer_wall_dist:.2f}m). Transitioning to PASS_THROUGH.")
             self.straight_sub_state = StraightSubState.AVOID_OUTER_PASS_THROUGH
@@ -1249,7 +1249,7 @@ class ObstacleNavigatorNode(Node):
             throttle_duration_sec=0.2
         )
         
-        # --- MODIFIED: Added condition to prevent premature completion ---
+        # --- Added condition to prevent premature completion ---
         # The approach is complete only if the effective distance is within a valid range.
         if effective_dist >= 0 and effective_dist <= self.avoid_inner_approach_target_dist_m:
             self.get_logger().info(f"Approach complete (EffectiveDist: {effective_dist:.2f}m). Transitioning to PASS_THROUGH.")
@@ -1435,7 +1435,7 @@ class ObstacleNavigatorNode(Node):
         
         if abs(yaw_error) < self.reverse_yaw_tolerance_deg:
             self.get_logger().info('Reverse maneuver complete. Now checking for obstacles before proceeding.')
-            # MODIFIED: Transition to the final check sub-state
+            # Transition to the final check sub-state
             self.turning_sub_state = TurningSubState.CHECK_AND_FINISH
             self.publish_twist_with_gain(0.0, 0.0)
         else:
@@ -1680,7 +1680,7 @@ class ObstacleNavigatorNode(Node):
 
         areas = {}
         
-        # --- MODIFIED: Always calculate full_frame area ---
+        # --- Always calculate full_frame area ---
         red_area_full = cv2.countNonZero(full_red_mask)
         green_area_full = cv2.countNonZero(full_green_mask)
         areas['full_frame'] = {'RED': red_area_full, 'GREEN': green_area_full}
@@ -1874,7 +1874,7 @@ class ObstacleNavigatorNode(Node):
         )
 
         if not math.isnan(left_dist) and left_dist > self.course_detection_threshold_m:
-            # MODIFIED: Set the node's direction parameter immediately
+            # Set the node's direction parameter immediately
             self.direction = "ccw"
             if not self.initial_path_is_left or self.initial_position_is_near:
                 self.last_avoidance_path_was_outer = True
@@ -1885,7 +1885,7 @@ class ObstacleNavigatorNode(Node):
             return True, "ccw"
         
         if not math.isnan(right_dist) and right_dist > self.course_detection_threshold_m:
-            # MODIFIED: Set the node's direction parameter immediately
+            # Set the node's direction parameter immediately
             self.direction = "cw"
             if self.initial_path_is_left or self.initial_position_is_near:
                 self.last_avoidance_path_was_outer = True
@@ -2070,7 +2070,7 @@ class ObstacleNavigatorNode(Node):
             combined_mask_viz[np.where(green_mask == 255)] = (0, 255, 0) # BGR for Green
             combined_mask_viz[np.where(red_mask == 255)] = (0, 0, 255) # BGR for Red
 
-            # --- NEW: Draw ROIs on the mask image as well ---
+            # --- Draw ROIs on the mask image as well ---
             if rois:
                 for roi_name, roi_points in rois.items():
                     cv2.polylines(combined_mask_viz, [np.array(roi_points, dtype=np.int32)], True, (255, 255, 0), 2)
