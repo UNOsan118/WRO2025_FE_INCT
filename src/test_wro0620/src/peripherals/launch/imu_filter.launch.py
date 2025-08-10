@@ -34,9 +34,9 @@ def generate_launch_description():
         output='screen',
         parameters=[
             {
-                'use_mag': False, # change
+                'use_mag': False, 
                 'do_bias_estimation': True,
-                'do_adaptive_gain': True,
+                'do_adaptive_gain': True, 
                 'publish_debug_topics': True
             }
         ],

@@ -65,7 +65,7 @@ def qua2rpy(x, y, z, w):
     roll = math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
     pitch = math.asin(2 * (w * y - x * z))
     yaw = math.atan2(2 * (w * z + x * y), 1 - 2 * (z * z + y * y))
-  
+
     return roll, pitch, yaw
 
 class Controller(Node):
@@ -258,7 +258,7 @@ class Controller(Node):
                 self.motor_pub.publish(speeds[1])
         
         elif self.machine_type == 'MentorPi_Acker_Original':
-            self.get_logger().info('--- EXECUTING NEW ACKERMANN ORIGINAL LOGIC ---')
+            # self.get_logger().info('--- EXECUTING NEW ACKERMANN ORIGINAL LOGIC ---')
             self.linear_x = msg.linear.x
             self.angular_z = msg.angular.z # Kept for odometry calculation
             

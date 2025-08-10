@@ -1,0 +1,11 @@
+# ~/test_wro0620/src/peripherals/config/ld19_filter.yaml (String Test Version)
+laser_filter:
+  ros__parameters:
+    scan_filter_chain:
+      - name: range
+        type: laser_filters/LaserScanRangeFilter
+        params:
+          lower_threshold: "0.05"
+          upper_threshold: "10.0"
+          lower_replacement_value: "1.0e6"
+          upper_replacement_value: "1.0e6"
