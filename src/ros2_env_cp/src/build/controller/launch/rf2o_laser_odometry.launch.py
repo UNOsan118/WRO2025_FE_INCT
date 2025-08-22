@@ -1,1 +1,0 @@
-/home/ubuntu/ros2_ws/src/driver/controller/launch/rf2o_laser_odometry.launch.py

@@ -1,1 +1,0 @@
-/home/ubuntu/ros2_ws/src/driver/controller/launch/init_pose.launch.py

@@ -1,1 +1,0 @@
-/home/ubuntu/ros2_ws/src/peripherals/launch/include/hp60c.launch.py

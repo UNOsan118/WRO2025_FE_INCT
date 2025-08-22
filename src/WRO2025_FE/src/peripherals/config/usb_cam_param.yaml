@@ -1,0 +1,5 @@
+# in usb_cam_param.yaml
+usb_cam:
+  ros__parameters:
+    video_device: "/dev/video0"
+    framerate: 5.0

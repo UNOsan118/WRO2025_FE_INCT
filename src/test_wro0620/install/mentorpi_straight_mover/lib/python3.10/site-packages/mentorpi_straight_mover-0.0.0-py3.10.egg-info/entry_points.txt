@@ -1,5 +1,0 @@
-[console_scripts]
-imu_subscriber = mentorpi_straight_mover.imu_subscriber_node:main
-robot_movement_tester = mentorpi_straight_mover.straight_mover_node:main
-stop_robot = mentorpi_straight_mover.stop_robot_node:main
-yaw_controller = mentorpi_straight_mover.yaw_controller_node:main
