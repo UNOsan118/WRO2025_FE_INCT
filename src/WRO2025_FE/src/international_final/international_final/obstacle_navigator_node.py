@@ -16,6 +16,7 @@ from datetime import datetime
 from std_srvs.srv import Trigger
 import threading
 import time
+import shutil
 
 # (Enums are the same)
 class State(Enum):
@@ -37,9 +38,8 @@ class DetermineCourseSubState(Enum):
 class StraightSubState(Enum):
     ALIGN_WITH_OUTER_WALL = auto()
     ALIGN_WITH_INNER_WALL = auto()
-    PRE_PLANNING_ADJUST = auto()
     PLAN_NEXT_AVOIDANCE = auto()
-    POST_PLANNING_REVERSE = auto()
+    PRE_SCANNING_REVERSE = auto()
     AVOID_OUTER_TURN_IN = auto()
     AVOID_OUTER_PASS_THROUGH = auto()
     AVOID_INNER_TURN_IN = auto()
@@ -192,7 +192,7 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('align_target_outer_dist_start_area_m', 0.39)
 
         self.declare_parameter('save_debug_images', True, )
-        self.declare_parameter('debug_image_path', '/home/ubuntu/WRO2025_FE_Japan/src/international_final/images', )
+        self.declare_parameter('debug_image_path', '/home/ubuntu/WRO2025_FE_Japan/src/image_processing_test/images', )
 
         self.declare_parameter('log_level', 'INFO') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
 
@@ -202,6 +202,8 @@ class ObstacleNavigatorNode(Node):
 
         # Load all parameters
         self._load_parameters()
+        # --- initialize the image directory ---
+        self._initialize_debug_directory()
 
         self.max_valid_range_m = 3.0
 
@@ -216,6 +218,9 @@ class ObstacleNavigatorNode(Node):
         self.last_inner = 10.0
         self.current_yaw_deg = 0.0
 
+        self.planning_scan_stop_dist = 0.35
+        self.planning_scan_start_dist_m = 0.55
+
         self.latest_scan_msg = None
         self.is_passing_obstacle = False
         self.avoid_target_yaw_deg = 0.0
@@ -227,6 +232,8 @@ class ObstacleNavigatorNode(Node):
         self.initial_path_is_straight = False
         self.start_area_avoidance_required = False
         self.camera_init_sent = False
+
+
 
         self.accept_new_frames = True
         self.waiting_for_first_safe_frame = False
@@ -240,7 +247,7 @@ class ObstacleNavigatorNode(Node):
 
         self.is_sampling_for_planning = False 
         self.planning_initiated = False
-        self.post_planning_reverse_target_dist_m = 0.7
+        self.pre_scanning_reverse_target_dist_m = 0.7
 
         self.min_inner_dist_planning_approach = float('inf')
         self.planning_scan_complete = False
@@ -250,6 +257,8 @@ class ObstacleNavigatorNode(Node):
 
         self.forward_adjust_start_dist = 0.0
         self.pre_parking_step = 0
+
+        self.reverse_start_dist_m = 0.0
         
         self.last_published_linear = 0.0
         self.last_published_angular = 0.0
@@ -417,6 +426,29 @@ class ObstacleNavigatorNode(Node):
         self.get_logger().info(f"Loaded avoidance path plan: {self.avoidance_path_plan}")
         self.get_logger().info("----------------------------")
 
+    def _initialize_debug_directory(self):
+        """
+        Initializes the debug image directory by deleting it if it exists
+        and then recreating it. This ensures a clean state for each run.
+        """
+        if not self.save_debug_images:
+            return
+
+        try:
+            self.get_logger().info(f"Initializing debug directory: {self.debug_image_path}")
+            # Check if the directory exists
+            if os.path.exists(self.debug_image_path):
+                # Recursively delete the entire directory tree
+                shutil.rmtree(self.debug_image_path)
+                self.get_logger().info("... existing directory removed.")
+            
+            # Recreate the directory
+            os.makedirs(self.debug_image_path, exist_ok=True)
+            self.get_logger().info("... directory created successfully.")
+
+        except Exception as e:
+            self.get_logger().error(f"Failed to initialize debug directory at {self.debug_image_path}: {e}")
+
     def _correct_mirrored_scan(self, msg: LaserScan) -> LaserScan:
         """
         Corrects a mirrored (clockwise) LaserScan message by reversing its data arrays.
@@ -569,9 +601,9 @@ class ObstacleNavigatorNode(Node):
             try:
                 self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "rgb8")
 
-                # --- NEW: Trigger sampling on the first valid frame after camera movement ---
+                # This logic is only for the initial stationary detection
                 if self.waiting_for_first_safe_frame:
-                    self.get_logger().info("First safe frame received. Starting sampling process.")
+                    self.get_logger().info("First safe frame received. Ready for stationary sampling.")
                     self.waiting_for_first_safe_frame = False
                     self.is_sampling_for_planning = True
 
@@ -644,12 +676,10 @@ class ObstacleNavigatorNode(Node):
             self._handle_straight_sub_align_with_outer_wall(msg)
         elif self.straight_sub_state == StraightSubState.ALIGN_WITH_INNER_WALL:
             self._handle_straight_sub_align_with_inner_wall(msg)
-        elif self.straight_sub_state == StraightSubState.PRE_PLANNING_ADJUST:
-            self._handle_straight_sub_pre_planning_adjust(msg)
         elif self.straight_sub_state == StraightSubState.PLAN_NEXT_AVOIDANCE:
-            self._handle_straight_sub_plan_next_avoidance()
-        elif self.straight_sub_state == StraightSubState.POST_PLANNING_REVERSE:
-            self._handle_straight_sub_post_planning_reverse(msg)
+            self._handle_straight_sub_plan_next_avoidance(msg)
+        elif self.straight_sub_state == StraightSubState.PRE_SCANNING_REVERSE:
+            self._handle_straight_sub_pre_scanning_reverse(msg)
         elif self.straight_sub_state == StraightSubState.AVOID_OUTER_TURN_IN:
             self._handle_straight_sub_avoid_outer_turn_in(msg)
         elif self.straight_sub_state == StraightSubState.AVOID_OUTER_PASS_THROUGH:
@@ -952,8 +982,6 @@ class ObstacleNavigatorNode(Node):
     def _handle_determine_sub_detecting_straight(self, msg: LaserScan):
         """
         Sub-state: Moves forward while checking for an open side.
-        - If the starting position was "near", it drives straight using only the IMU.
-        - Otherwise, it performs wall-following based on the initial approach direction.
         """
         course_found, _ = self._check_course_and_get_direction(msg)
 
@@ -961,10 +989,15 @@ class ObstacleNavigatorNode(Node):
             self.get_logger().info(f"******* Course direction set to: {self.direction.upper()} *******")
             
             self.get_logger().info("Initial course detected. Transitioning to main state machine for planning.")
-            self.approach_base_yaw_deg = 0.0 # Base angle for the first turn is 0.
+            self.approach_base_yaw_deg = 0.0
 
+            self.get_logger().info("Preparing for the first planning phase by reversing.")
             self.state = State.STRAIGHT
-            self.straight_sub_state = StraightSubState.PRE_PLANNING_ADJUST
+            self.straight_sub_state = StraightSubState.PRE_SCANNING_REVERSE
+
+            # Set the absolute target distance for the reverse maneuver
+            self.post_planning_reverse_target_dist_m = 0.7 
+
             self.publish_twist_with_gain(0.0, 0.0)
             return
 
@@ -1018,334 +1051,100 @@ class ObstacleNavigatorNode(Node):
         # --- REFACTORED: Delegate the actual PID control logic to a generic function ---
         self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=False)
 
-    def _handle_straight_sub_pre_planning_adjust(self, msg: LaserScan):
+    def _handle_straight_sub_plan_next_avoidance(self, msg: LaserScan):
         """
-        State: Moves to planning distance, records min inner dist, scans on arrival,
-        assesses entrance, and finally transitions to PLAN_NEXT_AVOIDANCE.
+        Manages the move-and-scan sequence for planning the next path.
+        This function is structured in three phases:
+        1. INITIALIZATION: Prepares the robot and camera for the sequence.
+        2. DRIVING & SCANNING: Moves the robot forward and conditionally scans for obstacles.
+        3. FINALIZATION: Stops the robot, analyzes collected data, and transitions to the TURNING state.
         """
-        # If scan is already done, transition immediately.
-        if self.planning_scan_complete:
-            self.straight_sub_state = StraightSubState.PLAN_NEXT_AVOIDANCE
-            return
+        # --- PHASE 1: INITIALIZATION (runs only once per planning sequence) ---
+        if not self.planning_initiated:
+            self.get_logger().warn(">>> PLAN_NEXT_AVOIDANCE: Initiating move-and-scan sequence. <<<")
+            self.planning_initiated = True
+            self.detection_results.clear()
 
-        if self.direction == 'ccw':
-            if self.last_avoidance_path_was_outer:
-                target_front_dist = 0.40
-            else: # 'inner'
-                target_front_dist = 0.45
-        else: # 'cw'
-            if self.last_avoidance_path_was_outer:
-                target_front_dist = 0.40
-            else: # 'inner'
-                target_front_dist = 0.45
-        forward_speed = self.course_detection_slow_speed
+            # For the first turn, command the camera to tilt. This happens concurrently
+            # with the robot's initial forward movement.
+            if self.turn_count == 0:
+                if self.direction == 'ccw':
+                    final_tilt_position = self.tilt_position_ccw
+                else:  # cw
+                    final_tilt_position = self.tilt_position_cw
+                
+                self.get_logger().info(f"Turn 0: Commanding camera to tilt to {final_tilt_position}.")
+                self._set_camera_angle(
+                    pan_position=self.initial_pan_position,
+                    tilt_position=final_tilt_position,
+                    duration_sec=self.camera_move_duration
+                )
+        
+        # --- PHASE 2: DRIVING & SCANNING ---
+        target_stop_dist = self.planning_scan_stop_dist
         front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
 
-        # Determine inner wall angle based on driving direction
-        if self.direction == 'ccw':
-            inner_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
-        else: # cw
-            inner_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
-        inner_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
-
-        is_approaching = math.isnan(front_dist) or front_dist > target_front_dist
-
-        if is_approaching:
-            # --- Approaching Phase ---
-            if not math.isnan(inner_dist) and inner_dist < self.min_inner_dist_planning_approach:
-                self.min_inner_dist_planning_approach = inner_dist
-
-            dist_to_target = front_dist - target_front_dist
-            slowing_down_zone = 0.35  # Start slowing down 20cm before the target
-            min_speed_ratio = 0.4      # Minimum speed is 40% of the base speed
-
-            if math.isnan(front_dist):
-                effective_speed = -forward_speed * 0.4
-            elif dist_to_target > 0 and dist_to_target < slowing_down_zone:
-                # Linearly scale the speed from 100% down to the minimum speed
-                speed_scale = (dist_to_target / slowing_down_zone) * (1.0 - min_speed_ratio) + min_speed_ratio
-                effective_speed = forward_speed * speed_scale
-                self.get_logger().debug(f"Slowing down. Speed scale: {speed_scale:.2f}, Eff. Speed: {effective_speed:.3f} m/s")
-            else:
-                # If outside the zone, use the normal speed
-                effective_speed = forward_speed
-
+        # If the robot is still approaching the final stopping point, continue driving.
+        if math.isnan(front_dist) or front_dist > target_stop_dist:
+            # Drive straight forward using IMU for heading correction
             angle_error_deg = self._angle_diff(self.approach_base_yaw_deg, self.current_yaw_deg)
             angle_steer = self.align_kp_angle * angle_error_deg
             final_steer = max(min(angle_steer, self.max_steer), -self.max_steer)
-            self.publish_twist_with_gain(effective_speed, final_steer)
+            self.publish_twist_with_gain(self.course_detection_slow_speed, final_steer)
+
+            # Conditionally perform scanning only when close enough to the corner
+            if not math.isnan(front_dist) and front_dist < self.planning_scan_start_dist_m:
+                self._scan_and_collect_data()
             
-            self.get_logger().debug(
-                f"Planning Approach... Front: {front_dist:.2f}m | Min Inner: {self.min_inner_dist_planning_approach:.3f}m",
-                throttle_duration_sec=0.2
-            )
+            return # Exit here for this control loop iteration
+
+        # --- PHASE 3: FINALIZATION (executes once the robot stops) ---
+        self.publish_twist_with_gain(0.0, 0.0)
+        self.get_logger().info(f"Move-and-scan complete. Collected {len(self.detection_results)} samples. Analyzing...")
+
+        if not self.detection_results:
+            self.get_logger().error("No detection results were collected. Assuming 'red_only' as a failsafe.")
+            self._update_avoidance_plan_based_on_vision(True, False, 999, 0)
         else:
-            # --- Scan and Assess Phase (runs once upon arrival) ---
-            self.publish_twist_with_gain(0.0, 0.0) # Stop the robot
-            self.get_logger().info(f"Approach for planning complete (Front Dist: {front_dist:.3f}m). Scanning...")
-
-            scan_range_deg = 35.0
-            clearance_threshold = 1.1
-
-            if self.direction == 'ccw':
-                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
-            else: # cw
-                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
+            red_areas = [result['RED'] for result in self.detection_results]
+            green_areas = [result['GREEN'] for result in self.detection_results]
+            final_red_area = np.median(red_areas)
+            final_green_area = np.median(green_areas)
             
-            scan_info = self.get_closest_distance_in_range(msg, inner_wall_angle, scan_range_deg)
-            if self.wall_segment_index == 3:
-                min_dist_scan = float('inf')
-                self.get_logger().debug("Next section is start. Detect nearby obstacles using only approaching")
-            else:
-                min_dist_scan = scan_info['distance'] if scan_info else float('inf')
-            outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+            log_msg = (
+                f"\n--- Planning Analysis Results (Turn {self.turn_count + 1}) ---\n"
+                f"  - Samples Collected : {len(self.detection_results)}\n"
+                f"  - Red Area Data     : {[f'{area:.0f}' for area in red_areas]}\n"
+                f"  - Green Area Data   : {[f'{area:.0f}' for area in green_areas]}\n"
+                f"  - Median Red Area   : {final_red_area:.1f}\n"
+                f"  - Median Green Area : {final_green_area:.1f}\n"
+                f"-----------------------------------------"
+            )
+            self.get_logger().info(log_msg)
             
-            closest_overall_dist = min(self.min_inner_dist_planning_approach, min_dist_scan)
-
-            # --- NEW: Detailed Logging ---
-            self.get_logger().info("--- Pre-planning Assessment ---")
-            self.get_logger().info(f"- Min dist during APPROACH: {self.min_inner_dist_planning_approach:.4f} m")
-            if scan_info:
-                self.get_logger().info(f"- Min dist from SCAN (+/-{scan_range_deg}deg): {min_dist_scan:.4f} m at {scan_info['angle']:.1f} deg")
-            else:
-                self.get_logger().warn(f"- Min dist from SCAN (+/-{scan_range_deg}deg): Not found.")
-            
-            if closest_overall_dist == float('inf'):
-                self.get_logger().warn("--> Final Closest Inner: Not detected.")
-            else:
-                self.get_logger().info(f"--> Final Closest Inner: {closest_overall_dist:.4f} m")
-            # --- End of Detailed Logging ---
-
-            obstacle_detected = False # Default to False
-            if not math.isnan(outer_dist) and closest_overall_dist != float('inf'):
-                total_dist = outer_dist + closest_overall_dist
-                if total_dist < clearance_threshold:
-                    self.get_logger().error(f"[ENTRANCE ASSESSMENT] OBSTACLE DETECTED! Clearance: {total_dist:.3f}m (< {clearance_threshold}m)")
-                    obstacle_detected = True # Set to True if obstacle is found
-            
-            next_segment_index = (self.wall_segment_index + 1) % len(self.avoidance_path_plan)
-            next_path_type = self._get_path_type_for_segment(next_segment_index)
-            if next_path_type in ['outer_to_inner', 'inner_to_outer']:
-                self.get_logger().warn(f"Lane-change path ('{next_path_type}') detected for next segment. Forcing entrance_obstacle_plan to True.")
-                obstacle_detected = True
-            
-            # --- NEW: Store the result in the plan ---
-            self.entrance_obstacle_plan[next_segment_index] = obstacle_detected
-            self.get_logger().warn(f"Updated entrance_obstacle_plan at index {next_segment_index} to: {obstacle_detected}")
-            self.get_logger().info(f"Current plan: {self.entrance_obstacle_plan}")
-            # --- End of NEW ---
-
-            # Set flag to true and transition on the next callback
-            self.planning_scan_complete = True
-            self.get_logger().info("Entrance assessment complete. Proceeding to planning.")
-
-    def _handle_straight_sub_plan_next_avoidance(self):
-        """
-        Sub-state handler for the dynamic planning sequence.
-        - Sets camera to a fixed side-facing angle (left/right).
-        - Initiates camera movement.
-        - Performs multi-frame color sampling once the camera is settled.
-        - Makes a decision and transitions to POST_PLANNING_REVERSE state upon completion.
-        """
-        if self.planning_initiated and not self.is_sampling_for_planning:
-            self.publish_twist_with_gain(0.0, 0.0)
-            return
-        # --- Phase 1: Initiation and Fixed Angle Calculation ---
-        if not self.is_sampling_for_planning:
-            if self.planning_camera_wait_timer is not None and not self.planning_camera_wait_timer.is_canceled():
-                self.publish_twist_with_gain(0.0, 0.0)
-                return
-
-            self.get_logger().warn(">>> PLAN_NEXT_AVOIDANCE: Initiating planning sequence. <<<")
-            self.planning_initiated = True
-            self.ready_to_start_sampling = False
-            self.detection_results.clear() # <-- MODIFIED: Ensure results are cleared at the start of every plan.
-
-            if self.turn_count == 0:
-                # For the first corner, perform the full camera movement sequence.
-                if self.direction == 'ccw':
-                    final_tilt_position = self.tilt_position_ccw
-                else: # cw
-                    final_tilt_position = self.tilt_position_cw
-                
-                target_pan_position = self.initial_pan_position
-                camera_move_duration = self.camera_move_duration
-                
-                self.get_logger().info(f"Turn 0: Moving camera to tilt {final_tilt_position}.")
-                self.accept_new_frames = False
-                self._set_camera_angle(pan_position=target_pan_position, tilt_position=final_tilt_position, duration_sec=camera_move_duration)
-
-                wait_time = camera_move_duration + 0.5 # 1.5
-                self.planning_camera_wait_timer = self.create_timer(wait_time, self._on_camera_settled_for_planning)
-                self.get_logger().info(f"Moving camera. Waiting {wait_time:.2f} seconds...")
-                
-            else:
-                self.get_logger().info(f"Turn {self.turn_count}: Preparing to sample without camera movement.")
-                self.ready_to_start_sampling = True
-                # For subsequent corners, skip camera movement and start sampling immediately.
-                self.get_logger().info(f"Turn {self.turn_count}: Skipping camera movement. Starting sampling now.")
-                self.is_sampling_for_planning = True
-            
-            self.publish_twist_with_gain(0.0, 0.0)
-            return
-
-        # === Phase 2 & 3: Sampling and Decision (runs AFTER initiation is complete) ===
-        # --- NEW: Check if it's time to start sampling ---
-        if self.ready_to_start_sampling and not self.is_sampling_for_planning:
-            self.is_sampling_for_planning = True
-            self.get_logger().info("Robot stopped. Starting sampling now.")
-
-        # --- Phase 2: Multi-frame Sampling (runs after camera has settled) ---
-        if self.is_sampling_for_planning:
-            if not self.detection_results:
-                self.get_logger().info("Waiting briefly before starting sample collection...")
-                time.sleep(0.5)
-            if len(self.detection_results) < self.detection_samples:
-                if self.latest_frame is None:
-                    self.get_logger().warn('Waiting for a fresh camera frame to sample...', throttle_duration_sec=2.0)
-                    self.publish_twist_with_gain(0.0, 0.0)
-                    return
-
-                # Step 1: Select the universal ROI preset.
-                if self.direction == 'ccw':
-                    if self.last_avoidance_path_was_outer:
-                        if self.turn_count == 3:
-                            selected_roi_flat = self.roi_planning_ccw_outer_start_area_flat
-                        else:
-                            selected_roi_flat = self.roi_planning_ccw_outer_flat
-                    else: # 'inner'
-                        if self.turn_count == 3:
-                            selected_roi_flat = self.roi_planning_ccw_inner_start_area_flat
-                        else:
-                            selected_roi_flat = self.roi_planning_ccw_inner_flat
-                else: # 'cw'
-                    if self.last_avoidance_path_was_outer:
-                        if self.turn_count == 3:
-                            selected_roi_flat = self.roi_planning_cw_outer_start_area_flat
-                        else:
-                            selected_roi_flat = self.roi_planning_cw_outer_flat
-                    else: # 'inner'
-                        if self.turn_count == 3:
-                            selected_roi_flat = self.roi_planning_cw_inner_start_area_flat
-                        else:
-                            selected_roi_flat = self.roi_planning_cw_inner_flat
-                
-                # Step 2: Reshape the flat array into a list of points
-                roi_points = self._reshape_roi_points(selected_roi_flat)
-                """
-                # Step 3: Mirror the ROI if driving CCW
-                if self.direction == 'ccw' and roi_points:
-                    self.get_logger().debug("CCW direction detected, mirroring ROI.")
-                    roi_points = self._mirror_roi_points(roi_points)
-                """
-                rois_to_check = {'planning_roi': roi_points} if roi_points else None
-
-                # Step 4: Perform color detection with the final ROI
-                detection_data = self._detect_obstacle_color_in_frame(self.latest_frame, rois_to_check=rois_to_check)
-                
-                area_dict = detection_data['areas'].get('planning_roi', detection_data['areas']['full_frame'])
-                
-                self.detection_results.append(area_dict)
-                self.get_logger().debug(f"Planning sample #{len(self.detection_results)}: Areas R={area_dict['RED']}, G={area_dict['GREEN']}", throttle_duration_sec=0.2)
-
-                if self.save_debug_images and len(self.detection_results) == 1:
-                    self._save_annotated_image(
-                        base_name="planning_detection",
-                        turn_count=self.turn_count + 1,
-                        frame_bgr=detection_data['frame_bgr'],
-                        masks=detection_data['masks'],
-                        rois=rois_to_check
-                    )
-                
-                self.publish_twist_with_gain(0.0, 0.0)
-                return
-
-            # --- Phase 3: Final Decision ---
-            self.get_logger().info("Sample collection complete. Finalizing plan...")
-
-            final_red_area = 0
-            final_green_area = 0
-            if self.detection_results:
-                red_areas = [result['RED'] for result in self.detection_results]
-                green_areas = [result['GREEN'] for result in self.detection_results]
-                
-                final_red_area = np.median(red_areas)
-                final_green_area = np.median(green_areas)
-                
-                self.get_logger().info(f"Collected RED areas: {red_areas}")
-                self.get_logger().info(f"Collected GREEN areas: {green_areas}")
-            else:
-                self.get_logger().error("No detection results were collected.")
-
-            self.get_logger().info(f"Median Representative Areas -> RED: {final_red_area:.1f}, GREEN: {final_green_area:.1f}")
-
-            base_detection_distance_m = 1.2  # The distance for which the base threshold is tuned (from Inner Path)
-            
-            if self.last_avoidance_path_was_outer:
-                # --- Calculate threshold dynamically for Outer Path ---
-                course_width_m = 2.0
-                
-                # Determine outer wall angle based on driving direction
-                if self.direction == 'ccw':
-                    outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
-                else: # cw
-                    outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
-
-                # Get the latest scan data, assuming it is available here
-                scan_msg = self.latest_scan_msg
-                outer_wall_dist = self.get_distance_at_world_angle(scan_msg, outer_wall_angle)
-
-                if not math.isnan(outer_wall_dist) and outer_wall_dist > 0.1 and outer_wall_dist < course_width_m:
-                    effective_distance_outer = course_width_m - outer_wall_dist
-                    
-                    # Prevent division by zero or extremely small distances
-                    if effective_distance_outer < 0.1:
-                        effective_distance_outer = 0.1
-
-                    # Calculate the ratio of squared distances
-                    # This ratio determines how much smaller the object will appear
-                    distance_ratio_sq = (base_detection_distance_m / effective_distance_outer) ** 2
-                    
-                    # The new threshold is the base threshold scaled by this ratio
-                    effective_detection_threshold = self.planning_detection_threshold * distance_ratio_sq
-                    
-                    # Add sanity checks for the final threshold
-                    # Prevent it from becoming too low or excessively high
-                    effective_detection_threshold = max(200, min(effective_detection_threshold, self.planning_detection_threshold * 5.0))
-
-                    self.get_logger().info(f"Last path was OUTER. OuterWallDist: {outer_wall_dist:.2f}m -> EffectiveDist: {effective_distance_outer:.2f}m")
-                    self.get_logger().info(f"Dynamic threshold calculated: {effective_detection_threshold:.1f}")
-
-                else:
-                    # Fallback if LiDAR data is invalid
-                    self.get_logger().warn(f"Could not get valid outer wall distance. Using fallback multiplier.")
-                    effective_detection_threshold = self.planning_detection_threshold * self.planning_detection_threshold_outer_path_multiplier
-                
-            else:
-                # --- Use standard threshold for Inner Path ---
-                effective_detection_threshold = self.planning_detection_threshold
-                self.get_logger().info(f"Last path was INNER. Using standard threshold: {effective_detection_threshold:.1f}")
-
+            effective_detection_threshold = self._get_effective_detection_threshold(msg)
             is_red_present = final_red_area > effective_detection_threshold
             is_green_present = final_green_area > effective_detection_threshold
-
             self.get_logger().warn(f"Final Decision -> RED Present: {is_red_present}, GREEN Present: {is_green_present}")
             
             self._update_avoidance_plan_based_on_vision(is_red_present, is_green_present, final_red_area, final_green_area)
 
-            self.is_sampling_for_planning = False
-            
-            self.get_logger().info("Planning complete. Transitioning to POST_PLANNING_REVERSE.")
-            self.straight_sub_state = StraightSubState.POST_PLANNING_REVERSE
-            self.post_planning_reverse_target_dist_m = 0.7 # Reset to default for next approach
-        
-        else:
-            self.publish_twist_with_gain(0.0, 0.0)
+        # Prepare for the turning maneuver based on the new plan
+        self._prepare_for_turning(base_angle_deg=self.approach_base_yaw_deg)
 
-    def _handle_straight_sub_post_planning_reverse(self, msg: LaserScan):
+        # Decide if the full turning maneuver can be skipped
+        if self._is_turn_maneuver_required():
+            self.get_logger().info("Planning complete. Proceeding with full turn maneuver.")
+            self.turning_sub_state = TurningSubState.POSITIONING_REVERSE
+        else:
+            self.get_logger().info("Planning complete. Skipping full turn, performing positioning reverse only.")
+            self.turning_sub_state = TurningSubState.POSITIONING_REVERSE_FOR_SKIP
+        
+        self.state = State.TURNING
+
+    def _handle_straight_sub_pre_scanning_reverse(self, msg: LaserScan):
         """
-        Sub-state: After planning, reverse straight back until the robot is
-        at a safe distance from the front wall before starting the turn.
+        Sub-state: Reverses straight back to create space before the move-and-scan phase.
         """
         front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
 
@@ -1354,23 +1153,14 @@ class ObstacleNavigatorNode(Node):
             self.publish_twist_with_gain(-self.forward_speed * 0.8, 0.0)
             return
 
-        # Check for completion of the reverse maneuver
+        # --- Reverted to check against a fixed absolute distance ---
         if front_dist >= self.post_planning_reverse_target_dist_m:
             self.get_logger().info(f"Reverse complete (Front Dist: {front_dist:.3f}m).")
-
-            if self._is_turn_maneuver_required():
-                # Turn maneuver is necessary
-                self.get_logger().info("Preparing for turn.")
-                self.publish_twist_with_gain(0.0, 0.0)
-                self._prepare_for_turning(base_angle_deg=self.approach_base_yaw_deg)
-            else:
-                # Turn maneuver can be skipped
-                self.get_logger().info("Skipping turn maneuver.")
-                self.state = State.TURNING
-                self.turning_sub_state = TurningSubState.FINALIZE_TURN
-                self.publish_twist_with_gain(0.0, 0.0) # Stop briefly before adjusting
+            self.get_logger().info("Transitioning to move-and-scan planning phase.")
+            self.state = State.STRAIGHT
+            self.straight_sub_state = StraightSubState.PLAN_NEXT_AVOIDANCE
+            self.publish_twist_with_gain(0.0, 0.0)
         else:
-            # Reverse straight back without turning
             self.get_logger().debug(
                 f"Reversing... Target: > {self.post_planning_reverse_target_dist_m:.2f}m, "
                 f"Current: {front_dist:.3f}m",
@@ -2120,7 +1910,6 @@ class ObstacleNavigatorNode(Node):
                 final_steer = max(min(angle_steer, self.max_steer), -self.max_steer)
                 self.publish_twist_with_gain(-self.forward_speed * 1.2, final_steer)
 
-
     def _handle_parking_sub_reverse_into_space(self, msg: LaserScan):
         """
         Sub-state: Reverse into the parking space at a sharp angle.
@@ -2363,6 +2152,34 @@ class ObstacleNavigatorNode(Node):
             'areas': areas
         }
 
+    def _scan_and_collect_data(self):
+        """
+        A helper function to perform a single instance of image scanning.
+        It gets the ROI, detects colors, and appends the result to the list.
+        It also handles saving debug images.
+        """
+        if self.latest_frame is None:
+            self.get_logger().warn("In scanning range but latest_frame is None.", throttle_duration_sec=1.0)
+            return
+
+        rois_to_check = self._get_planning_roi()
+        detection_data = self._detect_obstacle_color_in_frame(self.latest_frame, rois_to_check=rois_to_check)
+        
+        if detection_data:
+            area_dict = detection_data['areas'].get('planning_roi', {})
+            if area_dict:
+                self.detection_results.append(area_dict)
+                
+                if self.save_debug_images:
+                    self._save_annotated_image(
+                        base_name="planning_detection",
+                        turn_count=self.turn_count + 1,
+                        frame_bgr=detection_data['frame_bgr'],
+                        masks=detection_data['masks'],
+                        rois=rois_to_check,
+                        sample_num=len(self.detection_results)
+                    )
+
     def _update_avoidance_plan_based_on_vision(self, is_red_present, is_green_present, final_red_area, final_green_area):
         """
         Determines the next avoidance path based on visual detection and updates the plan.
@@ -2592,30 +2409,26 @@ class ObstacleNavigatorNode(Node):
         # If inner_wall_dist is nan, do nothing and keep the counter's value.
         # This makes the detection robust against sporadic measurement failures.
 
+
         if self.inner_wall_far_counter >= self.inner_wall_disappear_count and self.can_start_new_turn:
-            # --- Check if planning is still required ---
             self.approach_base_yaw_deg = base_angle_deg
             is_planning_complete = '' not in self.avoidance_path_plan
             
             if not is_planning_complete:
-                # --- Case 1: Planning is required ---
-                self.get_logger().info("Corner detected. Transitioning to PRE_PLANNING_ADJUST.")
+                # --- MODIFIED: Transition to reverse first to create space for scanning ---
+                self.get_logger().info("Corner detected. Reversing to prepare for planning scan.")
                 self.state = State.STRAIGHT
-                self.straight_sub_state = StraightSubState.PRE_PLANNING_ADJUST
-                self.min_inner_dist_planning_approach = float('inf')
-                self.planning_scan_complete = False
+                self.straight_sub_state = StraightSubState.PRE_SCANNING_REVERSE
+                # Set a fixed distance to reverse before starting the move-and-scan phase
+                self.pre_scanning_reverse_target_dist_m = 0.7 
             else:
-                # --- Case 2: Planning is complete, decide turning strategy ---
+                # This part remains the same: planning is done, prepare for the turn
                 self.state = State.TURNING
-                
                 if self._is_turn_maneuver_required():
-                    # --- Subcase 2a: Full turn maneuver is necessary ---
                     self.get_logger().info("Corner detected. Full turn maneuver is required.")
                     self._prepare_for_turning(base_angle_deg)
                 else:
-                    # --- Subcase 2b: Turn can be skipped, but positioning is still desired ---
                     self.get_logger().info("Corner detected. Skipping full turn, performing positioning reverse only.")
-                    # Use the new state to indicate this special path
                     self.turning_sub_state = TurningSubState.POSITIONING_REVERSE_FOR_SKIP
 
             self.publish_twist_with_gain(0.0, 0.0)
@@ -2657,6 +2470,49 @@ class ObstacleNavigatorNode(Node):
         except (IndexError, TypeError, AttributeError):
             self.get_logger().error(f"Invalid or missing avoidance_path_plan. Defaulting to '{default_path}'.")
             return default_path
+
+    def _get_planning_roi(self):
+        """Selects the appropriate planning ROI based on the robot's context."""
+        if self.direction == 'ccw':
+            if self.last_avoidance_path_was_outer:
+                roi_flat = self.roi_planning_ccw_outer_start_area_flat if self.turn_count == 3 else self.roi_planning_ccw_outer_flat
+            else: # inner
+                roi_flat = self.roi_planning_ccw_inner_start_area_flat if self.turn_count == 3 else self.roi_planning_ccw_inner_flat
+        else: # cw
+            if self.last_avoidance_path_was_outer:
+                roi_flat = self.roi_planning_cw_outer_start_area_flat if self.turn_count == 3 else self.roi_planning_cw_outer_flat
+            else: # inner
+                roi_flat = self.roi_planning_cw_inner_start_area_flat if self.turn_count == 3 else self.roi_planning_cw_inner_flat
+        
+        roi_points = self._reshape_roi_points(roi_flat)
+        return {'planning_roi': roi_points} if roi_points else None
+
+    def _get_effective_detection_threshold(self, scan_msg: LaserScan):
+        """Calculates the dynamic detection threshold based on the distance to the obstacle."""
+        base_detection_distance_m = 1.2
+        
+        if self.last_avoidance_path_was_outer:
+            course_width_m = 2.0
+            if self.direction == 'ccw':
+                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
+            else: # cw
+                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
+            
+            outer_wall_dist = self.get_distance_at_world_angle(scan_msg, outer_wall_angle)
+
+            if not math.isnan(outer_wall_dist) and 0.1 < outer_wall_dist < course_width_m:
+                effective_distance_outer = max(0.1, course_width_m - outer_wall_dist)
+                distance_ratio_sq = (base_detection_distance_m / effective_distance_outer) ** 2
+                threshold = self.planning_detection_threshold * distance_ratio_sq
+                threshold = max(200, min(threshold, self.planning_detection_threshold * 5.0))
+                self.get_logger().info(f"Dynamic threshold calculated: {threshold:.1f}")
+                return threshold
+            else:
+                self.get_logger().warn("Could not get valid outer wall distance. Using fallback multiplier.")
+                return self.planning_detection_threshold * self.planning_detection_threshold_outer_path_multiplier
+        else:
+            self.get_logger().info(f"Last path was INNER. Using standard threshold: {self.planning_detection_threshold:.1f}")
+            return self.planning_detection_threshold
 
     def _calculate_base_angle(self):
         """Calculates the ideal angle of the current wall segment based on direction."""
@@ -2714,31 +2570,37 @@ class ObstacleNavigatorNode(Node):
             [flat_points[6], flat_points[7]],
         ]
 
-    def _save_annotated_image(self, base_name: str, turn_count: int, frame_bgr, masks, rois):
+    def _save_annotated_image(self, base_name: str, turn_count: int, frame_bgr, masks, rois, sample_num: int = 1):
         """
-        Saves annotated debug images for color detection.
-
-        Args:
-            base_name (str): The base filename (e.g., 'initial' or 'planning').
-            turn_count (int): The current turn number.
-            frame_bgr: The original BGR frame.
-            masks (dict): Dictionary of color masks {'RED': mask, 'GREEN': mask}.
-            rois (dict): Dictionary of ROIs used for detection, or None.
+        Saves annotated debug images for color detection, organizing planning
+        images into corner-specific subfolders.
         """
         if not self.save_debug_images:
             return
 
         try:
-            # 1. Annotated ROI Image
+            # --- Determine the save path dynamically ---
+            save_path = self.debug_image_path
+            # For planning images, create and use a corner-specific subfolder
+            if base_name == 'planning_detection' and turn_count > 0:
+                corner_folder_name = f"corner{turn_count}"
+                save_path = os.path.join(self.debug_image_path, corner_folder_name)
+                # Create the directory if it doesn't exist; exist_ok=True prevents errors
+                os.makedirs(save_path, exist_ok=True)
+
+            # Create a unique filename suffix
+            filename_suffix = f"turn{turn_count}_sample{sample_num}"
+            
+            # Annotated ROI Image
             annotated_frame = frame_bgr.copy()
             if rois:
                 for roi_name, roi_points in rois.items():
                     cv2.polylines(annotated_frame, [np.array(roi_points, dtype=np.int32)], True, (255, 255, 0), 2)
             
-            filename_annotated = os.path.join(self.debug_image_path, f"{base_name}_turn{turn_count}_annotated.jpg")
+            filename_annotated = os.path.join(save_path, f"{base_name}_{filename_suffix}_annotated.jpg")
             cv2.imwrite(filename_annotated, annotated_frame)
 
-            # 2. Combined Color Mask Image
+            # Combined Color Mask Image
             red_mask = masks.get('RED', np.zeros(frame_bgr.shape[:2], dtype=np.uint8))
             green_mask = masks.get('GREEN', np.zeros(frame_bgr.shape[:2], dtype=np.uint8))
             
@@ -2746,16 +2608,16 @@ class ObstacleNavigatorNode(Node):
             combined_mask_viz[np.where(green_mask == 255)] = (0, 255, 0) # BGR for Green
             combined_mask_viz[np.where(red_mask == 255)] = (0, 0, 255) # BGR for Red
 
-            # --- NEW: Draw ROIs on the mask image as well ---
             if rois:
                 for roi_name, roi_points in rois.items():
                     cv2.polylines(combined_mask_viz, [np.array(roi_points, dtype=np.int32)], True, (255, 255, 0), 2)
 
-
-            filename_mask = os.path.join(self.debug_image_path, f"{base_name}_turn{turn_count}_masks.jpg")
+            filename_mask = os.path.join(save_path, f"{base_name}_{filename_suffix}_masks.jpg")
             cv2.imwrite(filename_mask, combined_mask_viz)
 
-            self.get_logger().info(f"Saved debug images for turn {turn_count}: {filename_annotated}, {filename_mask}")
+            # Log only the first saved image to avoid flooding the console
+            if sample_num == 1:
+                self.get_logger().info(f"Saved debug images for {base_name} turn {turn_count} to: {save_path}")
 
         except Exception as e:
             self.get_logger().error(f"Failed to save debug image: {e}")
@@ -2992,6 +2854,16 @@ class ObstacleNavigatorNode(Node):
             math.cos(angle1_rad) + math.cos(angle2_rad)
         )
         return self._angle_normalize(math.degrees(mid_angle_rad))
+
+    def _start_scanning_while_moving(self):
+        """Callback to start the move-and-scan process after a timer."""
+        with self.state_lock:
+            if self.planning_camera_wait_timer:
+                self.planning_camera_wait_timer.destroy()
+                self.planning_camera_wait_timer = None
+            
+            self.is_scanning_while_moving = True
+            self.get_logger().info("Camera settled. Scanning started. Moving forward to scan the area.")
 
 def main(args=None):
     rclpy.init(args=args)
