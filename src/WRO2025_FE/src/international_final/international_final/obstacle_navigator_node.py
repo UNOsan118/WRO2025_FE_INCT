@@ -17,6 +17,8 @@ from std_srvs.srv import Trigger
 import threading
 import time
 import shutil
+import statistics
+import collections
 
 # (Enums are the same)
 class State(Enum):
@@ -108,12 +110,12 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('initial_approach_target_dist_outer_m', 0.6)
 
         # --- NEW: Vision Processing Parameters (from initial_obstacle_detection_node) ---
-        self.declare_parameter('red_lower1', [0, 50, 70])
-        self.declare_parameter('red_upper1', [4, 255, 255])
-        self.declare_parameter('red_lower2', [174, 50, 70])
-        self.declare_parameter('red_upper2', [179, 255, 255])
-        self.declare_parameter('green_lower', [60, 40, 90])
-        self.declare_parameter('green_upper', [93, 230, 255])
+        self.declare_parameter('red_lower1', [0, 100, 80])
+        self.declare_parameter('red_upper1', [3, 255, 243])
+        self.declare_parameter('red_lower2', [174, 100, 80])
+        self.declare_parameter('red_upper2', [179, 255, 243])
+        self.declare_parameter('green_lower', [55, 100, 67])
+        self.declare_parameter('green_upper', [80, 255, 240])
 
         self.declare_parameter('roi_left', [150, 50, 90, 430])
         self.declare_parameter('roi_right', [290, 50, 90, 430])
@@ -218,8 +220,8 @@ class ObstacleNavigatorNode(Node):
         self.last_inner = 10.0
         self.current_yaw_deg = 0.0
 
-        self.planning_scan_stop_dist = 0.35
-        self.planning_scan_start_dist_m = 0.55
+        self.planning_scan_stop_dist = 0.3
+        self.planning_scan_start_dist_m = 0.5
 
         self.latest_scan_msg = None
         self.is_passing_obstacle = False
@@ -233,14 +235,15 @@ class ObstacleNavigatorNode(Node):
         self.start_area_avoidance_required = False
         self.camera_init_sent = False
 
-
-
         self.accept_new_frames = True
         self.waiting_for_first_safe_frame = False
 
-        # NEW: Variables for color detection logic
+        # Variables for color detection logic
         self.latest_frame = None
-        self.detection_results = [] # List to store detection results for majority vote
+        # This list now stores raw area data for stationary detection (initial)
+        self.detection_results = []
+        #  List to store pattern classification for each frame during planning
+        self.planning_pattern_results = []
 
         self.planning_camera_wait_timer = None
         self.is_sampling_for_planning = False 
@@ -1100,34 +1103,48 @@ class ObstacleNavigatorNode(Node):
 
         # --- PHASE 3: FINALIZATION (executes once the robot stops) ---
         self.publish_twist_with_gain(0.0, 0.0)
-        self.get_logger().info(f"Move-and-scan complete. Collected {len(self.detection_results)} samples. Analyzing...")
+        self.get_logger().info(f"Move-and-scan complete. Collected {len(self.planning_pattern_results)} pattern samples. Analyzing...")
 
-        if not self.detection_results:
+        if not self.planning_pattern_results:
             self.get_logger().error("No detection results were collected. Assuming 'red_only' as a failsafe.")
-            self._update_avoidance_plan_based_on_vision(True, False, 999, 0)
+            final_pattern = 'red_only'
         else:
-            red_areas = [result['RED'] for result in self.detection_results]
-            green_areas = [result['GREEN'] for result in self.detection_results]
-            final_red_area = np.median(red_areas)
-            final_green_area = np.median(green_areas)
+            # --- MODIFICATION: Tally the votes for each pattern for detailed logging ---
+            vote_counts = collections.Counter(self.planning_pattern_results)
             
+            # Find the most common pattern(s)
+            most_common = vote_counts.most_common()
+            
+            # Default to a safe pattern in case of an empty list
+            final_pattern = 'red_only'
+
+            if most_common:
+                # Check for a tie between the first and second most common patterns
+                is_tie = len(most_common) > 1 and most_common[0][1] == most_common[1][1]
+                if is_tie:
+                    self.get_logger().warn(f"Tie detected in pattern voting. Defaulting to safe pattern 'red_only'.")
+                    final_pattern = 'red_only'
+                else:
+                    final_pattern = most_common[0][0]
+
+            # --- MODIFICATION: Enhanced and more detailed logging ---
             log_msg = (
                 f"\n--- Planning Analysis Results (Turn {self.turn_count + 1}) ---\n"
-                f"  - Samples Collected : {len(self.detection_results)}\n"
-                f"  - Red Area Data     : {[f'{area:.0f}' for area in red_areas]}\n"
-                f"  - Green Area Data   : {[f'{area:.0f}' for area in green_areas]}\n"
-                f"  - Median Red Area   : {final_red_area:.1f}\n"
-                f"  - Median Green Area : {final_green_area:.1f}\n"
+                f"  - Samples Collected: {len(self.planning_pattern_results)}\n"
+                f"  - Vote Tally:\n"
+            )
+            # Add each pattern's vote count to the log message
+            for pattern, count in vote_counts.items():
+                log_msg += f"      - {pattern:<15}: {count} votes\n"
+            
+            log_msg += (
+                f"  - Final Decision   : '{final_pattern}' (Majority Vote)\n"
                 f"-----------------------------------------"
             )
             self.get_logger().info(log_msg)
-            
-            effective_detection_threshold = self._get_effective_detection_threshold(msg)
-            is_red_present = final_red_area > effective_detection_threshold
-            is_green_present = final_green_area > effective_detection_threshold
-            self.get_logger().warn(f"Final Decision -> RED Present: {is_red_present}, GREEN Present: {is_green_present}")
-            
-            self._update_avoidance_plan_based_on_vision(is_red_present, is_green_present, final_red_area, final_green_area)
+
+        # Update the avoidance plan based on the single, final pattern
+        self._update_avoidance_plan_based_on_vision(final_pattern)
 
         # Prepare for the turning maneuver based on the new plan
         self._prepare_for_turning(base_angle_deg=self.approach_base_yaw_deg)
@@ -2154,9 +2171,8 @@ class ObstacleNavigatorNode(Node):
 
     def _scan_and_collect_data(self):
         """
-        A helper function to perform a single instance of image scanning.
-        It gets the ROI, detects colors, and appends the result to the list.
-        It also handles saving debug images.
+        Performs a single instance of image scanning. It detects colors,
+        classifies the pattern for the frame, and appends the resulting pattern string.
         """
         if self.latest_frame is None:
             self.get_logger().warn("In scanning range but latest_frame is None.", throttle_duration_sec=1.0)
@@ -2168,7 +2184,12 @@ class ObstacleNavigatorNode(Node):
         if detection_data:
             area_dict = detection_data['areas'].get('planning_roi', {})
             if area_dict:
-                self.detection_results.append(area_dict)
+                # --- MODIFICATION: Classify pattern per frame instead of storing raw data ---
+                # Note: We need the latest scan message to calculate the dynamic threshold here
+                if self.latest_scan_msg:
+                    threshold = self._get_effective_detection_threshold(self.latest_scan_msg)
+                    pattern = self._get_obstacle_pattern_from_areas(area_dict['RED'], area_dict['GREEN'], threshold)
+                    self.planning_pattern_results.append(pattern)
                 
                 if self.save_debug_images:
                     self._save_annotated_image(
@@ -2177,41 +2198,51 @@ class ObstacleNavigatorNode(Node):
                         frame_bgr=detection_data['frame_bgr'],
                         masks=detection_data['masks'],
                         rois=rois_to_check,
-                        sample_num=len(self.detection_results)
+                        sample_num=len(self.planning_pattern_results)
                     )
 
-    def _update_avoidance_plan_based_on_vision(self, is_red_present, is_green_present, final_red_area, final_green_area):
+    def _get_obstacle_pattern_from_areas(self, red_area, green_area, threshold):
         """
-        Determines the next avoidance path based on visual detection and updates the plan.
+        Classifies the obstacle pattern based on the detected red and green pixel areas
+        from a single frame.
         """
-        found_obstacle = 'none'
-        if is_red_present and is_green_present:
-            found_obstacle = 'red_to_green' if final_red_area >= final_green_area else 'green_to_red'
-        elif is_red_present:
-            found_obstacle = 'red_only'
-        elif is_green_present:
-            found_obstacle = 'green_only'
-        else:
-            self.get_logger().warn("No obstacles found, defaulting to 'red_only' behavior (outer for CCW, inner for CW).")
-            found_obstacle = 'red_only' # Safe default
+        is_red_present = red_area > threshold
+        is_green_present = green_area > threshold
 
+        if is_red_present and is_green_present:
+            # If both are present, assume the one with the larger area is the primary
+            return 'red_to_green' if red_area >= green_area else 'green_to_red'
+        elif is_red_present:
+            return 'red_only'
+        elif is_green_present:
+            return 'green_only'
+        else:
+            return 'none'
+
+    def _update_avoidance_plan_based_on_vision(self, final_pattern: str):
+        """
+        Determines the next avoidance path based on the final decided pattern
+        from the majority vote.
+        """
         # Map obstacle configuration to path type based on driving direction
         if self.direction == 'ccw':
             path_mapping = {
                 'red_only': 'outer',
                 'green_only': 'inner',
                 'red_to_green': 'outer_to_inner',
-                'green_to_red': 'inner_to_outer'
+                'green_to_red': 'inner_to_outer',
+                'none': 'outer' # Failsafe: if no obstacle is detected, take the wider outer path
             }
-        else: # cw
+        else:  # cw
             path_mapping = {
                 'red_only': 'inner',
                 'green_only': 'outer',
                 'red_to_green': 'inner_to_outer',
-                'green_to_red': 'outer_to_inner'
+                'green_to_red': 'outer_to_inner',
+                'none': 'outer' # Failsafe: if no obstacle is detected, take the wider outer path
             }
         
-        next_avoidance_path = path_mapping[found_obstacle]
+        next_avoidance_path = path_mapping.get(final_pattern, 'outer') # Default to 'outer' if pattern is unexpected
         
         next_segment_index = (self.wall_segment_index + 1) % len(self.avoidance_path_plan)
         self.avoidance_path_plan[next_segment_index] = next_avoidance_path
@@ -2505,7 +2536,7 @@ class ObstacleNavigatorNode(Node):
                 distance_ratio_sq = (base_detection_distance_m / effective_distance_outer) ** 2
                 threshold = self.planning_detection_threshold * distance_ratio_sq
                 threshold = max(200, min(threshold, self.planning_detection_threshold * 5.0))
-                self.get_logger().info(f"Dynamic threshold calculated: {threshold:.1f}")
+                self.get_logger().debug(f"Dynamic threshold calculated: {threshold:.1f}")
                 return threshold
             else:
                 self.get_logger().warn("Could not get valid outer wall distance. Using fallback multiplier.")
