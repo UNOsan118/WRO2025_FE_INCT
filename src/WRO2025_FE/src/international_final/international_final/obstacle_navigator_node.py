@@ -110,6 +110,15 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('initial_approach_target_dist_outer_m', 0.6)
 
         # --- NEW: Vision Processing Parameters (from initial_obstacle_detection_node) ---
+        """
+        self.declare_parameter('red_lower1', [0, 50, 70])
+        self.declare_parameter('red_upper1', [4, 255, 255])
+        self.declare_parameter('red_lower2', [174, 50, 70])
+        self.declare_parameter('red_upper2', [179, 255, 255])
+        self.declare_parameter('green_lower', [60, 40, 90])
+        self.declare_parameter('green_upper', [93, 230, 255])
+        """
+
         self.declare_parameter('red_lower1', [0, 100, 80])
         self.declare_parameter('red_upper1', [3, 255, 243])
         self.declare_parameter('red_lower2', [174, 100, 80])
@@ -220,9 +229,6 @@ class ObstacleNavigatorNode(Node):
         self.last_inner = 10.0
         self.current_yaw_deg = 0.0
 
-        self.planning_scan_stop_dist = 0.3
-        self.planning_scan_start_dist_m = 0.5
-
         self.latest_scan_msg = None
         self.is_passing_obstacle = False
         self.avoid_target_yaw_deg = 0.0
@@ -244,6 +250,16 @@ class ObstacleNavigatorNode(Node):
         self.detection_results = []
         #  List to store pattern classification for each frame during planning
         self.planning_pattern_results = []
+
+        self.planning_scan_roi_flat = [280, 0, 200, 480, 440, 480, 360, 0] # [x, y, width, height]
+        self.max_red_blob_area = 0.0
+        self.max_green_blob_area = 0.0
+        self.max_red_blob_sample_num = 0
+        self.max_green_blob_sample_num = 0
+
+        self.planning_scan_interval = 2
+        self.planning_scan_stop_dist = 0.25
+        self.planning_scan_start_dist_m = 0.5
 
         self.planning_camera_wait_timer = None
         self.is_sampling_for_planning = False 
@@ -1068,6 +1084,12 @@ class ObstacleNavigatorNode(Node):
             self.planning_initiated = True
             self.detection_results.clear()
 
+            self.max_red_blob_area = 0.0
+            self.max_green_blob_area = 0.0
+            self.max_red_blob_sample_num = 0
+            self.max_green_blob_sample_num = 0
+            self.scan_frame_count = 0
+
             # For the first turn, command the camera to tilt. This happens concurrently
             # with the robot's initial forward movement.
             if self.turn_count == 0:
@@ -1103,45 +1125,27 @@ class ObstacleNavigatorNode(Node):
 
         # --- PHASE 3: FINALIZATION (executes once the robot stops) ---
         self.publish_twist_with_gain(0.0, 0.0)
-        self.get_logger().info(f"Move-and-scan complete. Collected {len(self.planning_pattern_results)} pattern samples. Analyzing...")
+        self.get_logger().info(f"Move-and-scan complete. Analyzed {len(self.detection_results)} frames. Analyzing max blob areas found...")
 
-        if not self.planning_pattern_results:
-            self.get_logger().error("No detection results were collected. Assuming 'red_only' as a failsafe.")
-            final_pattern = 'red_only'
-        else:
-            # --- MODIFICATION: Tally the votes for each pattern for detailed logging ---
-            vote_counts = collections.Counter(self.planning_pattern_results)
-            
-            # Find the most common pattern(s)
-            most_common = vote_counts.most_common()
-            
-            # Default to a safe pattern in case of an empty list
-            final_pattern = 'red_only'
-
-            if most_common:
-                # Check for a tie between the first and second most common patterns
-                is_tie = len(most_common) > 1 and most_common[0][1] == most_common[1][1]
-                if is_tie:
-                    self.get_logger().warn(f"Tie detected in pattern voting. Defaulting to safe pattern 'red_only'.")
-                    final_pattern = 'red_only'
-                else:
-                    final_pattern = most_common[0][0]
-
-            # --- MODIFICATION: Enhanced and more detailed logging ---
-            log_msg = (
-                f"\n--- Planning Analysis Results (Turn {self.turn_count + 1}) ---\n"
-                f"  - Samples Collected: {len(self.planning_pattern_results)}\n"
-                f"  - Vote Tally:\n"
-            )
-            # Add each pattern's vote count to the log message
-            for pattern, count in vote_counts.items():
-                log_msg += f"      - {pattern:<15}: {count} votes\n"
-            
-            log_msg += (
-                f"  - Final Decision   : '{final_pattern}' (Majority Vote)\n"
-                f"-----------------------------------------"
-            )
-            self.get_logger().info(log_msg)
+        # --- MODIFICATION: Analyze based on max blob areas, not majority vote ---
+        effective_threshold = self._get_effective_detection_threshold(msg)
+        
+        final_pattern = self._get_obstacle_pattern_from_areas(
+            self.max_red_blob_area,
+            self.max_green_blob_area,
+            effective_threshold
+        )
+        
+        log_msg = (
+            f"\n--- Planning Analysis Results (Turn {self.turn_count + 1}) ---\n"
+            f"  - Frames Analyzed        : {len(self.detection_results)}\n"
+            f"  - Max Red Blob Area Found  : {self.max_red_blob_area:.1f} (at sample #{self.max_red_blob_sample_num})\n"
+            f"  - Max Green Blob Area Found: {self.max_green_blob_area:.1f} (at sample #{self.max_green_blob_sample_num})\n"
+            f"  - Detection Threshold      : {effective_threshold:.1f}\n"
+            f"  - Final Decision           : '{final_pattern}'\n"
+            f"-----------------------------------------"
+        )
+        self.get_logger().info(log_msg)
 
         # Update the avoidance plan based on the single, final pattern
         self._update_avoidance_plan_based_on_vision(final_pattern)
@@ -2171,35 +2175,100 @@ class ObstacleNavigatorNode(Node):
 
     def _scan_and_collect_data(self):
         """
-        Performs a single instance of image scanning. It detects colors,
-        classifies the pattern for the frame, and appends the resulting pattern string.
+        Performs a single instance of image scanning. It finds the largest
+        contiguous blob of each color within a defined polygon ROI and updates
+        the maximum area found so far.
         """
+
+        # Increment frame counter first
+        self.scan_frame_count += 1
+        # Check if this frame should be processed
+        if self.scan_frame_count % self.planning_scan_interval != 0:
+            return # Skip processing for this frame
+
+        # If we process this frame, use the total count as the sample number
+        current_sample_num = self.scan_frame_count // self.planning_scan_interval
+
         if self.latest_frame is None:
             self.get_logger().warn("In scanning range but latest_frame is None.", throttle_duration_sec=1.0)
             return
 
-        rois_to_check = self._get_planning_roi()
-        detection_data = self._detect_obstacle_color_in_frame(self.latest_frame, rois_to_check=rois_to_check)
+        # 1. Get color masks
+        detection_data = self._detect_obstacle_color_in_frame(self.latest_frame)
+        if not detection_data:
+            return
+            
+        red_mask = detection_data['masks']['RED']
+        green_mask = detection_data['masks']['GREEN']
+
+        # --- MODIFIED: Create a polygon ROI mask from the 4-point parameter ---
+        # 2. Reshape the flat points and create the scanning ROI mask
+        scan_roi_points = self._reshape_roi_points(self.planning_scan_roi_flat)
+        scan_roi_mask = np.zeros(red_mask.shape[:2], dtype=np.uint8)
         
-        if detection_data:
-            area_dict = detection_data['areas'].get('planning_roi', {})
-            if area_dict:
-                # --- MODIFICATION: Classify pattern per frame instead of storing raw data ---
-                # Note: We need the latest scan message to calculate the dynamic threshold here
-                if self.latest_scan_msg:
-                    threshold = self._get_effective_detection_threshold(self.latest_scan_msg)
-                    pattern = self._get_obstacle_pattern_from_areas(area_dict['RED'], area_dict['GREEN'], threshold)
-                    self.planning_pattern_results.append(pattern)
-                
-                if self.save_debug_images:
-                    self._save_annotated_image(
-                        base_name="planning_detection",
-                        turn_count=self.turn_count + 1,
-                        frame_bgr=detection_data['frame_bgr'],
-                        masks=detection_data['masks'],
-                        rois=rois_to_check,
-                        sample_num=len(self.planning_pattern_results)
-                    )
+        if scan_roi_points: # Proceed only if the points are valid
+            roi_corners = np.array([scan_roi_points], dtype=np.int32)
+            cv2.fillPoly(scan_roi_mask, roi_corners, 255)
+        
+        # 3. Apply the ROI to the color masks
+        red_mask_roi = cv2.bitwise_and(red_mask, scan_roi_mask)
+        green_mask_roi = cv2.bitwise_and(green_mask, scan_roi_mask)
+
+        # 4. Find the largest blob for each color
+        max_red_area_in_frame = self._find_largest_blob_area(red_mask_roi)
+        max_green_area_in_frame = self._find_largest_blob_area(green_mask_roi)
+
+        # 5. Update the overall maximums and the sample number when it occurred
+        if max_red_area_in_frame > self.max_red_blob_area:
+            self.max_red_blob_area = max_red_area_in_frame
+            self.max_red_blob_sample_num = current_sample_num # RECORD SAMPLE NUMBER
+        
+        if max_green_area_in_frame > self.max_green_blob_area:
+            self.max_green_blob_area = max_green_area_in_frame
+            self.max_green_blob_sample_num = current_sample_num # RECORD SAMPLE NUMBER
+
+        # Debug logging
+        self.get_logger().debug(
+            f"Scan Frame: RedBlob={max_red_area_in_frame:.0f}, GreenBlob={max_green_area_in_frame:.0f} | "
+            f"Max Encountered: R={self.max_red_blob_area:.0f}, G={self.max_green_blob_area:.0f}"
+        )
+        
+        # Save debug images
+        if self.save_debug_images:
+            # --- MODIFIED: Use a single dictionary for ROIs to pass to the save function ---
+            rois_to_visualize = {'scan_roi': scan_roi_points} if scan_roi_points else None
+
+            self.detection_results.append(1) # Frame counter
+            sample_num = len(self.detection_results)
+
+            self._save_annotated_image(
+                base_name="planning_detection",
+                turn_count=self.turn_count + 1,
+                frame_bgr=detection_data['frame_bgr'],
+                masks={'RED': red_mask_roi, 'GREEN': green_mask_roi},
+                rois=rois_to_visualize,
+                sample_num=sample_num
+            )
+    
+    def _find_largest_blob_area(self, mask):
+        """
+        Finds all contiguous blobs in a binary mask and returns the area of the largest one.
+        Uses connectedComponentsWithStats for efficient blob analysis.
+        """
+        # Find connected components
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
+
+        if num_labels <= 1: # Only background found
+            return 0
+
+        # The first label (0) is the background, so we ignore it by slicing from 1.
+        areas = stats[1:, cv2.CC_STAT_AREA]
+        
+        if areas.size == 0:
+            return 0
+            
+        return np.max(areas)
+
 
     def _get_obstacle_pattern_from_areas(self, red_area, green_area, threshold):
         """
@@ -2626,7 +2695,8 @@ class ObstacleNavigatorNode(Node):
             annotated_frame = frame_bgr.copy()
             if rois:
                 for roi_name, roi_points in rois.items():
-                    cv2.polylines(annotated_frame, [np.array(roi_points, dtype=np.int32)], True, (255, 255, 0), 2)
+                    if roi_points: # Check if points list is not empty
+                        cv2.polylines(annotated_frame, [np.array(roi_points, dtype=np.int32)], True, (255, 255, 0), 2)
             
             filename_annotated = os.path.join(save_path, f"{base_name}_{filename_suffix}_annotated.jpg")
             cv2.imwrite(filename_annotated, annotated_frame)
