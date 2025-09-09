@@ -90,6 +90,14 @@ class ObstacleNavigatorNode(Node):
         # --- NEW: Parameters for Dynamic Camera Aiming ---
         self.declare_parameter('tilt_position_cw', 530)
         self.declare_parameter('tilt_position_ccw', 2500)
+
+        # --- NEW: Parameters for Dynamic Tilt Stabilization ---
+        self.declare_parameter('enable_dynamic_tilt', True)
+        self.declare_parameter('tilt_center_position', 1500)
+        self.declare_parameter('tilt_max_position', 2500)
+        self.declare_parameter('tilt_min_position', 500)
+        self.declare_parameter('tilt_update_interval_ms', 100) # Update tilt every 100ms (10Hz)
+
         self.declare_parameter('image_width', 640)
 
         self.declare_parameter('roi_planning_ccw_inner_flat', [225, 30, 0, 480, 640, 480, 480, 30])
@@ -103,7 +111,7 @@ class ObstacleNavigatorNode(Node):
 
         # --- Course Detection Parameters ---
         self.declare_parameter('course_detection_threshold_m', 1.5)
-        self.declare_parameter('course_detection_slow_speed', 0.17)
+        self.declare_parameter('course_detection_slow_speed', 0.1)
         self.declare_parameter('course_detection_speed', 0.17)
         self.declare_parameter('initial_approach_target_dist_inner_ccw_m', 0.3)
         self.declare_parameter('initial_approach_target_dist_inner_cw_m', 0.25)
@@ -194,6 +202,14 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('avoidance_path_plan', ['', '', '', ''])
         self.declare_parameter('entrance_obstacle_plan', [False, False, False, False])
 
+        self.declare_parameter('parking_approach_ccw_dist_min_m', 0.6)
+        self.declare_parameter('parking_approach_ccw_dist_max_m', 0.7)
+        self.declare_parameter('parking_approach_cw_overshoot_dist_m', 1.0)
+        self.declare_parameter('parking_approach_cw_final_dist_min_m', 1.15)
+        self.declare_parameter('parking_approach_cw_final_dist_max_m', 1.25)
+        self.declare_parameter('parking_reverse_in_target_angle_deg', 50.0)
+        self.declare_parameter('parking_reverse_in_yaw_tolerance_deg', 2.0)
+
         # --- NEW: Parameters for PID-based Wall Following ---
         self.declare_parameter('align_target_inner_dist_m', 0.23)
         self.declare_parameter('align_dist_tolerance_m', 0.005)
@@ -282,6 +298,11 @@ class ObstacleNavigatorNode(Node):
         self.last_published_linear = 0.0
         self.last_published_angular = 0.0
 
+        # --- NEW: Internal variables for dynamic tilt ---
+        self.servo_units_per_degree = 1000.0 / 90.0
+        self.last_tilt_update_time = self.get_clock().now()
+        self.last_sent_tilt_position = -1 # Initialize with an invalid value
+
         self.initial_approach_target_dist_inner_m = 27.5
 
         self.gain_straight_align_outer_wall = 1.5
@@ -330,6 +351,13 @@ class ObstacleNavigatorNode(Node):
 
         self.tilt_position_cw = self.get_parameter('tilt_position_cw').get_parameter_value().integer_value
         self.tilt_position_ccw = self.get_parameter('tilt_position_ccw').get_parameter_value().integer_value
+
+        self.enable_dynamic_tilt = self.get_parameter('enable_dynamic_tilt').get_parameter_value().bool_value
+        self.tilt_center_position = self.get_parameter('tilt_center_position').get_parameter_value().integer_value
+        self.tilt_max_position = self.get_parameter('tilt_max_position').get_parameter_value().integer_value
+        self.tilt_min_position = self.get_parameter('tilt_min_position').get_parameter_value().integer_value
+        self.tilt_update_interval_ms = self.get_parameter('tilt_update_interval_ms').get_parameter_value().integer_value
+
         self.image_width = self.get_parameter('image_width').get_parameter_value().integer_value
 
         self.roi_planning_ccw_inner_flat = self.get_parameter('roi_planning_ccw_inner_flat').get_parameter_value().integer_array_value
@@ -419,6 +447,14 @@ class ObstacleNavigatorNode(Node):
 
         self.avoidance_path_plan = self.get_parameter('avoidance_path_plan').get_parameter_value().string_array_value
         self.entrance_obstacle_plan = self.get_parameter('entrance_obstacle_plan').get_parameter_value().bool_array_value
+
+        self.parking_approach_ccw_dist_min_m = self.get_parameter('parking_approach_ccw_dist_min_m').get_parameter_value().double_value
+        self.parking_approach_ccw_dist_max_m = self.get_parameter('parking_approach_ccw_dist_max_m').get_parameter_value().double_value
+        self.parking_approach_cw_overshoot_dist_m = self.get_parameter('parking_approach_cw_overshoot_dist_m').get_parameter_value().double_value
+        self.parking_approach_cw_final_dist_min_m = self.get_parameter('parking_approach_cw_final_dist_min_m').get_parameter_value().double_value
+        self.parking_approach_cw_final_dist_max_m = self.get_parameter('parking_approach_cw_final_dist_max_m').get_parameter_value().double_value
+        self.parking_reverse_in_target_angle_deg = self.get_parameter('parking_reverse_in_target_angle_deg').get_parameter_value().double_value
+        self.parking_reverse_in_yaw_tolerance_deg = self.get_parameter('parking_reverse_in_yaw_tolerance_deg').get_parameter_value().double_value
 
         self.save_debug_images = self.get_parameter('save_debug_images').get_parameter_value().bool_value
         self.debug_image_path = self.get_parameter('debug_image_path').get_parameter_value().string_value
@@ -1090,30 +1126,75 @@ class ObstacleNavigatorNode(Node):
             self.max_green_blob_sample_num = 0
             self.scan_frame_count = 0
 
-            # For the first turn, command the camera to tilt. This happens concurrently
-            # with the robot's initial forward movement.
-            if self.turn_count == 0:
-                if self.direction == 'ccw':
-                    final_tilt_position = self.tilt_position_ccw
-                else:  # cw
-                    final_tilt_position = self.tilt_position_cw
+            # Instead of setting a static center position, calculate the correct
+            # initial viewing angle and set it immediately.
+            # This prevents the camera from briefly pointing forward.
+            if self.enable_dynamic_tilt:
+                # Determine the target viewing angle in the world frame.
+                base_path_angle_deg = self.approach_base_yaw_deg
                 
-                self.get_logger().info(f"Turn 0: Commanding camera to tilt to {final_tilt_position}.")
+                if self.direction == 'ccw':
+                    # Look left
+                    viewing_offset_deg = 90.0
+                else: # cw
+                    # Look right
+                    viewing_offset_deg = -90.0
+                
+                target_world_angle_deg = self._angle_normalize(base_path_angle_deg + viewing_offset_deg)
+
+                # Calculate the initial servo position based on the current yaw
+                # The logic is duplicated from _update_dynamic_tilt for immediate use.
+                camera_relative_angle_deg = self._angle_diff(target_world_angle_deg, self.current_yaw_deg)
+                tilt_offset = camera_relative_angle_deg * self.servo_units_per_degree
+                initial_tilt_pos = self.tilt_center_position + tilt_offset
+                clamped_initial_tilt = int(max(self.tilt_min_position, min(self.tilt_max_position, initial_tilt_pos)))
+
+                self.get_logger().info(f"Setting initial dynamic tilt to {clamped_initial_tilt}.")
                 self._set_camera_angle(
                     pan_position=self.initial_pan_position,
-                    tilt_position=final_tilt_position,
+                    tilt_position=clamped_initial_tilt,
                     duration_sec=self.camera_move_duration
                 )
-        
+                self.last_sent_tilt_position = clamped_initial_tilt # Update last sent position
+            else:
+                # Fallback to old static logic if dynamic tilt is disabled
+                if self.direction == 'ccw':
+                    static_tilt_pos = self.tilt_position_ccw
+                else:
+                    static_tilt_pos = self.tilt_position_cw
+                self._set_camera_angle(
+                    pan_position=self.initial_pan_position,
+                    tilt_position=static_tilt_pos,
+                    duration_sec=self.camera_move_duration
+                )
+
         # --- PHASE 2: DRIVING & SCANNING ---
         target_stop_dist = self.planning_scan_stop_dist
         front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
 
         # If the robot is still approaching the final stopping point, continue driving.
         if math.isnan(front_dist) or front_dist > target_stop_dist:
+            # --- NEW: Update dynamic tilt to look at the side wall ---
+            if self.enable_dynamic_tilt:
+                # Determine the target viewing angle in the world frame.
+                base_path_angle_deg = self.approach_base_yaw_deg
+                
+                if self.direction == 'ccw':
+                    # Look left (perpendicular to the path)
+                    viewing_offset_deg = 90.0
+                else: # cw
+                    # Look right (perpendicular to the path)
+                    viewing_offset_deg = -90.0
+                
+                target_world_angle_deg = self._angle_normalize(base_path_angle_deg + viewing_offset_deg)
+                
+                # Call the generalized update function with the target angle
+                self._update_dynamic_tilt(target_world_angle_deg)
+            
             # Drive straight forward using IMU for heading correction
             angle_error_deg = self._angle_diff(self.approach_base_yaw_deg, self.current_yaw_deg)
-            angle_steer = self.align_kp_angle * angle_error_deg
+            planning_kp_gain = 2.0
+            angle_steer = self.align_kp_angle * angle_error_deg * planning_kp_gain
             final_steer = max(min(angle_steer, self.max_steer), -self.max_steer)
             self.publish_twist_with_gain(self.course_detection_slow_speed, final_steer)
 
@@ -1121,7 +1202,31 @@ class ObstacleNavigatorNode(Node):
             if not math.isnan(front_dist) and front_dist < self.planning_scan_start_dist_m:
                 self._scan_and_collect_data()
             
-            return # Exit here for this control loop iteration
+            next_segment_index = (self.wall_segment_index + 1) % len(self.entrance_obstacle_plan)
+            # Only check if the plan for this segment is not already 'obstructed'
+            if not self.entrance_obstacle_plan[next_segment_index]:
+                clearance_threshold = 1.1
+                if self.direction == 'ccw':
+                    inner_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
+                    outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
+                else: # cw
+                    inner_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
+                    outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
+                
+                # Use a narrower scan for safety while moving
+                inner_dist = self.get_closest_distance_in_range(msg, inner_wall_angle, 15.0)
+                outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+                
+                if inner_dist is not None and not math.isnan(outer_dist):
+                    total_dist = inner_dist['distance'] + outer_dist
+                    if total_dist < clearance_threshold:
+                        self.get_logger().error(
+                            f"[ENTRANCE BLOCKED DETECTED WHILE MOVING] "
+                            f"Clearance: {total_dist:.3f}m. Flagging for careful turn."
+                        )
+                        self.entrance_obstacle_plan[next_segment_index] = True
+            
+            return
 
         # --- PHASE 3: FINALIZATION (executes once the robot stops) ---
         self.publish_twist_with_gain(0.0, 0.0)
@@ -1861,8 +1966,8 @@ class ObstacleNavigatorNode(Node):
         
         if self.direction == 'ccw':
             # --- Standard single-step approach for CCW ---
-            target_dist_min = 0.6
-            target_dist_max = 0.7
+            target_dist_min = self.parking_approach_ccw_dist_min_m
+            target_dist_max = self.parking_approach_ccw_dist_max_m
             
             self.get_logger().debug(
                 f"PRE_PARKING_ADJUST (CCW): FrontDist: {front_dist:.3f}m, TargetRange: {target_dist_min:.2f}-{target_dist_max:.2f}m",
@@ -1887,9 +1992,9 @@ class ObstacleNavigatorNode(Node):
             
         else: # cw
             # --- Special two-step approach for CW ---
-            overshoot_target_dist = 1.0  # Go past the target to this distance
-            final_target_dist_min = 1.15
-            final_target_dist_max = 1.25
+            overshoot_target_dist = self.parking_approach_cw_overshoot_dist_m
+            final_target_dist_min = self.parking_approach_cw_final_dist_min_m
+            final_target_dist_max = self.parking_approach_cw_final_dist_max_m
 
             if self.pre_parking_step == 0:
                 # --- Step 0: Overshoot Forward ---
@@ -1936,8 +2041,8 @@ class ObstacleNavigatorNode(Node):
         Sub-state: Reverse into the parking space at a sharp angle.
         """
         # --- Define targets ---
-        target_relative_angle_deg = 50.0
-        yaw_tolerance_deg = 2.0
+        target_relative_angle_deg = self.parking_reverse_in_target_angle_deg
+        yaw_tolerance_deg = self.parking_reverse_in_yaw_tolerance_deg
 
         if self.direction == 'ccw':
             target_yaw_deg = self._angle_normalize(self.parking_base_yaw_deg + target_relative_angle_deg)
@@ -2269,7 +2374,6 @@ class ObstacleNavigatorNode(Node):
             
         return np.max(areas)
 
-
     def _get_obstacle_pattern_from_areas(self, red_area, green_area, threshold):
         """
         Classifies the obstacle pattern based on the detected red and green pixel areas
@@ -2287,6 +2391,56 @@ class ObstacleNavigatorNode(Node):
             return 'green_only'
         else:
             return 'none'
+
+    def _update_dynamic_tilt(self, target_world_angle_deg: float):
+        """
+        Calculates and sends the tilt position to keep the camera aimed at a
+        specific absolute world angle, throttled to a specific update rate.
+
+        Args:
+            target_world_angle_deg: The absolute angle in the world frame that the camera should point to.
+        """
+        # --- Throttle the update rate ---
+        current_time = self.get_clock().now()
+        duration_since_last_update = (current_time - self.last_tilt_update_time).nanoseconds / 1e6
+
+        if duration_since_last_update < self.tilt_update_interval_ms:
+            return
+
+        self.last_tilt_update_time = current_time
+
+        # --- Calculation Logic (integrated from the old _calculate function) ---
+
+        # Step 1: Calculate the angle the camera needs to point, relative to the CURRENT robot body.
+        camera_relative_angle_deg = self._angle_diff(target_world_angle_deg, self.current_yaw_deg)
+        
+        # Step 2: Convert the relative camera angle to a servo command value (offset from center).
+        tilt_offset = camera_relative_angle_deg * self.servo_units_per_degree
+        
+        # Adjust the offset based on servo orientation and driving direction.
+        # This assumes a positive offset means turning the camera left.
+        # This might need to be inverted depending on the physical servo setup.
+        target_tilt = self.tilt_center_position + tilt_offset
+        
+        # Step 3: Clamp the final value to be within the servo's physical limits.
+        clamped_tilt = int(max(self.tilt_min_position, min(self.tilt_max_position, target_tilt)))
+        
+        # --- Servo Command Publishing ---
+        
+        # Only send a new command if the target position has changed.
+        if clamped_tilt != self.last_sent_tilt_position:
+            self.get_logger().debug(f"Updating dynamic tilt. Target World: {target_world_angle_deg:.1f}, Servo Pos: {clamped_tilt}", throttle_duration_sec=1.0)
+            
+            msg = SetPWMServoState()
+            msg.duration = 0.1 # Short duration for smooth, continuous updates
+            
+            tilt_state = PWMServoState()
+            tilt_state.id = [self.tilt_servo_id]
+            tilt_state.position = [clamped_tilt]
+            msg.state = [tilt_state]
+
+            self.servo_pub.publish(msg)
+            self.last_sent_tilt_position = clamped_tilt
 
     def _update_avoidance_plan_based_on_vision(self, final_pattern: str):
         """
@@ -2311,11 +2465,22 @@ class ObstacleNavigatorNode(Node):
                 'none': 'outer' # Failsafe: if no obstacle is detected, take the wider outer path
             }
         
-        next_avoidance_path = path_mapping.get(final_pattern, 'outer') # Default to 'outer' if pattern is unexpected
-        
+        next_avoidance_path = path_mapping.get(final_pattern, 'outer')
         next_segment_index = (self.wall_segment_index + 1) % len(self.avoidance_path_plan)
+        
+        # Update the path plan
         self.avoidance_path_plan[next_segment_index] = next_avoidance_path
+        self.get_logger().info(f"Path plan for segment {next_segment_index} set to: '{next_avoidance_path}'")
 
+        # --- This part correctly handles the "lane change" requirement ---
+        if next_avoidance_path in ['outer_to_inner', 'inner_to_outer']:
+            if not self.entrance_obstacle_plan[next_segment_index]:
+                self.get_logger().warn(
+                    f"Path is a lane change ('{next_avoidance_path}'). "
+                    f"Forcing entrance_obstacle_plan to True for a safer turn."
+                )
+                self.entrance_obstacle_plan[next_segment_index] = True
+                
     def _prepare_for_turning(self, base_angle_deg, specific_angle_deg=None, specific_target_dist=None):
         """
         Calculates all necessary turn parameters and transitions state to TURNING.
