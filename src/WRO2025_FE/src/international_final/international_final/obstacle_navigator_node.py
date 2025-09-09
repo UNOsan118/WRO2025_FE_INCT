@@ -1,4 +1,3 @@
-# test2
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64, String
@@ -44,7 +43,6 @@ class StraightSubState(Enum):
     PLAN_NEXT_AVOIDANCE = auto()
     PRE_SCANNING_REVERSE = auto()
     AVOID_OUTER_TURN_IN = auto()
-    AVOID_OUTER_PASS_THROUGH = auto()
     AVOID_INNER_TURN_IN = auto()
     AVOID_INNER_PASS_THROUGH = auto()
 
@@ -268,7 +266,7 @@ class ObstacleNavigatorNode(Node):
         #  List to store pattern classification for each frame during planning
         self.planning_pattern_results = []
 
-        self.planning_scan_roi_flat = [280, 0, 200, 480, 440, 480, 360, 0] # [x, y, width, height]
+        self.planning_scan_roi_flat = [200, 0, 120, 480, 440, 480, 360, 0] # [x, y, width, height]
         self.max_red_blob_area = 0.0
         self.max_green_blob_area = 0.0
         self.max_red_blob_sample_num = 0
@@ -316,6 +314,8 @@ class ObstacleNavigatorNode(Node):
         self.gain_turning_reverse = 1.2
 
         self.ready_to_start_sampling = False
+
+        self.is_in_avoidance_alignment = False
 
         # --- System Setup ---
         self.state_lock = threading.RLock()
@@ -738,8 +738,6 @@ class ObstacleNavigatorNode(Node):
             self._handle_straight_sub_pre_scanning_reverse(msg)
         elif self.straight_sub_state == StraightSubState.AVOID_OUTER_TURN_IN:
             self._handle_straight_sub_avoid_outer_turn_in(msg)
-        elif self.straight_sub_state == StraightSubState.AVOID_OUTER_PASS_THROUGH:
-            self._handle_straight_sub_avoid_outer_pass_through(msg)
         elif self.straight_sub_state == StraightSubState.AVOID_INNER_TURN_IN:
             self._handle_straight_sub_avoid_inner_turn_in(msg)
         elif self.straight_sub_state == StraightSubState.AVOID_INNER_PASS_THROUGH:
@@ -1084,14 +1082,38 @@ class ObstacleNavigatorNode(Node):
     def _handle_straight_sub_align_with_outer_wall(self, msg: LaserScan):
         if self._check_for_finish_condition(msg):
             return
-        """A PID-based wall follower that now calls a generic alignment executor."""
+        """A PID-based wall follower that now includes avoidance completion logic."""
         base_angle_deg = self._calculate_base_angle()
 
+        # --- Avoidance Completion Logic ---
+        if self.is_in_avoidance_alignment:
+            # Ask the helper function if we have passed the obstacle.
+            if self._has_passed_obstacle(msg, base_angle_deg, is_checking_from_outer_wall=True):
+                # The obstacle is cleared. Now, decide what to do next.
+                path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='outer')
+                
+                if path_type == 'outer_to_inner':
+                    # This was the outer part of a lane change. Start the inner part.
+                    self.get_logger().info("--- (Align) Obstacle cleared. Initiating lane change [O->I]. ---")
+                    self._complete_avoidance_phase(
+                        next_sub_state=StraightSubState.AVOID_INNER_TURN_IN,
+                        path_was_outer=True, enable_next_turn=False)
+                else: # 'outer' path finished.
+                    # This was a simple outer avoidance. Return to normal alignment.
+                    self.get_logger().info("--- (Align) Outer avoidance complete. Resuming normal alignment. ---")
+                    self.is_in_avoidance_alignment = False # Clear the flag
+                    self._complete_avoidance_phase(
+                        next_sub_state=StraightSubState.ALIGN_WITH_OUTER_WALL,
+                        path_was_outer=True, enable_next_turn=True)
+                return # State transition occurred, so exit.
+
+        # --- Standard Behavior ---
         is_turning, _ = self._check_for_corner(msg, base_angle_deg)
         if is_turning:
-            return # Corner detected, turning maneuver initiated.
+            self.is_in_avoidance_alignment = False # Reset flag on new turn
+            return
 
-        # --- REFACTORED: Delegate the actual PID control logic to a generic function ---
+        # Driving logic is common for all scenarios.
         self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=True)
 
     def _handle_straight_sub_align_with_inner_wall(self, msg: LaserScan):
@@ -1357,7 +1379,9 @@ class ObstacleNavigatorNode(Node):
         # --- MODIFIED: Added condition to prevent premature completion from noise ---
         if not math.isnan(outer_wall_dist) and outer_wall_dist > 0.0 and outer_wall_dist <= approach_target_dist:
             self.get_logger().info(f"Approach complete (Dist: {outer_wall_dist:.2f}m). Transitioning to PASS_THROUGH.")
-            self.straight_sub_state = StraightSubState.AVOID_OUTER_PASS_THROUGH
+            self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+            self.is_in_avoidance_alignment = True
+            self.is_passing_obstacle = False
             self.publish_twist_with_gain(0.0, 0.0)
             return
 
@@ -2172,7 +2196,7 @@ class ObstacleNavigatorNode(Node):
             target_approach_angle = self.avoid_approach_angle_deg
             wall_offset_deg = -90.0
             target_dist = self.avoid_approach_target_dist_m
-            next_sub_state = StraightSubState.AVOID_OUTER_PASS_THROUGH
+            next_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
         else: # Inner turn-in
             target_approach_angle = self.avoid_inner_approach_angle_deg
             wall_offset_deg = 90.0 # Completion check is against the outer wall
@@ -2392,6 +2416,51 @@ class ObstacleNavigatorNode(Node):
             return 'green_only'
         else:
             return 'none'
+    
+    def _has_passed_obstacle(self, msg: LaserScan, base_angle_deg: float, is_checking_from_outer_wall: bool) -> bool:
+        """
+        Checks if the robot has finished passing an obstacle. This is a pure check function.
+
+        Args:
+            is_checking_from_outer_wall: True if we are on the outer wall, checking the inner side.
+
+        Returns:
+            True if the obstacle has been passed, False otherwise.
+        """
+        # Determine which wall to measure based on the current driving lane
+        if is_checking_from_outer_wall:
+            # We are on the OUTER wall, check the distance to the INNER wall.
+            check_wall_offset_deg = 90.0 if self.direction == 'ccw' else -90.0
+        else: # Checking from inner wall
+            # We are on the INNER wall, check the distance to the OUTER wall.
+            check_wall_offset_deg = -90.0 if self.direction == 'ccw' else 90.0
+        
+        check_wall_angle = self._angle_normalize(base_angle_deg + check_wall_offset_deg)
+        check_wall_dist = self.get_distance_at_world_angle(msg, check_wall_angle)
+
+        pass_thresh_m = self.avoid_inner_pass_thresh_m
+        # Apply special threshold for the start area
+        if self.wall_segment_index == 0 and is_checking_from_outer_wall:
+            pass_thresh_m -= 0.2
+
+        # --- Passing Detection Logic ---
+        # First, check if we have started passing the obstacle yet.
+        if not self.is_passing_obstacle:
+            current_wall_dist = self.get_distance_at_world_angle(msg, self._angle_normalize(check_wall_angle + 180.0))
+            is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 45.0)
+            sum_side_dist = (check_wall_dist or 0) + (current_wall_dist or 0)
+            
+            if is_oriented_correctly and not math.isnan(sum_side_dist) and sum_side_dist < 0.7:
+                self.get_logger().warn(">>> Passing obstacle now (during alignment)...")
+                self.is_passing_obstacle = True
+            return False # We have either just started passing or not started yet.
+
+        # --- Completion Check Logic ---
+        # If we are already in the "passing" state, check if we're done.
+        if not math.isnan(check_wall_dist) and check_wall_dist > pass_thresh_m:
+            return True # We are clear of the obstacle.
+        
+        return False # Still passing.
 
     def _update_dynamic_tilt(self, target_world_angle_deg: float):
         """
@@ -2976,8 +3045,6 @@ class ObstacleNavigatorNode(Node):
                 state_specific_gain = self.gain_straight_outer_turn_in
             elif self.straight_sub_state == StraightSubState.AVOID_INNER_PASS_THROUGH:
                 state_specific_gain = self.gain_straight_inner_pass_through
-            elif self.straight_sub_state == StraightSubState.AVOID_OUTER_PASS_THROUGH:
-                state_specific_gain = self.gain_straight_outer_pass_through
 
         elif self.state == State.TURNING:
             if self.turning_sub_state == TurningSubState.APPROACH:
