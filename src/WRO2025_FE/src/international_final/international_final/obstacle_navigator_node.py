@@ -44,7 +44,6 @@ class StraightSubState(Enum):
     PRE_SCANNING_REVERSE = auto()
     AVOID_OUTER_TURN_IN = auto()
     AVOID_INNER_TURN_IN = auto()
-    AVOID_INNER_PASS_THROUGH = auto()
 
 class TurningSubState(Enum):
     POSITIONING_REVERSE = auto()
@@ -307,8 +306,6 @@ class ObstacleNavigatorNode(Node):
         self.gain_straight_align_outer_wall = 1.5
         self.gain_straight_align_inner_wall = 1.2
         self.gain_straight_outer_turn_in = 1.1
-        self.gain_straight_inner_pass_through = 0.8
-        self.gain_straight_outer_pass_through = 1.0
 
         self.gain_turning_approach = 1.4
         self.gain_turning_reverse = 1.2
@@ -740,8 +737,6 @@ class ObstacleNavigatorNode(Node):
             self._handle_straight_sub_avoid_outer_turn_in(msg)
         elif self.straight_sub_state == StraightSubState.AVOID_INNER_TURN_IN:
             self._handle_straight_sub_avoid_inner_turn_in(msg)
-        elif self.straight_sub_state == StraightSubState.AVOID_INNER_PASS_THROUGH:
-            self._handle_straight_sub_avoid_inner_pass_through(msg)
 
     def _handle_state_turning(self, msg):
         """Handles the multi-step turning maneuver."""
@@ -1119,14 +1114,38 @@ class ObstacleNavigatorNode(Node):
     def _handle_straight_sub_align_with_inner_wall(self, msg: LaserScan):
         if self._check_for_finish_condition(msg):
             return
-        """A PID-based wall follower that now calls a generic alignment executor."""
+        """A PID-based wall follower that now includes avoidance completion logic."""
         base_angle_deg = self._calculate_base_angle()
 
+        # --- Avoidance Completion Logic ---
+        if self.is_in_avoidance_alignment:
+            # Ask the helper function if we have passed the obstacle.
+            if self._has_passed_obstacle(msg, base_angle_deg, is_checking_from_outer_wall=False):
+                # The obstacle is cleared. Now, decide what to do next.
+                path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='inner')
+                
+                if path_type == 'inner_to_outer':
+                    # This was the inner part of a lane change. Start the outer part.
+                    self.get_logger().info("--- (Align) Obstacle cleared. Initiating lane change [I->O]. ---")
+                    self._complete_avoidance_phase(
+                        next_sub_state=StraightSubState.AVOID_OUTER_TURN_IN,
+                        path_was_outer=False, enable_next_turn=False)
+                else: # 'inner' path finished.
+                    # This was a simple inner avoidance. Return to normal alignment.
+                    self.get_logger().info("--- (Align) Inner avoidance complete. Resuming normal alignment. ---")
+                    self.is_in_avoidance_alignment = False # Clear the flag
+                    self._complete_avoidance_phase(
+                        next_sub_state=StraightSubState.ALIGN_WITH_INNER_WALL,
+                        path_was_outer=False, enable_next_turn=True)
+                return # State transition occurred, so exit.
+
+        # --- Standard Behavior ---
         is_turning, _ = self._check_for_corner(msg, base_angle_deg)
         if is_turning:
-            return # Corner detected, turning maneuver initiated.
+            self.is_in_avoidance_alignment = False # Reset flag on new turn
+            return
 
-        # --- REFACTORED: Delegate the actual PID control logic to a generic function ---
+        # Driving logic is common for all scenarios.
         self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=False)
 
     def _handle_straight_sub_plan_next_avoidance(self, msg: LaserScan):
@@ -1344,7 +1363,7 @@ class ObstacleNavigatorNode(Node):
             if self.is_passing_obstacle:
                 # Check if we have completed the pass MANEUVER during the turn-in
                 if not math.isnan(inner_wall_dist) and inner_wall_dist > self.avoid_inner_pass_thresh_m:
-                    self.get_logger().warn("!!! Obstacle passed completely during TURN_IN phase. Skipping PASS_THROUGH. !!!")
+                    self.get_logger().warn("!!! Obstacle passed completely during TURN_IN phase.")
                     if path_type == 'outer_to_inner':
                         self._complete_avoidance_phase(
                             next_sub_state=StraightSubState.AVOID_INNER_TURN_IN,
@@ -1378,7 +1397,7 @@ class ObstacleNavigatorNode(Node):
 
         # --- MODIFIED: Added condition to prevent premature completion from noise ---
         if not math.isnan(outer_wall_dist) and outer_wall_dist > 0.0 and outer_wall_dist <= approach_target_dist:
-            self.get_logger().info(f"Approach complete (Dist: {outer_wall_dist:.2f}m). Transitioning to PASS_THROUGH.")
+            self.get_logger().info(f"Approach complete (Dist: {outer_wall_dist:.2f}m). Transitioning to ALIGN_WITH_WALL.")
             self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
             self.is_in_avoidance_alignment = True
             self.is_passing_obstacle = False
@@ -1397,98 +1416,6 @@ class ObstacleNavigatorNode(Node):
             throttle_duration_sec=0.2
         )
         
-        self.publish_twist_with_gain(self.avoid_speed, final_steer)
-
-    def _handle_straight_sub_avoid_outer_pass_through(self, msg: LaserScan):
-        if self._check_for_finish_condition(msg):
-            return
-
-        """Phase 2: Move straight, parallel to the wall, until the obstacle is passed."""
-        base_angle_deg = self._calculate_base_angle()
-
-        if self.direction == 'ccw':
-            inner_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
-            outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
-        else: # cw
-            inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
-            outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
-        
-        front_wall_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
-        inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
-        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
-        
-        path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='outer')
-        if self.wall_segment_index == 0:
-            pass_thresh_m = self.avoid_inner_pass_thresh_m - 0.2
-        else: 
-            pass_thresh_m = self.avoid_inner_pass_thresh_m
-
-        # --- Completion Check ---
-        if self.is_passing_obstacle:
-            if not math.isnan(inner_wall_dist) and inner_wall_dist > pass_thresh_m:
-                
-                # --- REFACTORED: Use helper for the completion logic ---
-                if path_type == 'outer_to_inner':
-                    self.get_logger().info("--- OUTER part of [outer_to_inner] complete. Transitioning to INNER part. ---")
-                    self._complete_avoidance_phase(
-                        next_sub_state=StraightSubState.AVOID_INNER_TURN_IN,
-                        path_was_outer=True,
-                        enable_next_turn=False)
-                else:
-                    self.get_logger().info("--- AVOIDANCE COMPLETE (obstacle passed) ---")
-                    self._complete_avoidance_phase(
-                        next_sub_state=StraightSubState.ALIGN_WITH_OUTER_WALL,
-                        path_was_outer=True,
-                        enable_next_turn=True)
-                return
-        else:
-            is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 45.0)
-            sum_side_walls_dist = inner_wall_dist + outer_wall_dist
-
-            try:
-                current_segment_has_obstacle_at_entrance = self.entrance_obstacle_plan[self.wall_segment_index]
-            except IndexError:
-                self.get_logger().error("Could not check entrance obstacle plan due to IndexError.")
-                current_segment_has_obstacle_at_entrance = True
-
-            if(is_oriented_correctly and (
-                (inner_wall_dist < pass_thresh_m and sum_side_walls_dist < 0.7) or 
-                (current_segment_has_obstacle_at_entrance  and front_wall_dist < 1.93 and front_wall_dist > 1.7 and sum_side_walls_dist < 1.15)
-            )):
-                self.get_logger().warn(">>> Passing obstacle now...")
-                self.is_passing_obstacle = True
-
-        # --- Driving Control Logic (kept separate for clarity) ---
-        if math.isnan(outer_wall_dist):
-            self.get_logger().error("Lost sight of outer wall during pass_through. Stopping.", throttle_duration_sec=1.0)
-            self.publish_twist_with_gain(0.0, 0.0)
-            return
-
-        if self.wall_segment_index == 0:
-            target_dist = self.align_target_outer_dist_start_area_m
-        else:
-            target_dist = self.align_target_outer_dist_m
-
-        angle_error_deg = self._angle_diff(base_angle_deg, self.current_yaw_deg)
-        angle_steer = self.align_kp_angle * angle_error_deg
-
-        dist_steer = 0.0
-        dist_error = target_dist - outer_wall_dist
-        
-        if abs(dist_error) > self.align_dist_tolerance_m:
-            direction_multiplier = 1.0 if self.direction == 'ccw' else -1.0
-            dist_steer = self.align_kp_dist * dist_error * direction_multiplier
-
-        angular_z = angle_steer + dist_steer
-        final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
-
-        self.get_logger().debug(
-            f"AVOID_PASS | Pass: {self.is_passing_obstacle} | "
-            f"OuterD: {outer_wall_dist:.2f} (Err: {dist_error:.2f}) | "
-            f"InnerD: {inner_wall_dist:.2f} | "
-            f"YawErr: {angle_error_deg:.1f} | Steer: {final_steer:.2f}",
-            throttle_duration_sec=0.2
-        )
         self.publish_twist_with_gain(self.avoid_speed, final_steer)
 
     def _handle_straight_sub_avoid_inner_turn_in(self, msg: LaserScan):
@@ -1520,7 +1447,7 @@ class ObstacleNavigatorNode(Node):
                 # Check if we have completed the pass MANEUVER during the turn-in
                 if(not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and 
                     outer_wall_dist < self.avoid_inner_pass_thresh_m):
-                    self.get_logger().warn("!!! Obstacle passed completely during INNER TURN_IN phase. Skipping PASS_THROUGH. !!!")
+                    self.get_logger().warn("!!! Obstacle passed completely during INNER TURN_IN phase.")
                     if path_type == 'inner_to_outer':
                         self._complete_avoidance_phase(
                             next_sub_state=StraightSubState.AVOID_OUTER_TURN_IN,
@@ -1559,8 +1486,10 @@ class ObstacleNavigatorNode(Node):
         # --- MODIFIED: Added condition to prevent premature completion ---
         # The approach is complete only if the effective distance is within a valid range.
         if effective_dist >= 0 and effective_dist <= self.avoid_inner_approach_target_dist_m:
-            self.get_logger().info(f"Approach complete (EffectiveDist: {effective_dist:.2f}m). Transitioning to PASS_THROUGH.")
-            self.straight_sub_state = StraightSubState.AVOID_INNER_PASS_THROUGH
+            self.get_logger().info(f"Approach complete (EffectiveDist: {effective_dist:.2f}m). Transitioning to ALIGN_WITH_INNER_WALL for avoidance.")
+            self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+            self.is_in_avoidance_alignment = True # Set the flag
+            self.is_passing_obstacle = False # Reset passing flag before alignment
             self.publish_twist_with_gain(0.0, 0.0) # Stop briefly
             return
 
@@ -1569,100 +1498,6 @@ class ObstacleNavigatorNode(Node):
         angular_z = self.avoid_turn_in_kp_angle * error_deg
         final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
         
-        self.publish_twist_with_gain(self.avoid_speed, final_steer)
-
-    def _handle_straight_sub_avoid_inner_pass_through(self, msg: LaserScan):
-        if self._check_for_finish_condition(msg):
-            return
-        """Phase 2: Move straight, parallel to the wall, using conditional distance estimation."""
-        base_angle_deg = self._calculate_base_angle()
-        
-        if self.direction == 'ccw':
-            outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
-        else: # cw
-            outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
-            
-        front_wall_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
-        inner_wall_dist_raw = self.get_distance_at_world_angle(msg, base_angle_deg + (90.0 if self.direction == 'ccw' else -90.0))
-        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
-
-        path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='inner')
-
-        # --- Completion Check ---
-        if self.is_passing_obstacle:
-            if not math.isnan(outer_wall_dist) and outer_wall_dist > self.avoid_inner_pass_thresh_m and front_wall_dist < 2.0:
-                
-                # --- REFACTORED: Use helper for the completion logic ---
-                if path_type == 'inner_to_outer':
-                    self.get_logger().info("--- INNER part of [inner_to_outer] complete. Transitioning to OUTER part. ---")
-                    self._complete_avoidance_phase(
-                        next_sub_state=StraightSubState.AVOID_OUTER_TURN_IN,
-                        path_was_outer=False,
-                        enable_next_turn=False)
-                else: # 'inner' or the final part of 'outer_to_inner'
-                    self.get_logger().info("--- AVOIDANCE COMPLETE (obstacle passed) ---")
-                    self._complete_avoidance_phase(
-                        next_sub_state=StraightSubState.ALIGN_WITH_INNER_WALL,
-                        path_was_outer=False,
-                        enable_next_turn=True)
-                return
-        else:
-            is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 60.0)
-            if not math.isnan(inner_wall_dist_raw) and not math.isnan(outer_wall_dist) :
-                sum_side_walls_dist = inner_wall_dist_raw + outer_wall_dist
-            else:
-                sum_side_walls_dist = 1.0
-            """if(not math.isnan(inner_wall_dist_raw) and 
-               outer_wall_dist < self.avoid_inner_pass_thresh_m and 
-               (sum_side_walls_dist < 0.7 or (sum_side_walls_dist > 1.3 and front_wall_dist > 1.9) ) and 
-               is_oriented_correctly):"""
-            try:
-                current_segment_has_obstacle_at_entrance = self.entrance_obstacle_plan[self.wall_segment_index]
-            except IndexError:
-                self.get_logger().error("Could not check entrance obstacle plan due to IndexError.")
-                current_segment_has_obstacle_at_entrance = True
-            
-            if (is_oriented_correctly and (
-                    (outer_wall_dist < self.avoid_inner_pass_thresh_m and sum_side_walls_dist < 0.7) or 
-                    (current_segment_has_obstacle_at_entrance and front_wall_dist < 1.93 and front_wall_dist > 1.83 and sum_side_walls_dist < 1.15)
-            )):
-                self.get_logger().warn(f"[PASS_INNER_START] outer_dist:{outer_wall_dist:.2f}, sum_dist:{sum_side_walls_dist:.2f}, entrance_obs:{current_segment_has_obstacle_at_entrance}, front_dist:{front_wall_dist:.2f}")
-                self.get_logger().warn(">>> Passing obstacle now (monitoring outer wall)...")
-                self.is_passing_obstacle = True
-
-        # --- Driving Control Logic (kept separate due to its unique complexity) ---
-        dist_error = 0.0
-        log_mode = "NORMAL"
-
-        if math.isnan(inner_wall_dist_raw) or inner_wall_dist_raw > 1.0 or (not math.isnan(front_wall_dist) and front_wall_dist > 2.05):
-            if not math.isnan(outer_wall_dist):
-                effective_inner_dist = 1.0 - outer_wall_dist
-                dist_error = self.align_target_inner_dist_m - effective_inner_dist
-                log_mode = f"ESTIMATED (from Outer: {outer_wall_dist:.2f}m)"
-            else:
-                dist_error = 0.0
-                log_mode = "IMU_ONLY (no valid wall)"
-        elif not math.isnan(front_wall_dist) and front_wall_dist > 1.95:
-            dist_error = 0.0
-            log_mode = "IMU_ONLY (blind zone)"
-        else:
-            dist_error = self.align_target_inner_dist_m - inner_wall_dist_raw
-            log_mode = "NORMAL"
-
-        angle_error_deg = self._angle_diff(base_angle_deg, self.current_yaw_deg)
-        angle_steer = self.align_kp_angle * angle_error_deg
-        dist_steer = 0.0
-        if abs(dist_error) > self.align_dist_tolerance_m:
-            direction_multiplier = -1.0 if self.direction == 'ccw' else 1.0
-            dist_steer = self.align_kp_dist * dist_error * direction_multiplier
-        angular_z = angle_steer + dist_steer
-        final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
-        self.get_logger().debug(
-            f"AVOID_INNER_PASS | Mode: {log_mode} | Pass: {self.is_passing_obstacle} | "
-            f"InnerD_Raw: {inner_wall_dist_raw:.2f} | OuterD: {outer_wall_dist:.2f} | F_Dist: {front_wall_dist:.2f} | "
-            f"YawErr: {angle_error_deg:.1f} | Steer: {final_steer:.2f}",
-            throttle_duration_sec=0.2
-        )
         self.publish_twist_with_gain(self.avoid_speed, final_steer)
 
     # --- Turning Sub-State Handlers ---
@@ -2154,21 +1989,35 @@ class ObstacleNavigatorNode(Node):
         angle_steer = self.align_kp_angle * angle_error_deg
 
         dist_steer = 0.0
-        if not math.isnan(wall_dist):
-            if not is_outer_wall and wall_dist > 1.0:
-                dist_error = 0.0
-            else:
-                dist_error = target_dist - wall_dist
-            
-            if abs(dist_error) > self.align_dist_tolerance_m:
-                dist_steer = self.align_kp_dist * dist_error * dist_steer_multiplier
+        dist_error = 0.0
+        log_mode = "NORMAL"
 
+        if not math.isnan(wall_dist):
+            dist_error = target_dist - wall_dist
+        
+        # --- NEW: Special logic for inner wall avoidance alignment ---
+        if not is_outer_wall and self.is_in_avoidance_alignment and (math.isnan(wall_dist) or wall_dist > 1.0):
+            # If the inner wall is lost during avoidance, try to estimate from the outer wall.
+            outer_wall_angle = self._angle_normalize(base_angle_deg - wall_offset_deg) # Opposite side
+            outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+            
+            if not math.isnan(outer_wall_dist):
+                effective_inner_dist = 1.0 - outer_wall_dist
+                dist_error = target_dist - effective_inner_dist
+                log_mode = f"ESTIMATED(O:{outer_wall_dist:.2f})"
+            else:
+                dist_error = 0.0 # No walls visible, rely on IMU only for heading.
+                log_mode = "IMU_ONLY"
+        
+        if abs(dist_error) > self.align_dist_tolerance_m:
+            dist_steer = self.align_kp_dist * dist_error * dist_steer_multiplier
+        
         angular_z = angle_steer + dist_steer
         final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
         
         self.get_logger().debug(
-            f"{log_prefix} | WallD: {wall_dist:.2f} | "
-            f"YawErr: {angle_error_deg:.1f} | AngleSteer: {angle_steer:.2f} | DistSteer: {dist_steer:.2f} | "
+            f"{log_prefix}({log_mode}) | WallD: {wall_dist:.2f} | "
+            f"YawErr: {angle_error_deg:.1f} | DistSteer: {dist_steer:.2f} | "
             f"FinalSteer: {final_steer:.2f}",
             throttle_duration_sec=0.2
         )
@@ -2201,7 +2050,7 @@ class ObstacleNavigatorNode(Node):
             target_approach_angle = self.avoid_inner_approach_angle_deg
             wall_offset_deg = 90.0 # Completion check is against the outer wall
             target_dist = self.avoid_inner_approach_target_dist_m
-            next_sub_state = StraightSubState.AVOID_INNER_PASS_THROUGH
+            next_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
 
         direction_multiplier = 1.0 if self.direction == 'ccw' else -1.0
         target_yaw_deg = self._angle_normalize(base_angle_deg - (target_approach_angle * direction_multiplier))
@@ -2222,7 +2071,7 @@ class ObstacleNavigatorNode(Node):
             completion_met = (effective_dist <= target_dist)
 
         if completion_met:
-            self.get_logger().info(f"AVOID_TURN_IN complete. Transitioning to PASS_THROUGH.")
+            self.get_logger().info(f"AVOID_TURN_IN complete. Transitioning to ALIGN_WITH_WALL.")
             self.straight_sub_state = next_sub_state
             self.publish_twist_with_gain(0.0, 0.0)
             return
@@ -3043,8 +2892,6 @@ class ObstacleNavigatorNode(Node):
                 state_specific_gain = self.gain_straight_align_outer_wall
             elif self.straight_sub_state == StraightSubState.AVOID_OUTER_TURN_IN:
                 state_specific_gain = self.gain_straight_outer_turn_in
-            elif self.straight_sub_state == StraightSubState.AVOID_INNER_PASS_THROUGH:
-                state_specific_gain = self.gain_straight_inner_pass_through
 
         elif self.state == State.TURNING:
             if self.turning_sub_state == TurningSubState.APPROACH:
