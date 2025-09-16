@@ -47,11 +47,7 @@ class StraightSubState(Enum):
 
 class TurningSubState(Enum):
     POSITIONING_REVERSE = auto()
-    POSITIONING_REVERSE_FOR_SKIP = auto()
-    APPROACH = auto()
-    REVERSE = auto()
-    CREATING_SPACE = auto()
-    CHECK_AND_FINISH = auto()
+    EXECUTE_TURN = auto()
     FINALIZE_TURN = auto()
 
 class ParkingSubState(Enum):
@@ -71,6 +67,7 @@ class ObstacleNavigatorNode(Node):
         self.determine_course_sub_state = DetermineCourseSubState.WAITING_FOR_CONTROLLER
         self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
         self.turning_sub_state = None 
+        self.execute_turn_phase = 0 # 0: Forward, 1: Turning
         self.parking_sub_state = ParkingSubState.PRE_PARKING_ADJUST
         
         self.inner_wall_disappear_threshold = 2.0
@@ -137,31 +134,12 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('detection_pixel_threshold', 500)
         self.declare_parameter('detection_samples', 5) # Number of frames to sample for majority vote
 
-        # --- Turning Maneuver Parameters ---
-        self.declare_parameter('turn_reverse_steer', 0.8)
-        self.declare_parameter('kp_approach_angle', 0.02)
-        self.declare_parameter('reverse_yaw_tolerance_deg', 5.0)
-
-        # NEW: Fixed approach angles based on last path
-        self.declare_parameter('turn_approach_dist_from_outer_path', 0.17) # Target distance when approaching from an outer path
-        self.declare_parameter('turn_approach_dist_from_inner_path', 0.17) # Target distance when approaching from an inner path
-
-        self.declare_parameter('dynamic_approach_start_angle_deg', -30.0)
-        self.declare_parameter('dynamic_approach_start_dist_m', 0.9)
-        self.declare_parameter('dynamic_approach_straighten_offset_m', 0.4)
-
-        self.declare_parameter('dynamic_approach_outer_fixed_angle_deg', 60.0)
-        self.declare_parameter('dynamic_approach_outer_fixed_angle_start_area_deg', 45.0)
-        self.declare_parameter('dynamic_approach_outer_switch_dist_m', 0.45)
-        # --- NEW: Parameters to control DYNAMIC phase using FRONT distance ---
-        self.declare_parameter('dynamic_approach_outer_start_front_dist_m', 0.9)
-        self.declare_parameter('dynamic_approach_outer_end_front_dist_m', 0.2)
-
-        # --- NEW: Parameters for the difficult Inner-to-Outer approach ---
-        self.declare_parameter('inner_to_outer_fixed_angle_deg', -60.0) # Negative angle to approach outer wall
-        self.declare_parameter('inner_to_outer_switch_dist_m', 0.5)
-        self.declare_parameter('inner_to_outer_start_front_dist_m', 0.9)
-        self.declare_parameter('inner_to_outer_end_front_dist_m', 0.2)
+        # --- NEW: Parameters for Simplified Turning Maneuver ---
+        self.declare_parameter('turn_forward_speed', 0.1)
+        self.declare_parameter('turn_speed', 0.15)
+        self.declare_parameter('turn_start_dist_outer_m', 0.4)
+        self.declare_parameter('turn_start_dist_inner_m', 1.0)
+        self.declare_parameter('turn_completion_yaw_threshold_deg', 30.0)
 
         # --- PARAMETERS for Yaw Correction Logic ---0.9
         self.declare_parameter('yaw_correction_threshold_deg', 75.0)
@@ -169,7 +147,7 @@ class ObstacleNavigatorNode(Node):
 
         # --- Driving Logic Parameters ---
         self.declare_parameter('forward_speed', 0.2)
-        self.declare_parameter('max_steer', 0.8)
+        self.declare_parameter('max_steer', 1.5)
         self.declare_parameter('gain', 2.0)
         self.declare_parameter('direction', 'cw')
 
@@ -217,7 +195,7 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('align_target_outer_dist_start_area_m', 0.39)
 
         self.declare_parameter('save_debug_images', True, )
-        self.declare_parameter('debug_image_path', '/home/ubuntu/WRO2025_FE_Japan/src/image_processing_test/images', )
+        self.declare_parameter('debug_image_path', '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images', )
 
         self.declare_parameter('log_level', 'INFO') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
 
@@ -238,7 +216,6 @@ class ObstacleNavigatorNode(Node):
         self.wall_segment_index = 0
         self.approach_target_dist = 0.0
         self.approach_base_yaw_deg = 0.0
-        self.reverse_target_yaw_deg = 0.0
         self.last_valid_steer = 0.0
         self.last_inner = 10.0
         self.current_yaw_deg = 0.0
@@ -285,9 +262,6 @@ class ObstacleNavigatorNode(Node):
         self.min_inner_dist_planning_approach = float('inf')
         self.planning_scan_complete = False
 
-        self.dynamic_approach_outer_start_dist = None
-        self.is_difficult_i2o_turn = False
-
         self.forward_adjust_start_dist = 0.0
         self.pre_parking_step = 0
 
@@ -303,12 +277,10 @@ class ObstacleNavigatorNode(Node):
 
         self.initial_approach_target_dist_inner_m = 27.5
 
-        self.gain_straight_align_outer_wall = 1.5
-        self.gain_straight_align_inner_wall = 1.2
-        self.gain_straight_outer_turn_in = 1.1
+        self.gain_straight_align_outer_wall = 1.0
+        self.gain_straight_align_inner_wall = 1.0
+        self.gain_straight_outer_turn_in = 1.0
 
-        self.gain_turning_approach = 1.4
-        self.gain_turning_reverse = 1.2
 
         self.ready_to_start_sampling = False
 
@@ -387,29 +359,12 @@ class ObstacleNavigatorNode(Node):
 
         self.yaw_correction_threshold_deg = self.get_parameter('yaw_correction_threshold_deg').get_parameter_value().double_value
         self.yaw_correction_wide_dist = self.get_parameter('yaw_correction_wide_dist').get_parameter_value().double_value
-        # Maneuver
-        self.turn_reverse_steer = self.get_parameter('turn_reverse_steer').get_parameter_value().double_value
-        self.kp_approach_angle = self.get_parameter('kp_approach_angle').get_parameter_value().double_value
-        self.reverse_yaw_tolerance_deg = self.get_parameter('reverse_yaw_tolerance_deg').get_parameter_value().double_value
 
-        # NEW: Load fixed approach angles
-        self.turn_approach_dist_from_outer_path = self.get_parameter('turn_approach_dist_from_outer_path').get_parameter_value().double_value
-        self.turn_approach_dist_from_inner_path = self.get_parameter('turn_approach_dist_from_inner_path').get_parameter_value().double_value
-
-        self.dynamic_approach_start_angle_deg = self.get_parameter('dynamic_approach_start_angle_deg').get_parameter_value().double_value
-        self.dynamic_approach_start_dist_m = self.get_parameter('dynamic_approach_start_dist_m').get_parameter_value().double_value
-        self.dynamic_approach_straighten_offset_m = self.get_parameter('dynamic_approach_straighten_offset_m').get_parameter_value().double_value
-
-        self.dynamic_approach_outer_fixed_angle_deg = self.get_parameter('dynamic_approach_outer_fixed_angle_deg').get_parameter_value().double_value
-        self.dynamic_approach_outer_fixed_angle_start_area_deg = self.get_parameter('dynamic_approach_outer_fixed_angle_start_area_deg').get_parameter_value().double_value
-        self.dynamic_approach_outer_switch_dist_m = self.get_parameter('dynamic_approach_outer_switch_dist_m').get_parameter_value().double_value
-        self.dynamic_approach_outer_start_front_dist_m = self.get_parameter('dynamic_approach_outer_start_front_dist_m').get_parameter_value().double_value
-        self.dynamic_approach_outer_end_front_dist_m = self.get_parameter('dynamic_approach_outer_end_front_dist_m').get_parameter_value().double_value
-
-        self.inner_to_outer_fixed_angle_deg = self.get_parameter('inner_to_outer_fixed_angle_deg').get_parameter_value().double_value
-        self.inner_to_outer_switch_dist_m = self.get_parameter('inner_to_outer_switch_dist_m').get_parameter_value().double_value
-        self.inner_to_outer_start_front_dist_m = self.get_parameter('inner_to_outer_start_front_dist_m').get_parameter_value().double_value
-        self.inner_to_outer_end_front_dist_m = self.get_parameter('inner_to_outer_end_front_dist_m').get_parameter_value().double_value
+        self.turn_forward_speed = self.get_parameter('turn_forward_speed').get_parameter_value().double_value
+        self.turn_speed = self.get_parameter('turn_speed').get_parameter_value().double_value
+        self.turn_start_dist_outer_m = self.get_parameter('turn_start_dist_outer_m').get_parameter_value().double_value
+        self.turn_start_dist_inner_m = self.get_parameter('turn_start_dist_inner_m').get_parameter_value().double_value
+        self.turn_completion_yaw_threshold_deg = self.get_parameter('turn_completion_yaw_threshold_deg').get_parameter_value().double_value
 
         # Driving
         self.forward_speed = self.get_parameter('forward_speed').get_parameter_value().double_value
@@ -742,16 +697,8 @@ class ObstacleNavigatorNode(Node):
         """Handles the multi-step turning maneuver."""
         if self.turning_sub_state == TurningSubState.POSITIONING_REVERSE:
             self._handle_turning_sub_positioning_reverse(msg)
-        elif self.turning_sub_state == TurningSubState.POSITIONING_REVERSE_FOR_SKIP:
-            self._handle_turning_sub_positioning_reverse_for_skip(msg)
-        elif self.turning_sub_state == TurningSubState.APPROACH:
-            self._handle_turning_approach(msg)
-        elif self.turning_sub_state == TurningSubState.REVERSE:
-            self._handle_turning_reverse(msg)
-        elif self.turning_sub_state == TurningSubState.CREATING_SPACE:
-            self._handle_turning_sub_creating_space(msg)
-        elif self.turning_sub_state == TurningSubState.CHECK_AND_FINISH:
-            self._handle_turning_sub_check_and_finish(msg)
+        elif self.turning_sub_state == TurningSubState.EXECUTE_TURN:
+            self._handle_turning_sub_execute_turn(msg)
         elif self.turning_sub_state == TurningSubState.FINALIZE_TURN:
             self._handle_turning_sub_finalize_turn()
 
@@ -1301,12 +1248,8 @@ class ObstacleNavigatorNode(Node):
         self._prepare_for_turning(base_angle_deg=self.approach_base_yaw_deg)
 
         # Decide if the full turning maneuver can be skipped
-        if self._is_turn_maneuver_required():
-            self.get_logger().info("Planning complete. Proceeding with full turn maneuver.")
-            self.turning_sub_state = TurningSubState.POSITIONING_REVERSE
-        else:
-            self.get_logger().info("Planning complete. Skipping full turn, performing positioning reverse only.")
-            self.turning_sub_state = TurningSubState.POSITIONING_REVERSE_FOR_SKIP
+        self.get_logger().info("Planning complete. Proceeding with full turn maneuver.")
+        self.turning_sub_state = TurningSubState.POSITIONING_REVERSE
         
         self.state = State.TURNING
 
@@ -1534,225 +1477,68 @@ class ObstacleNavigatorNode(Node):
 
         # --- If either condition is met, move to APPROACH ---
         if condition1 or condition2:
-            self.get_logger().info(f"Positioning reverse complete (Front: {front_dist:.2f}m). Transitioning to APPROACH.")
+            self.get_logger().info(f"Positioning reverse complete (Front: {front_dist:.2f}m). Transitioning to EXECUTE_TURN.")
             self.publish_twist_with_gain(0.0, 0.0)
-            self.turning_sub_state = TurningSubState.APPROACH
+            self.turning_sub_state = TurningSubState.EXECUTE_TURN
+            self.execute_turn_phase = 0 # Reset internal phase
         else:
             self.get_logger().debug(f"Positioning Reverse... (Front: {front_dist:.2f}m)", throttle_duration_sec=0.2)
             self.publish_twist_with_gain(-self.forward_speed * 0.7, 0.0)
 
-    def _handle_turning_sub_positioning_reverse_for_skip(self, msg: LaserScan):
-        # For a skipped turn, we also perform the reverse...
-        self._handle_turning_sub_positioning_reverse(msg)
-        # ... but if it finishes (transitions to APPROACH), we immediately redirect to FINALIZE_TURN.
-        if self.turning_sub_state == TurningSubState.APPROACH:
-            self.get_logger().info("Positioning for skip complete. Finalizing turn.")
-            self.turning_sub_state = TurningSubState.FINALIZE_TURN
-
-    def _handle_turning_approach(self, msg):
+    def _handle_turning_sub_execute_turn(self, msg: LaserScan):
         """
-        Sub-state: Approach the front wall.
-        - For inner path entries, dynamically adjust the approach angle based on front distance.
-        - For outer path entries, use a hybrid fixed-then-dynamic approach.
+        Executes a simplified, high-agility turn without reversing.
+        This state has two internal phases:
+        0: Slowly approach the front wall.
+        1: Execute a max-steer turn once close enough.
         """
-        # --- Get information about the next path segment ---
-        next_segment_index = (self.wall_segment_index + 1) % len(self.avoidance_path_plan)
-        next_path_type = self._get_path_type_for_segment(next_segment_index, default_path='outer')
-        is_next_path_outer = next_path_type in ['outer', 'outer_to_inner']
-        
-        try:
-            is_entrance_clear = not self.entrance_obstacle_plan[next_segment_index]
-        except IndexError:
-            is_entrance_clear = False # Failsafe
-
-        front_wall_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
-        target_dist = self.approach_target_dist # This is set in _prepare_for_turning
-
-        if math.isnan(front_wall_dist):
-            self.get_logger().warn("Cannot get front distance for approach, moving slowly straight.", throttle_duration_sec=1.0)
-            self.publish_twist_with_gain(self.course_detection_slow_speed * 0.5, 0.0)
-            return
-
-        if front_wall_dist < target_dist:
-            self.get_logger().info(f'Wall is close ({front_wall_dist:.2f}m < {target_dist:.2f}m). Starting REVERSE.')
-            self.turning_sub_state = TurningSubState.REVERSE
-            self.publish_twist_with_gain(0.0, 0.0)
-            return
-
-        direction_multiplier = 1.0 if self.direction == 'ccw' else -1.0
-        
-        # --- START OF CORE LOGIC ---
-        if not self.last_avoidance_path_was_outer:
-            # --- Special handling for difficult Inner-to-Outer turns ---
-            if is_next_path_outer and not is_entrance_clear:
-                self.is_difficult_i2o_turn = True
-                if self.direction == 'ccw':
-                    outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
-                else: # cw
-                    outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
-                
-                outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
-                switch_dist = self.inner_to_outer_switch_dist_m
-
-                # Condition is True when FAR from the outer wall
-                if math.isnan(outer_wall_dist) or outer_wall_dist > switch_dist:
-                    # Phase 1: Fixed Angle Approach (Approach outer wall)
-                    current_target_angle_deg = self.inner_to_outer_fixed_angle_deg * direction_multiplier
-                    log_approach_type = f"I2O_FIXED (D_outer:{outer_wall_dist:.2f} > {switch_dist:.2f})"
-                else:
-                    # Phase 2: Dynamic Approach (Straighten out as front gets closer)
-                    start_angle = self.inner_to_outer_fixed_angle_deg
-                    start_dist_front = self.inner_to_outer_start_front_dist_m
-                    end_dist_front = self.inner_to_outer_end_front_dist_m
-                    
-                    denominator = start_dist_front - end_dist_front
-                    if denominator > 0.001:
-                        progress = (start_dist_front - front_wall_dist) / denominator
-                    else:
-                        progress = 1.0
-                    progress = max(0.0, min(1.0, progress))
-                    current_target_angle_deg = (start_angle * (1.0 - progress)) * direction_multiplier
-                    log_approach_type = f"I2O_DYNAMIC (D_front:{front_wall_dist:.2f})"
-            else:
-                # --- ORIGINAL DYNAMIC APPROACH from INNER path (Lane Change Logic) ---
-                start_angle = self.dynamic_approach_start_angle_deg
-                start_dist = self.dynamic_approach_start_dist_m
-                straighten_dist = target_dist + self.dynamic_approach_straighten_offset_m
-
-                if (start_dist - straighten_dist) > 0.001:
-                    progress = (start_dist - front_wall_dist) / (start_dist - straighten_dist)
-                else:
-                    progress = 1.0
-                
-                progress = max(0.0, min(1.0, progress))
-                current_target_angle_deg = (start_angle * (1.0 - progress)) * direction_multiplier
-                log_approach_type = "DYNAMIC_INNER"
-
-        else:
-            # --- HYBRID APPROACH from OUTER path ---
-            if self.direction == 'ccw':
-                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
-            else: # cw
-                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
-            
-            outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
-            switch_dist = self.dynamic_approach_outer_switch_dist_m
-
-            # --- NEW: Select the appropriate fixed angle based on the segment ---
-            if self.wall_segment_index == 0:
-                fixed_angle_for_this_turn = self.dynamic_approach_outer_fixed_angle_start_area_deg
-            else:
-                fixed_angle_for_this_turn = self.dynamic_approach_outer_fixed_angle_deg
-
-            if math.isnan(outer_wall_dist) or outer_wall_dist < switch_dist:
-                current_target_angle_deg = fixed_angle_for_this_turn * direction_multiplier
-                log_approach_type = f"HYBRID_OUTER_FIXED (D_outer:{outer_wall_dist:.2f} <= {switch_dist:.2f})"
-            else:
-                target_angle = fixed_angle_for_this_turn # Use the selected angle
-                start_dist_front = self.dynamic_approach_outer_start_front_dist_m
-                end_dist_front = self.dynamic_approach_outer_end_front_dist_m
-
-                denominator = start_dist_front - end_dist_front
-                if denominator > 0.001:
-                    progress = (start_dist_front - front_wall_dist) / denominator
-                else:
-                    progress = 1.0
-                
-                progress = max(0.0, min(1.0, progress))
-                current_target_angle_deg = (target_angle * (1.0 - progress)) * direction_multiplier
-                log_approach_type = f"HYBRID_OUTER_DYNAMIC (D_front:{front_wall_dist:.2f})"
-        # --- END OF CORE LOGIC ---
-
-        final_target_angle_deg = current_target_angle_deg
-        
-        # --- P-Control Execution (Common for all) ---
-        target_yaw = self.approach_base_yaw_deg + final_target_angle_deg
-        error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
-        angular_vel = self.kp_approach_angle * error_deg
-        angular_vel_clamped = max(min(angular_vel, self.max_steer), -self.max_steer)
-        
-        self.get_logger().debug(
-            f"APP({log_approach_type}) | "
-            f"Base: {self.approach_base_yaw_deg:6.1f}, "
-            f"TgtRel: {final_target_angle_deg:5.1f} -> "
-            f"TgtAbs: {target_yaw:6.1f} | "
-            f"CurYaw: {self.current_yaw_deg:6.1f} -> "
-            f"Err: {error_deg:6.1f} | "
-            f"F_Dist: {front_wall_dist:.2f}m (Tgt: {target_dist:.2f}m)",
-            throttle_duration_sec=0.2
-        )
-        
-        self.publish_twist_with_gain(self.forward_speed, angular_vel_clamped)
-
-    def _handle_turning_reverse(self, msg: LaserScan):
-        """Sub-state: Reverse with steering until a target yaw is reached."""
-        
-        if self.is_difficult_i2o_turn:
-            # --- NEW: Special GENTLE curve reverse logic for difficult I2O turns ---
-            self.get_logger().debug(f'TURNING (I2O_REVERSE): Reversing with a gentle curve.', throttle_duration_sec=0.2)
+        # --- Phase 0: Approach front wall ---
+        if self.execute_turn_phase == 0:
             front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
-
             if math.isnan(front_dist):
-                self.get_logger().warn("Cannot get front distance for I2O reverse. Reversing slowly.", throttle_duration_sec=1.0)
-                self.publish_twist_with_gain(-self.course_detection_slow_speed * 0.5, 0.0)
+                self.get_logger().warn("Cannot get front distance for turn approach, stopping.", throttle_duration_sec=1.0)
+                self.publish_twist_with_gain(0.0, 0.0)
                 return
 
-            if front_dist > 0.6:
-                self.get_logger().info('I2O gentle reverse complete. Now checking for obstacles.')
-                self.turning_sub_state = TurningSubState.CHECK_AND_FINISH
-                self.publish_twist_with_gain(0.0, 0.0)
-            else:
-                # Reverse with a gentle curve
-                steer_direction = 1.0 if self.direction == 'ccw' else -1.0
-                gentle_steer = self.turn_reverse_steer * 0.5 # Apply a factor to make the turn gentle
-                self.publish_twist_with_gain(-self.forward_speed, gentle_steer * steer_direction)
-
-        else:
-            # --- Original turn-and-reverse logic for all other cases ---
-            yaw_error = self._angle_diff(self.reverse_target_yaw_deg, self.current_yaw_deg)
-            self.get_logger().debug(f'TURNING (REVERSE): Yaw Error: {yaw_error:.1f} deg to target {self.reverse_target_yaw_deg:.1f}', throttle_duration_sec=0.2)
+            # Determine the turn trigger distance based on the next path
+            next_segment_index = (self.wall_segment_index + 1) % len(self.avoidance_path_plan)
+            next_path_type = self._get_path_type_for_segment(next_segment_index, default_path='outer')
+            is_next_path_outer = next_path_type in ['outer', 'outer_to_inner']
             
-            if abs(yaw_error) < self.reverse_yaw_tolerance_deg:
-                self.get_logger().info('Reverse maneuver complete. Now checking for obstacles before proceeding.')
-                self.turning_sub_state = TurningSubState.CHECK_AND_FINISH
-                self.publish_twist_with_gain(0.0, 0.0)
+            trigger_dist = self.turn_start_dist_outer_m if is_next_path_outer else self.turn_start_dist_inner_m
+
+            if front_dist <= trigger_dist:
+                self.get_logger().info(f"Front wall is close ({front_dist:.2f}m <= {trigger_dist:.2f}m). Starting turn.")
+                self.execute_turn_phase = 1 # Transition to turning phase
+                # Fall through to execute the first turn command in the same cycle
             else:
-                steer_direction = 1.0 if self.direction == 'ccw' else -1.0
-                self.publish_twist_with_gain(-self.forward_speed, self.turn_reverse_steer * steer_direction)
+                self.get_logger().debug(f"Approaching wall for turn... Dist: {front_dist:.2f}m", throttle_duration_sec=0.2)
+                self.publish_twist_with_gain(self.turn_forward_speed, 0.0)
+                return
 
-    def _handle_turning_sub_check_and_finish(self, msg: LaserScan):
-        """
-        Sub-state: Finalizes the turn. Obstacle detection is temporarily disabled.
-        """
-        # Obstacle detection logic is removed. Assume the path is clear.
-        self.get_logger().info("No obstacle detected (detection disabled). Proceeding to finalize turn.")
-        self.turning_sub_state = TurningSubState.FINALIZE_TURN
-
-    def _handle_turning_sub_creating_space(self, msg: LaserScan):
-        """
-        Sub-state: The robot reverses straight back until the detected
-        obstacle is at a safe distance.
-        """
-        current_obstacle_info = None
-
-        stop_reversing = False
-        if current_obstacle_info is None:
-            self.get_logger().info("Obstacle is no longer detected. Re-checking.")
-            stop_reversing = True
-        elif current_obstacle_info['distance_m'] >= self.obstacle_clearance_dist_m:
-            self.get_logger().info(f"Clearance achieved ({current_obstacle_info['distance_m']:.2f}m). Re-checking.")
-            stop_reversing = True
-        
-        if stop_reversing:
-            # Go back to the check state to ensure the path is clear before proceeding
-            self.turning_sub_state = TurningSubState.CHECK_AND_FINISH
-            self.publish_twist_with_gain(0.0, 0.0)
-        else:
-            self.get_logger().warn(
-                f"Creating space... Obstacle at {current_obstacle_info['distance_m']:.2f}m. Reversing.", 
-                throttle_duration_sec=0.5
-            )
-            self.publish_twist_with_gain(-self.forward_speed, 0.0)
+        # --- Phase 1: Execute max-steer turn ---
+        if self.execute_turn_phase == 1:
+            # Calculate target yaw for the next segment
+            if self.direction == 'ccw':
+                target_yaw = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
+                steer = self.max_steer
+            else: # cw
+                target_yaw = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
+                steer = -self.max_steer
+            
+            # Check for completion
+            yaw_error = self._angle_diff(target_yaw, self.current_yaw_deg)
+            
+            self.get_logger().debug(f"Executing turn... TargetYaw: {target_yaw:.1f}, YawError: {yaw_error:.1f}", throttle_duration_sec=0.2)
+            
+            if abs(yaw_error) < self.turn_completion_yaw_threshold_deg:
+                self.get_logger().info("Turn maneuver complete. Finalizing turn.")
+                self.turning_sub_state = TurningSubState.FINALIZE_TURN
+                self.publish_twist_with_gain(0.0, 0.0)
+                return
+            
+            # Continue turning
+            self.publish_twist_with_gain(self.turn_speed, steer)
 
     def _handle_turning_sub_finalize_turn(self):
         """
@@ -2399,44 +2185,22 @@ class ObstacleNavigatorNode(Node):
                     f"Forcing entrance_obstacle_plan to True for a safer turn."
                 )
                 self.entrance_obstacle_plan[next_segment_index] = True
-                
-    def _prepare_for_turning(self, base_angle_deg, specific_angle_deg=None, specific_target_dist=None):
+
+    def _prepare_for_turning(self, base_angle_deg):
         """
-        Calculates all necessary turn parameters and transitions state to TURNING.
-        Uses special parameters if turning from the start area segment's outer path.
+        Calculates and sets up the necessary variables for a turn,
+        but does not transition the state itself.
         """
         self.approach_base_yaw_deg = base_angle_deg
-        log_msg = ""
-
-        if specific_angle_deg is not None:
-            self.approach_target_dist = specific_target_dist if specific_target_dist is not None else self.turn_approach_dist_from_outer_path
-            log_msg = f"Using specific approach: Angle Dist {self.approach_target_dist:.2f} m."
         
-        else: # Standard turn logic for all other cases
-                
-            if self.last_avoidance_path_was_outer:
-                # The approach angle is handled dynamically in _handle_turning_approach.
-                # We only need to set the target distance here.
-                # NOTE: The start area special distance parameter was removed as it's now less critical.
-                self.approach_target_dist = self.turn_approach_dist_from_outer_path
-                log_msg = f"Last path was OUTER. Preparing for HYBRID approach."
-            else:
-                self.approach_target_dist = self.turn_approach_dist_from_inner_path
-                log_msg = f"Last path was INNER. Approaching OUTER DYNAMIC."
+        # This logic is no longer needed as the turn is simpler
 
-        self.reverse_target_yaw_deg = self._calculate_reverse_yaw(base_angle_deg)
-        
-        self.get_logger().info("=====================================================")
-        self.get_logger().info("===            TURN PREPARATION - DEBUG           ===")
-        self.get_logger().info(f"Base Angle: {base_angle_deg:.2f} deg, Info: {log_msg}")
-        self.get_logger().info(f"Approach Tgt Dist: {self.approach_target_dist:.2f} m")
-        self.get_logger().info(f"Reverse Tgt Yaw: {self.reverse_target_yaw_deg:.2f} deg")
-        self.get_logger().info("=====================================================")
+        self.get_logger().info("--- Preparing for simplified turn ---")
+        self.get_logger().info(f"  Base Angle for Turn: {base_angle_deg:.2f} deg")
+        self.get_logger().info("-------------------------------------")
 
         self.inner_wall_far_counter = 0
         self.can_start_new_turn = False
-        self.dynamic_approach_outer_start_dist = None
-        self.is_difficult_i2o_turn = False
         self.state = State.TURNING
         self.turning_sub_state = TurningSubState.POSITIONING_REVERSE
         self.publish_twist_with_gain(0.0, 0.0)
@@ -2599,22 +2363,19 @@ class ObstacleNavigatorNode(Node):
             is_planning_complete = '' not in self.avoidance_path_plan
             
             if not is_planning_complete:
-                # --- MODIFIED: Transition to reverse first to create space for scanning ---
+                # Planning phase logic remains unchanged
                 self.get_logger().info("Corner detected. Reversing to prepare for planning scan.")
                 self.state = State.STRAIGHT
                 self.straight_sub_state = StraightSubState.PRE_SCANNING_REVERSE
-                # Set a fixed distance to reverse before starting the move-and-scan phase
                 self.pre_scanning_reverse_target_dist_m = 0.7 
             else:
-                # This part remains the same: planning is done, prepare for the turn
+                # Planning is complete, so start the new simplified turning sequence.
+                # The sequence always starts with POSITIONING_REVERSE.
+                self.get_logger().info("Corner detected. Starting simplified turning sequence.")
+                self._prepare_for_turning(base_angle_deg) # This now just sets up variables
                 self.state = State.TURNING
-                if self._is_turn_maneuver_required():
-                    self.get_logger().info("Corner detected. Full turn maneuver is required.")
-                    self._prepare_for_turning(base_angle_deg)
-                else:
-                    self.get_logger().info("Corner detected. Skipping full turn, performing positioning reverse only.")
-                    self.turning_sub_state = TurningSubState.POSITIONING_REVERSE_FOR_SKIP
-
+                self.turning_sub_state = TurningSubState.POSITIONING_REVERSE
+            
             self.publish_twist_with_gain(0.0, 0.0)
             return True, inner_wall_dist
             
@@ -2704,18 +2465,6 @@ class ObstacleNavigatorNode(Node):
             return self.wall_segment_index * 90.0
         else: # cw
             return self.wall_segment_index * -90.0
-
-    def _calculate_reverse_yaw(self, base_angle_deg):
-        """Calculates the target yaw for the end of the reverse maneuver."""
-        if self.direction == 'ccw':
-            target_yaw = base_angle_deg + 90.0
-        else: # cw
-            target_yaw = base_angle_deg - 90.0
-        
-        # Normalize to -180 to 180 range
-        while target_yaw > 180.0: target_yaw -= 360.0
-        while target_yaw <= -180.0: target_yaw += 360.0
-        return target_yaw
 
     def _calculate_color_area(self, hsv_image, lower_bound, upper_bound, points=None):
         """
@@ -2893,12 +2642,6 @@ class ObstacleNavigatorNode(Node):
             elif self.straight_sub_state == StraightSubState.AVOID_OUTER_TURN_IN:
                 state_specific_gain = self.gain_straight_outer_turn_in
 
-        elif self.state == State.TURNING:
-            if self.turning_sub_state == TurningSubState.APPROACH:
-                state_specific_gain = self.gain_turning_approach
-            elif self.turning_sub_state == TurningSubState.REVERSE:
-                state_specific_gain = self.gain_turning_reverse
-
         # Add more conditions here if needed in the future
         # elif self.state == State.STRAIGHT and self.straight_sub_state == ... :
         #     state_specific_gain = self.gain_some_other_state
@@ -2974,45 +2717,7 @@ class ObstacleNavigatorNode(Node):
             current_angle_rad += scan_data.angle_increment
         if angle_at_min_dist_deg is not None: return {'distance': min_dist, 'angle': angle_at_min_dist_deg}
         return None
-
-    def _is_turn_maneuver_required(self) -> bool:
-        """
-        Determines if the entire turning maneuver (APPROACH and REVERSE) is necessary.
-        This allows skipping the turn for simple, wide-radius corners.
-        
-        Returns:
-            bool: False if the turning state can be skipped, True otherwise.
-        """
-        # Get the plan for the NEXT wall segment
-        next_segment_index = (self.wall_segment_index + 1) % len(self.avoidance_path_plan)
-        next_path_type = self._get_path_type_for_segment(next_segment_index, default_path='outer')
-
-        is_next_path_outer = next_path_type in ['outer', 'outer_to_inner']
-        is_next_path_inner = next_path_type in ['inner', 'inner_to_outer']
-
-        try:
-            is_entrance_clear = not self.entrance_obstacle_plan[next_segment_index]
-        except IndexError:
-            is_entrance_clear = False # Failsafe in case of index issue
-
-        # --- Condition 1: Outer-to-Outer Turn ---
-        if self.last_avoidance_path_was_outer and is_next_path_outer:
-            self.get_logger().warn("SKIPPING TURN MANEUVER: Outer-to-Outer corner detected.")
-            return False
-
-        # --- NEW Condition 2: Safe Outer-to-Inner Turn ---
-        if self.last_avoidance_path_was_outer and is_next_path_inner and is_entrance_clear and not self.wall_segment_index == 0:
-            self.get_logger().warn("SKIPPING TURN MANEUVER: Safe Outer-to-Inner corner detected.")
-            return False
-        
-        # --- Condition 3: Safe Inner-to-Outer Turn ---
-        if not self.last_avoidance_path_was_outer and is_next_path_outer and is_entrance_clear:
-            self.get_logger().warn("SKIPPING TURN MANEUVER: Safe Inner-to-Outer corner detected.")
-            return False
-
-        # If no conditions to skip are met, reversing is required by default.
-        return True
-
+    
     def _angle_normalize(self, angle_deg):
         """Normalize an angle to the range [-180, 180)."""
         while angle_deg >= 180.0: angle_deg -= 360.0
