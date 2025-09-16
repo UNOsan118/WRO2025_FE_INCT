@@ -5,11 +5,11 @@ import math
 from ros_robot_controller_msgs.msg import MotorState, MotorsState
 
 class RearDriveAckermannChassis: # Renamed class for clarity
-    def __init__(self, wheelbase=0.145, wheel_diameter=0.067, drive_motor_id=4, servo_offset_pulse=43): # Renamed parameter for clarity
+    def __init__(self, wheelbase=0.145, wheel_diameter=0.067, drive_motor_id=4, servo_offset_pulse=0): # Renamed parameter for clarity servo_offset_pulse=43
         self.wheelbase = wheelbase
         self.wheel_diameter = wheel_diameter
         self.DRIVE_MOTOR_ID = drive_motor_id # Store the single drive motor ID
-        self.SERVO_OFFSET_PULSE = servo_offset_pulse
+        # self.SERVO_OFFSET_PULSE = servo_offset_pulse
 
     def speed_covert(self, speed):
         """
@@ -18,7 +18,7 @@ class RearDriveAckermannChassis: # Renamed class for clarity
         return speed / (math.pi * self.wheel_diameter)
 
     def set_velocity(self, linear_speed, angular_speed, reset_servo=True):
-        servo_angle_pulse = 1500 + self.SERVO_OFFSET_PULSE 
+        servo_angle_pulse = 1500 # + self.SERVO_OFFSET_PULSE 
 
         # --- Steering Angle Calculation (This logic remains the same) ---
         if abs(linear_speed) >= 1e-8 and abs(angular_speed) >= 1e-8:
