@@ -187,9 +187,9 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('parking_reverse_in_yaw_tolerance_deg', 2.0)
 
         # --- NEW: Parameters for PID-based Wall Following ---
-        self.declare_parameter('align_target_inner_dist_m', 0.23)
+        self.declare_parameter('align_target_inner_dist_m', 0.2)
         self.declare_parameter('align_dist_tolerance_m', 0.005)
-        self.declare_parameter('align_kp_angle', 0.05)
+        self.declare_parameter('align_kp_angle', 0.04)
         self.declare_parameter('align_kp_dist', 7.5)
         self.declare_parameter('align_target_outer_dist_m', 0.2)
         self.declare_parameter('align_target_outer_dist_start_area_m', 0.39)
@@ -1019,7 +1019,8 @@ class ObstacleNavigatorNode(Node):
             # Create a copy of the alignment parameters to override the target distance if needed.
             base_angle_deg = 0.0 # Target yaw is 0 in this state.
 
-            self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=is_following_outer_wall)
+            self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=is_following_outer_wall,
+                                        speed=self.course_detection_speed)
 
     def _handle_straight_sub_align_with_outer_wall(self, msg: LaserScan):
         if self._check_for_finish_condition(msg):
@@ -1056,7 +1057,8 @@ class ObstacleNavigatorNode(Node):
             return
 
         # Driving logic is common for all scenarios.
-        self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=True)
+        speed = self.forward_speed * 0.7 if self.turn_count == 0 else self.forward_speed
+        self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=True, speed=speed)
 
     def _handle_straight_sub_align_with_inner_wall(self, msg: LaserScan):
         if self._check_for_finish_condition(msg):
@@ -1093,7 +1095,8 @@ class ObstacleNavigatorNode(Node):
             return
 
         # Driving logic is common for all scenarios.
-        self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=False)
+        speed = self.forward_speed * 0.7 if self.turn_count == 0 else self.forward_speed
+        self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=False, speed=speed)
 
     def _handle_straight_sub_plan_next_avoidance(self, msg: LaserScan):
         """
@@ -1181,11 +1184,26 @@ class ObstacleNavigatorNode(Node):
                 self._update_dynamic_tilt(target_world_angle_deg)
             
             # Drive straight forward using IMU for heading correction
-            angle_error_deg = self._angle_diff(self.approach_base_yaw_deg, self.current_yaw_deg)
-            planning_kp_gain = 2.0
-            angle_steer = self.align_kp_angle * angle_error_deg * planning_kp_gain
-            final_steer = max(min(angle_steer, self.max_steer), -self.max_steer)
-            self.publish_twist_with_gain(self.course_detection_slow_speed, final_steer)
+            # --- MODIFIED: Use PID alignment for stable forward movement ---
+            if self.last_avoidance_path_was_outer:
+                # If we were on the outer path, continue following the outer wall.
+                self._execute_pid_alignment(msg, self.approach_base_yaw_deg, is_outer_wall=True,
+                                            speed=self.course_detection_slow_speed)
+            else:
+                # If we were on the inner path, the inner wall is gone.
+                # Align using the OUTER wall, but maintain the ideal INNER path distance.
+                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - (90.0 if self.direction == 'ccw' else -90.0))
+                outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+                
+                override_dist = None
+                if not math.isnan(outer_wall_dist):
+                    # Target distance for the OUTER wall should be: CourseWidth - IdealInnerDist
+                    # Assuming course width is approx 1.0m
+                    override_dist = 1.0 - self.align_target_inner_dist_m
+                
+                self._execute_pid_alignment(msg, self.approach_base_yaw_deg, is_outer_wall=True,
+                                            speed=self.course_detection_slow_speed,
+                                            override_target_dist=override_dist)
 
             # Conditionally perform scanning only when close enough to the corner
             if not math.isnan(front_dist) and front_dist < self.planning_scan_start_dist_m:
@@ -1277,7 +1295,27 @@ class ObstacleNavigatorNode(Node):
                 f"Current: {front_dist:.3f}m",
                 throttle_duration_sec=0.2
             )
-            self.publish_twist_with_gain(-self.forward_speed, 0.0)
+            # --- MODIFIED: Use PID alignment for stable reverse movement ---
+            # The driving side depends on the last path taken to reach the corner.
+            if self.last_avoidance_path_was_outer:
+                # If last path was outer, simply follow the outer wall.
+                self._execute_pid_alignment(
+                    msg, 
+                    self.approach_base_yaw_deg, 
+                    is_outer_wall=True,
+                    speed=-self.forward_speed
+                )
+            else:
+                # If last path was inner, the inner wall is gone.
+                # Follow the OUTER wall instead, but maintain the ideal inner path distance.
+                override_dist = 1.0 - self.align_target_inner_dist_m
+                self._execute_pid_alignment(
+                    msg,
+                    self.approach_base_yaw_deg,
+                    is_outer_wall=True, # Forcibly use the outer wall for alignment
+                    speed=-self.forward_speed,
+                    override_target_dist=override_dist
+                )
 
     def _handle_straight_sub_avoid_outer_turn_in(self, msg: LaserScan):
         """Phase 1: Approach the outer wall, while also checking if the obstacle is passed."""
@@ -1475,7 +1513,7 @@ class ObstacleNavigatorNode(Node):
             if side_dist_sum <= 1.0 and front_dist > 0.8:
                 condition2 = True
 
-        # --- If either condition is met, move to APPROACH ---
+        # --- If either condition is met, move to EXECUTE_TURN ---
         if condition1 or condition2:
             self.get_logger().info(f"Positioning reverse complete (Front: {front_dist:.2f}m). Transitioning to EXECUTE_TURN.")
             self.publish_twist_with_gain(0.0, 0.0)
@@ -1483,7 +1521,26 @@ class ObstacleNavigatorNode(Node):
             self.execute_turn_phase = 0 # Reset internal phase
         else:
             self.get_logger().debug(f"Positioning Reverse... (Front: {front_dist:.2f}m)", throttle_duration_sec=0.2)
-            self.publish_twist_with_gain(-self.forward_speed * 0.7, 0.0)
+            # --- MODIFIED: Use PID alignment for stable reverse movement ---
+            # The wall to follow is determined by the path taken before this turn.
+            if self.last_avoidance_path_was_outer:
+                # If last path was outer, simply follow the outer wall.
+                self._execute_pid_alignment(
+                    msg,
+                    self.approach_base_yaw_deg,
+                    is_outer_wall=True,
+                    speed=-self.forward_speed * 0.7
+                )
+            else:
+                # If last path was inner, follow the OUTER wall with an adjusted target distance.
+                override_dist = 1.0 - self.align_target_inner_dist_m
+                self._execute_pid_alignment(
+                    msg,
+                    self.approach_base_yaw_deg,
+                    is_outer_wall=True, # Forcibly use the outer wall
+                    speed=-self.forward_speed * 0.7,
+                    override_target_dist=override_dist
+                )
 
     def _handle_turning_sub_execute_turn(self, msg: LaserScan):
         """
@@ -1632,8 +1689,9 @@ class ObstacleNavigatorNode(Node):
             # Driving logic is the same wall-following
             is_outer_wall = True
             original_speed = self.forward_speed
-            self.forward_speed = self.forward_speed * 0.8
-            self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=is_outer_wall)
+            parking_approach_speed = self.forward_speed * 0.8
+            self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=is_outer_wall, 
+                                        speed=parking_approach_speed)
             self.forward_speed = original_speed
             
         else: # cw
@@ -1657,8 +1715,9 @@ class ObstacleNavigatorNode(Node):
                 # Drive forward along the wall
                 is_outer_wall = True
                 original_speed = self.forward_speed
-                self.forward_speed = self.forward_speed * 1.2
-                self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=is_outer_wall)
+                parking_overshoot_speed = self.forward_speed * 1.2
+                self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=is_outer_wall,
+                                            speed=parking_overshoot_speed)
                 self.forward_speed = original_speed
 
             elif self.pre_parking_step == 1:
@@ -1748,10 +1807,11 @@ class ObstacleNavigatorNode(Node):
         self.servo_pub.publish(msg)
 
     # --- Logic and Calculation Helper Functions ---
-    def _execute_pid_alignment(self, msg: LaserScan, base_angle_deg: float, is_outer_wall: bool):
+    def _execute_pid_alignment(self, msg: LaserScan, base_angle_deg: float, is_outer_wall: bool,
+                                speed: float, override_target_dist: float = None):
         """
         A generic PID controller for aligning the robot parallel to a specified wall.
-        This function is called by the specific align_with_*_wall handlers.
+        Can now handle forward/backward movement and an overridden target distance.
         """
         if is_outer_wall:
             wall_offset_deg = -90.0 if self.direction == 'ccw' else 90.0
@@ -1767,6 +1827,15 @@ class ObstacleNavigatorNode(Node):
             target_dist = self.align_target_inner_dist_m
             dist_steer_multiplier = -1.0 if self.direction == 'ccw' else 1.0
             log_prefix = "ALIGN_INNER"
+
+        # --- Target Distance Calculation ---
+        if override_target_dist is not None:
+            target_dist = override_target_dist
+            log_prefix += "_OVERRIDE"
+        elif is_outer_wall:
+            target_dist = self.align_target_outer_dist_start_area_m if self.wall_segment_index == 0 else self.align_target_outer_dist_m
+        else: # Inner wall
+            target_dist = self.align_target_inner_dist_m
 
         wall_angle = self._angle_normalize(base_angle_deg + wall_offset_deg)
         wall_dist = self.get_distance_at_world_angle(msg, wall_angle)
@@ -1808,12 +1877,15 @@ class ObstacleNavigatorNode(Node):
             throttle_duration_sec=0.2
         )
 
-        if self.turn_count == 0:
-            final_speed = self.forward_speed * 0.7
-        else:
-            final_speed = self.forward_speed
-        
-        self.publish_twist_with_gain(final_speed, final_steer)
+        self.get_logger().debug(
+            f"{log_prefix}({log_mode}) | WallD:{wall_dist:.2f} TgtD:{target_dist:.2f} | " 
+            f"YawErr:{angle_error_deg:.1f} | DistSteer:{dist_steer:.2f} | "
+            f"FinalSteer:{final_steer:.2f}",
+            throttle_duration_sec=0.2
+        )
+
+        self.publish_twist_with_gain(speed, final_steer)
+        return final_steer
 
     def _execute_avoid_turn_in(self, msg: LaserScan, is_outer_turn_in: bool):
         """
