@@ -137,8 +137,9 @@ class ObstacleNavigatorNode(Node):
         # --- NEW: Parameters for Simplified Turning Maneuver ---
         self.declare_parameter('turn_forward_speed', 0.1)
         self.declare_parameter('turn_speed', 0.15)
-        self.declare_parameter('turn_start_dist_outer_m', 0.3)
-        self.declare_parameter('turn_start_dist_inner_m', 0.95)
+        self.declare_parameter('turn_start_dist_outer_m', 0.25)
+        self.declare_parameter('turn_start_dist_outer_start_area_m', 0.45)
+        self.declare_parameter('turn_start_dist_inner_m', 1.0)
         self.declare_parameter('turn_completion_yaw_threshold_deg', 30.0)
 
         # --- PARAMETERS for Yaw Correction Logic ---0.9
@@ -167,12 +168,12 @@ class ObstacleNavigatorNode(Node):
 
         # --- NEW: Parameters for Simplified Avoidance Sequence ---
         self.declare_parameter('avoid_outer_approach_angle_deg', 40.0)
-        self.declare_parameter('avoid_outer_approach_target_dist_m', 0.30)
+        self.declare_parameter('avoid_outer_approach_target_dist_m', 0.20)
 
-        self.declare_parameter('avoid_outer_approach_target_dist_start_area_m', 0.65)
+        self.declare_parameter('avoid_outer_approach_target_dist_start_area_m', 0.45)
 
         self.declare_parameter('avoid_inner_approach_angle_deg', 40.0)
-        self.declare_parameter('avoid_inner_approach_target_dist_m', 0.32)
+        self.declare_parameter('avoid_inner_approach_target_dist_m', 0.22)
 
         # self.declare_parameter('avoidance_path_plan', ['outer', 'inner_to_outer', 'outer_to_inner', 'inner'])
         self.declare_parameter('avoidance_path_plan', ['', '', '', ''])
@@ -363,6 +364,7 @@ class ObstacleNavigatorNode(Node):
         self.turn_forward_speed = self.get_parameter('turn_forward_speed').get_parameter_value().double_value
         self.turn_speed = self.get_parameter('turn_speed').get_parameter_value().double_value
         self.turn_start_dist_outer_m = self.get_parameter('turn_start_dist_outer_m').get_parameter_value().double_value
+        self.turn_start_dist_outer_start_area_m = self.get_parameter('turn_start_dist_outer_start_area_m').get_parameter_value().double_value
         self.turn_start_dist_inner_m = self.get_parameter('turn_start_dist_inner_m').get_parameter_value().double_value
         self.turn_completion_yaw_threshold_deg = self.get_parameter('turn_completion_yaw_threshold_deg').get_parameter_value().double_value
 
@@ -1562,7 +1564,10 @@ class ObstacleNavigatorNode(Node):
             next_path_type = self._get_path_type_for_segment(next_segment_index, default_path='outer')
             is_next_path_outer = next_path_type in ['outer', 'outer_to_inner']
             
-            trigger_dist = self.turn_start_dist_outer_m if is_next_path_outer else self.turn_start_dist_inner_m
+            if is_next_path_outer :
+                trigger_dist = self.turn_start_dist_outer_start_area_m if next_segment_index == 0 else self.turn_start_dist_outer_m
+            else:
+                trigger_dist = self.turn_start_dist_inner_m
 
             if front_dist <= trigger_dist:
                 self.get_logger().info(f"Front wall is close ({front_dist:.2f}m <= {trigger_dist:.2f}m). Starting turn.")
@@ -1902,7 +1907,7 @@ class ObstacleNavigatorNode(Node):
         if is_outer_turn_in:
             target_approach_angle = self.avoid_approach_angle_deg
             wall_offset_deg = -90.0
-            target_dist = self.avoid_approach_target_dist_m
+            target_dist = self.avoid_outer_approach_target_dist_start_area_m if self.wall_segment_index == 0 else self.avoid_approach_target_dist_m
             next_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
         else: # Inner turn-in
             target_approach_angle = self.avoid_inner_approach_angle_deg
