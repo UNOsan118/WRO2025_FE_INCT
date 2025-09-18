@@ -70,7 +70,7 @@ class ObstacleNavigatorNode(Node):
         self.execute_turn_phase = 0 # 0: Forward, 1: Turning
         self.parking_sub_state = ParkingSubState.PRE_PARKING_ADJUST
         
-        self.inner_wall_disappear_threshold = 2.0
+        self.inner_wall_disappear_threshold = 1.3
         self.inner_wall_disappear_count = 3
         self.max_turns = 12
 
@@ -137,8 +137,8 @@ class ObstacleNavigatorNode(Node):
         # --- NEW: Parameters for Simplified Turning Maneuver ---
         self.declare_parameter('turn_forward_speed', 0.1)
         self.declare_parameter('turn_speed', 0.15)
-        self.declare_parameter('turn_start_dist_outer_m', 0.4)
-        self.declare_parameter('turn_start_dist_inner_m', 1.0)
+        self.declare_parameter('turn_start_dist_outer_m', 0.3)
+        self.declare_parameter('turn_start_dist_inner_m', 0.95)
         self.declare_parameter('turn_completion_yaw_threshold_deg', 30.0)
 
         # --- PARAMETERS for Yaw Correction Logic ---0.9
@@ -166,13 +166,13 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('avoid_turn_in_yaw_tolerance_deg', 5.0)
 
         # --- NEW: Parameters for Simplified Avoidance Sequence ---
-        self.declare_parameter('avoid_outer_approach_angle_deg', 65.0)
-        self.declare_parameter('avoid_outer_approach_target_dist_m', 0.40)
+        self.declare_parameter('avoid_outer_approach_angle_deg', 40.0)
+        self.declare_parameter('avoid_outer_approach_target_dist_m', 0.30)
 
         self.declare_parameter('avoid_outer_approach_target_dist_start_area_m', 0.65)
 
-        self.declare_parameter('avoid_inner_approach_angle_deg', 65.0)
-        self.declare_parameter('avoid_inner_approach_target_dist_m', 0.42)
+        self.declare_parameter('avoid_inner_approach_angle_deg', 40.0)
+        self.declare_parameter('avoid_inner_approach_target_dist_m', 0.32)
 
         # self.declare_parameter('avoidance_path_plan', ['outer', 'inner_to_outer', 'outer_to_inner', 'inner'])
         self.declare_parameter('avoidance_path_plan', ['', '', '', ''])
@@ -189,7 +189,7 @@ class ObstacleNavigatorNode(Node):
         # --- NEW: Parameters for PID-based Wall Following ---
         self.declare_parameter('align_target_inner_dist_m', 0.23)
         self.declare_parameter('align_dist_tolerance_m', 0.005)
-        self.declare_parameter('align_kp_angle', 0.03)
+        self.declare_parameter('align_kp_angle', 0.05)
         self.declare_parameter('align_kp_dist', 7.5)
         self.declare_parameter('align_target_outer_dist_m', 0.2)
         self.declare_parameter('align_target_outer_dist_start_area_m', 0.39)
@@ -197,7 +197,7 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('save_debug_images', True, )
         self.declare_parameter('debug_image_path', '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images', )
 
-        self.declare_parameter('log_level', 'INFO') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
+        self.declare_parameter('log_level', 'DEBUG') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
 
         # --- NEW: Rate Limiter (Smoother) Parameters & Variables ---
         self.declare_parameter('max_linear_acceleration', 3000.0) # m/s^2 30
@@ -1340,7 +1340,7 @@ class ObstacleNavigatorNode(Node):
 
         # --- MODIFIED: Added condition to prevent premature completion from noise ---
         if not math.isnan(outer_wall_dist) and outer_wall_dist > 0.0 and outer_wall_dist <= approach_target_dist:
-            self.get_logger().info(f"Approach complete (Dist: {outer_wall_dist:.2f}m). Transitioning to ALIGN_WITH_WALL.")
+            self.get_logger().info(f"Approach complete (Dist: {outer_wall_dist:.2f}m). Transitioning to ALIGN_WITH_OUTER_WALL.")
             self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
             self.is_in_avoidance_alignment = True
             self.is_passing_obstacle = False
@@ -2327,11 +2327,25 @@ class ObstacleNavigatorNode(Node):
         """
         if self.direction == 'ccw':
             inner_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+            outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+
         else: # cw
             inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+            outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+
         
         front_wall_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
         inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
+        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+
+        self.get_logger().debug(
+            f"[CornerCheck] Turn:{self.turn_count} | "
+            f"F_Dist:{front_wall_dist:.2f} (<1.2?) | "
+            f"I_Dist:{inner_wall_dist:.2f} (>{self.inner_wall_disappear_threshold:.1f}?) | "
+            f"Counter:{self.inner_wall_far_counter}/{self.inner_wall_disappear_count} | "
+            f"CanTurn:{self.can_start_new_turn}",
+            throttle_duration_sec=0.5
+        )
 
         if self.turn_count >= self.max_turns:
             # If we detect a corner but have already completed the required number of laps,
@@ -2348,8 +2362,11 @@ class ObstacleNavigatorNode(Node):
             return True, inner_wall_dist 
 
         # --- MODIFIED CORNER DETECTION LOGIC ---
-        if not math.isnan(inner_wall_dist):
-            if inner_wall_dist >= self.inner_wall_disappear_threshold and front_wall_dist < 1.2:
+        if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and not math.isnan(front_wall_dist):
+            inner_wall_is_far = inner_wall_dist >= self.inner_wall_disappear_threshold
+            front_is_close = front_wall_dist < 1.2
+
+            if inner_wall_is_far and front_is_close:
                 self.inner_wall_far_counter += 1
             else:
                 # Reset counter only if the wall is confirmed to be close
