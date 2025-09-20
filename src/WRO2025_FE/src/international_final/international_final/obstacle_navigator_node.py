@@ -135,12 +135,12 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('detection_samples', 5) # Number of frames to sample for majority vote
 
         # --- NEW: Parameters for Simplified Turning Maneuver ---
-        self.declare_parameter('turn_forward_speed', 0.1)
+        self.declare_parameter('turn_forward_speed', 0.15)
         self.declare_parameter('turn_speed', 0.15)
         self.declare_parameter('turn_start_dist_outer_m', 0.25)
-        self.declare_parameter('turn_start_dist_outer_start_area_m', 0.45)
+        self.declare_parameter('turn_start_dist_outer_start_area_m', 0.5)
         self.declare_parameter('turn_start_dist_inner_m', 1.0)
-        self.declare_parameter('turn_completion_yaw_threshold_deg', 30.0)
+        self.declare_parameter('turn_completion_yaw_threshold_deg', 15.0)
 
         # --- PARAMETERS for Yaw Correction Logic ---0.9
         self.declare_parameter('yaw_correction_threshold_deg', 75.0)
@@ -251,6 +251,7 @@ class ObstacleNavigatorNode(Node):
 
         self.planning_scan_interval = 2
         self.planning_scan_stop_dist = 0.25
+        self.planning_scan_stop_dist_start_area = 0.38
         self.planning_scan_start_dist_m = 0.5
 
         self.planning_camera_wait_timer = None
@@ -286,6 +287,8 @@ class ObstacleNavigatorNode(Node):
         self.ready_to_start_sampling = False
 
         self.is_in_avoidance_alignment = False
+        self.stable_alignment_counter = 0
+        self.lane_change_stability_counter = 0
 
         # --- System Setup ---
         self.state_lock = threading.RLock()
@@ -1027,8 +1030,12 @@ class ObstacleNavigatorNode(Node):
     def _handle_straight_sub_align_with_outer_wall(self, msg: LaserScan):
         if self._check_for_finish_condition(msg):
             return
+        self.last_avoidance_path_was_outer = True
         """A PID-based wall follower that now includes avoidance completion logic."""
         base_angle_deg = self._calculate_base_angle()
+
+        # --- NEW: Logic to enable next turn based on stable alignment ---
+        self._update_turn_permission_counter(msg, base_angle_deg)
 
         # --- Avoidance Completion Logic ---
         if self.is_in_avoidance_alignment:
@@ -1042,14 +1049,14 @@ class ObstacleNavigatorNode(Node):
                     self.get_logger().info("--- (Align) Obstacle cleared. Initiating lane change [O->I]. ---")
                     self._complete_avoidance_phase(
                         next_sub_state=StraightSubState.AVOID_INNER_TURN_IN,
-                        path_was_outer=True, enable_next_turn=False)
+                        path_was_outer=True)
                 else: # 'outer' path finished.
                     # This was a simple outer avoidance. Return to normal alignment.
                     self.get_logger().info("--- (Align) Outer avoidance complete. Resuming normal alignment. ---")
                     self.is_in_avoidance_alignment = False # Clear the flag
                     self._complete_avoidance_phase(
                         next_sub_state=StraightSubState.ALIGN_WITH_OUTER_WALL,
-                        path_was_outer=True, enable_next_turn=True)
+                        path_was_outer=True)
                 return # State transition occurred, so exit.
 
         # --- Standard Behavior ---
@@ -1065,8 +1072,12 @@ class ObstacleNavigatorNode(Node):
     def _handle_straight_sub_align_with_inner_wall(self, msg: LaserScan):
         if self._check_for_finish_condition(msg):
             return
+        self.last_avoidance_path_was_outer = False
         """A PID-based wall follower that now includes avoidance completion logic."""
         base_angle_deg = self._calculate_base_angle()
+
+        # --- NEW: Logic to enable next turn based on stable alignment ---
+        self._update_turn_permission_counter(msg, base_angle_deg)
 
         # --- Avoidance Completion Logic ---
         if self.is_in_avoidance_alignment:
@@ -1080,14 +1091,14 @@ class ObstacleNavigatorNode(Node):
                     self.get_logger().info("--- (Align) Obstacle cleared. Initiating lane change [I->O]. ---")
                     self._complete_avoidance_phase(
                         next_sub_state=StraightSubState.AVOID_OUTER_TURN_IN,
-                        path_was_outer=False, enable_next_turn=False)
+                        path_was_outer=False)
                 else: # 'inner' path finished.
                     # This was a simple inner avoidance. Return to normal alignment.
                     self.get_logger().info("--- (Align) Inner avoidance complete. Resuming normal alignment. ---")
                     self.is_in_avoidance_alignment = False # Clear the flag
                     self._complete_avoidance_phase(
                         next_sub_state=StraightSubState.ALIGN_WITH_INNER_WALL,
-                        path_was_outer=False, enable_next_turn=True)
+                        path_was_outer=False)
                 return # State transition occurred, so exit.
 
         # --- Standard Behavior ---
@@ -1163,7 +1174,11 @@ class ObstacleNavigatorNode(Node):
                 )
 
         # --- PHASE 2: DRIVING & SCANNING ---
-        target_stop_dist = self.planning_scan_stop_dist
+        next_segment_index = (self.wall_segment_index + 1) % len(self.entrance_obstacle_plan)
+        if next_segment_index == 0:
+            target_stop_dist = self.planning_scan_stop_dist_start_area
+        else:
+            target_stop_dist = self.planning_scan_stop_dist
         front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
 
         # If the robot is still approaching the final stopping point, continue driving.
@@ -1305,7 +1320,8 @@ class ObstacleNavigatorNode(Node):
                     msg, 
                     self.approach_base_yaw_deg, 
                     is_outer_wall=True,
-                    speed=-self.forward_speed
+                    speed=-self.forward_speed,
+                    disable_dist_control=True
                 )
             else:
                 # If last path was inner, the inner wall is gone.
@@ -1316,7 +1332,8 @@ class ObstacleNavigatorNode(Node):
                     self.approach_base_yaw_deg,
                     is_outer_wall=True, # Forcibly use the outer wall for alignment
                     speed=-self.forward_speed,
-                    override_target_dist=override_dist
+                    override_target_dist=override_dist,
+                    disable_dist_control=True
                 )
 
     def _handle_straight_sub_avoid_outer_turn_in(self, msg: LaserScan):
@@ -1325,7 +1342,10 @@ class ObstacleNavigatorNode(Node):
             return
             
         base_angle_deg = self._calculate_base_angle()
-        
+    
+        # --- NEW: Update turn permission counter during TURN_IN phase ---
+        self._update_turn_permission_counter(msg, base_angle_deg)
+
         # Define target yaw and wall measurement angles
         if self.direction == 'ccw':
             target_yaw_deg = self._angle_normalize(base_angle_deg - self.avoid_approach_angle_deg)
@@ -1350,13 +1370,11 @@ class ObstacleNavigatorNode(Node):
                     if path_type == 'outer_to_inner':
                         self._complete_avoidance_phase(
                             next_sub_state=StraightSubState.AVOID_INNER_TURN_IN,
-                            path_was_outer=True,
-                            enable_next_turn=False)
+                            path_was_outer=True)
                     else:
                         self._complete_avoidance_phase(
                             next_sub_state=StraightSubState.ALIGN_WITH_OUTER_WALL,
-                            path_was_outer=True,
-                            enable_next_turn=True)
+                            path_was_outer=True)
                     return
             else:
                 # Check if we have started passing the obstacle
@@ -1378,14 +1396,47 @@ class ObstacleNavigatorNode(Node):
         else:
             approach_target_dist = self.avoid_approach_target_dist_m
 
-        # --- MODIFIED: Added condition to prevent premature completion from noise ---
-        if not math.isnan(outer_wall_dist) and outer_wall_dist > 0.0 and outer_wall_dist <= approach_target_dist:
-            self.get_logger().info(f"Approach complete (Dist: {outer_wall_dist:.2f}m). Transitioning to ALIGN_WITH_OUTER_WALL.")
-            self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
-            self.is_in_avoidance_alignment = True
-            self.is_passing_obstacle = False
-            self.publish_twist_with_gain(0.0, 0.0)
-            return
+        is_distance_met = not math.isnan(outer_wall_dist) and outer_wall_dist > 0.0 and outer_wall_dist <= approach_target_dist
+
+        # Check if this maneuver is specifically an 'inner_to_outer' lane change
+        path_type = self._get_path_type_for_segment(self.wall_segment_index)
+        is_specific_lane_change = (path_type == 'inner_to_outer')
+
+        if is_specific_lane_change:
+            # For this specific lane change, we require BOTH distance and stability.
+            is_lane_change_stable = False
+            if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and \
+               (inner_wall_dist + outer_wall_dist) < 1.1:
+                self.lane_change_stability_counter += 1
+            else:
+                pass
+
+            # --- THROTTLED LOGGING ---
+            self.get_logger().debug(
+                f"Lane change [I->O] stability counter: {self.lane_change_stability_counter}",
+                throttle_duration_sec=0.1 # Log every 0.5 seconds
+            )
+
+            if self.lane_change_stability_counter > 25:
+                is_lane_change_stable = True
+            
+            if is_distance_met and is_lane_change_stable:
+                self.get_logger().info(f"Lane change [I->O] complete (Dist & Stable). Transitioning.")
+                self.lane_change_stability_counter = 0
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+                self.is_in_avoidance_alignment = True
+                self.is_passing_obstacle = False
+                self.publish_twist_with_gain(0.0, 0.0)
+                return
+        else:
+            # For simple avoidance (e.g., 'outer'), only the distance matters.
+            if is_distance_met:
+                self.get_logger().info(f"Approach complete (Simple Avoidance, Dist: {outer_wall_dist:.2f}m). Transitioning.")
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+                self.is_in_avoidance_alignment = True
+                self.is_passing_obstacle = False
+                self.publish_twist_with_gain(0.0, 0.0)
+                return
 
         # P-control to maintain the approach angle
         error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
@@ -1409,7 +1460,10 @@ class ObstacleNavigatorNode(Node):
             return
 
         base_angle_deg = self._calculate_base_angle()
-        
+
+        # --- NEW: Update turn permission counter during TURN_IN phase ---
+        self._update_turn_permission_counter(msg, base_angle_deg)
+
         if self.direction == 'ccw':
             target_yaw_deg = self._angle_normalize(base_angle_deg + self.avoid_inner_approach_angle_deg)
             outer_wall_angle_for_approach_check = self._angle_normalize(base_angle_deg - 90.0)
@@ -1434,13 +1488,11 @@ class ObstacleNavigatorNode(Node):
                     if path_type == 'inner_to_outer':
                         self._complete_avoidance_phase(
                             next_sub_state=StraightSubState.AVOID_OUTER_TURN_IN,
-                            path_was_outer=False,
-                            enable_next_turn=False)
+                            path_was_outer=False)
                     else:
                         self._complete_avoidance_phase(
                             next_sub_state=StraightSubState.ALIGN_WITH_INNER_WALL,
-                            path_was_outer=False,
-                            enable_next_turn=True)
+                            path_was_outer=False)
                     return
             else:
                 # Check if we have started passing the obstacle (based on outer wall getting close)
@@ -1458,23 +1510,49 @@ class ObstacleNavigatorNode(Node):
             # self.publish_twist_with_gain(0.0, 0.0)
             # Do not return here, let the P-control continue to steer towards the target yaw
         
-        effective_dist = 1.0 - outer_wall_dist if not math.isnan(outer_wall_dist) else inner_wall_dist # float('inf')
+        effective_dist = 1.0 - outer_wall_dist if not math.isnan(outer_wall_dist) else float('inf')
+        is_distance_met = effective_dist >= 0 and effective_dist <= self.avoid_inner_approach_target_dist_m
 
-        self.get_logger().debug(
-            f"AVOID_INNER_APPROACH | TargetEffDist: {self.avoid_inner_approach_target_dist_m:.2f}, "
-            f"CurrentEffDist: {effective_dist:.2f} (OuterWall: {outer_wall_dist:.2f}m)",
-            throttle_duration_sec=0.2
-        )
-        
-        # --- MODIFIED: Added condition to prevent premature completion ---
-        # The approach is complete only if the effective distance is within a valid range.
-        if effective_dist >= 0 and effective_dist <= self.avoid_inner_approach_target_dist_m:
-            self.get_logger().info(f"Approach complete (EffectiveDist: {effective_dist:.2f}m). Transitioning to ALIGN_WITH_INNER_WALL for avoidance.")
-            self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
-            self.is_in_avoidance_alignment = True # Set the flag
-            self.is_passing_obstacle = False # Reset passing flag before alignment
-            self.publish_twist_with_gain(0.0, 0.0) # Stop briefly
-            return
+        # Check if this maneuver is specifically an 'outer_to_inner' lane change
+        path_type = self._get_path_type_for_segment(self.wall_segment_index)
+        is_specific_lane_change = (path_type == 'outer_to_inner')
+
+        if is_specific_lane_change:
+            # For this specific lane change, we require BOTH distance and stability.
+            is_lane_change_stable = False
+            if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and \
+               (inner_wall_dist + outer_wall_dist) < 1.1:
+                self.lane_change_stability_counter += 1
+            else:
+                pass
+
+            # --- THROTTLED LOGGING ---
+            self.get_logger().debug(
+                f"Lane change [O->I] stability counter: {self.lane_change_stability_counter}",
+                throttle_duration_sec=0.1 # Log every 0.5 seconds
+            )
+            
+            if self.lane_change_stability_counter > 25:
+                is_lane_change_stable = True
+
+            if is_distance_met and is_lane_change_stable:
+                self.get_logger().info(f"Lane change [O->I] complete (Dist & Stable). Transitioning.")
+                self.lane_change_stability_counter = 0
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+                self.is_in_avoidance_alignment = True
+                self.is_passing_obstacle = False
+                self.publish_twist_with_gain(0.0, 0.0)
+                return
+        else:
+            # For simple avoidance (e.g., 'inner'), only the distance matters.
+            if is_distance_met:
+                self.get_logger().info(f"Approach complete (Simple Avoidance, EffectiveDist: {effective_dist:.2f}m). Transitioning.")
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+                self.is_in_avoidance_alignment = True
+                self.is_passing_obstacle = False
+                self.publish_twist_with_gain(0.0, 0.0)
+                return
+
 
         # P-control to maintain the approach angle
         error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
@@ -1531,7 +1609,8 @@ class ObstacleNavigatorNode(Node):
                     msg,
                     self.approach_base_yaw_deg,
                     is_outer_wall=True,
-                    speed=-self.forward_speed * 0.7
+                    speed=-self.forward_speed * 0.7,
+                    disable_dist_control=True
                 )
             else:
                 # If last path was inner, follow the OUTER wall with an adjusted target distance.
@@ -1541,7 +1620,8 @@ class ObstacleNavigatorNode(Node):
                     self.approach_base_yaw_deg,
                     is_outer_wall=True, # Forcibly use the outer wall
                     speed=-self.forward_speed * 0.7,
-                    override_target_dist=override_dist
+                    override_target_dist=override_dist,
+                    disable_dist_control=True
                 )
 
     def _handle_turning_sub_execute_turn(self, msg: LaserScan):
@@ -1551,7 +1631,8 @@ class ObstacleNavigatorNode(Node):
         0: Slowly approach the front wall.
         1: Execute a max-steer turn once close enough.
         """
-        # --- Phase 0: Approach front wall ---
+
+        # --- Phase 0: Approach front wall with PID alignment ---
         if self.execute_turn_phase == 0:
             front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
             if math.isnan(front_dist):
@@ -1572,10 +1653,30 @@ class ObstacleNavigatorNode(Node):
             if front_dist <= trigger_dist:
                 self.get_logger().info(f"Front wall is close ({front_dist:.2f}m <= {trigger_dist:.2f}m). Starting turn.")
                 self.execute_turn_phase = 1 # Transition to turning phase
-                # Fall through to execute the first turn command in the same cycle
+                # Fall through to the next phase
             else:
                 self.get_logger().debug(f"Approaching wall for turn... Dist: {front_dist:.2f}m", throttle_duration_sec=0.2)
-                self.publish_twist_with_gain(self.turn_forward_speed, 0.0)
+                
+                # --- MODIFIED: Use PID alignment for stable approach, referencing outer wall if needed ---
+                if self.last_avoidance_path_was_outer:
+                    # If last path was outer, simply follow the outer wall.
+                    self._execute_pid_alignment(
+                        msg,
+                        self.approach_base_yaw_deg,
+                        is_outer_wall=True,
+                        speed=self.turn_forward_speed
+                    )
+                else:
+                    # If last path was inner, the inner wall is gone.
+                    # Follow the OUTER wall instead, but maintain the ideal inner path distance.
+                    override_dist = 1.0 - self.align_target_inner_dist_m
+                    self._execute_pid_alignment(
+                        msg,
+                        self.approach_base_yaw_deg,
+                        is_outer_wall=True, # Forcibly use the outer wall for alignment
+                        speed=self.turn_forward_speed,
+                        override_target_dist=override_dist
+                    )
                 return
 
         # --- Phase 1: Execute max-steer turn ---
@@ -1631,12 +1732,12 @@ class ObstacleNavigatorNode(Node):
                 self.get_logger().warn("Final segment requires INNER_TO_OUTER. Starting with AVOID_INNER_TURN_IN.")
                 self.avoidance_path_plan[final_segment_index] = 'inner_to_outer'
                 self.state = State.STRAIGHT
-                self.straight_sub_state = StraightSubState.AVOID_INNER_TURN_IN
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
             else:
                 self.get_logger().warn("Final segment defaults to OUTER. Starting with AVOID_OUTER_TURN_IN.")
                 self.avoidance_path_plan[final_segment_index] = 'outer'
                 self.state = State.STRAIGHT
-                self.straight_sub_state = StraightSubState.AVOID_OUTER_TURN_IN
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
 
         else:
             # --- Original logic for all other turns ---
@@ -1649,11 +1750,11 @@ class ObstacleNavigatorNode(Node):
             next_path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='outer')
 
             if next_path_type == 'inner' or next_path_type == 'inner_to_outer':
-                self.get_logger().warn(f"Plan for segment {self.wall_segment_index}: Starts INNER. Transitioning to AVOID_INNER_TURN_IN.")
+                self.get_logger().warn(f"Plan for segment {self.wall_segment_index}: Starts INNER. Transitioning to ALIGN *AVOID_INNER_TURN_IN.")
                 self.straight_sub_state = StraightSubState.AVOID_INNER_TURN_IN
             else: # 'outer', 'outer_to_inner', or any other unexpected string
                 log_start_type = "OUTER" if next_path_type in ['outer', 'outer_to_inner'] else f"UNKNOWN('{next_path_type}'), defaulting to OUTER"
-                self.get_logger().warn(f"Plan for segment {self.wall_segment_index}: Starts {log_start_type}. Transitioning to AVOID_OUTER_TURN_IN.")
+                self.get_logger().warn(f"Plan for segment {self.wall_segment_index}: Starts {log_start_type}. Transitioning to ALIGN *AVOID_OUTER_TURN_IN.")
                 self.straight_sub_state = StraightSubState.AVOID_OUTER_TURN_IN
         
         # --- Common reset logic for any turn completion ---
@@ -1813,7 +1914,8 @@ class ObstacleNavigatorNode(Node):
 
     # --- Logic and Calculation Helper Functions ---
     def _execute_pid_alignment(self, msg: LaserScan, base_angle_deg: float, is_outer_wall: bool,
-                                speed: float, override_target_dist: float = None):
+                            speed: float, override_target_dist: float = None,
+                            disable_dist_control: bool = False):
         """
         A generic PID controller for aligning the robot parallel to a specified wall.
         Can now handle forward/backward movement and an overridden target distance.
@@ -1869,8 +1971,19 @@ class ObstacleNavigatorNode(Node):
                 dist_error = 0.0 # No walls visible, rely on IMU only for heading.
                 log_mode = "IMU_ONLY"
         
-        if abs(dist_error) > self.align_dist_tolerance_m:
-            dist_steer = self.align_kp_dist * dist_error * dist_steer_multiplier
+        
+        # If the corner detection counter has started, prioritize heading control over distance control
+        # to prevent sudden steering when the inner wall disappears.
+        if not disable_dist_control:
+            if self.inner_wall_far_counter > 0:
+                dist_steer = 0.0
+                log_mode += "_CORNER_APPROACH"
+                self.get_logger().debug("Corner imminent, suppressing distance steering.", throttle_duration_sec=1.0)
+            elif abs(dist_error) > self.align_dist_tolerance_m:
+                dist_steer = self.align_kp_dist * dist_error * dist_steer_multiplier
+        else:
+            dist_steer = 0.0
+            log_mode += "_IMU_ONLY"
         
         angular_z = angle_steer + dist_steer
         final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
@@ -2263,6 +2376,40 @@ class ObstacleNavigatorNode(Node):
                 )
                 self.entrance_obstacle_plan[next_segment_index] = True
 
+    def _update_turn_permission_counter(self, msg: LaserScan, base_angle_deg: float):
+        """
+        Updates a counter based on stable wall detection to determine when it's safe
+        to detect a new corner.
+        """
+        # If a turn is already permitted, no need to count.
+        if self.can_start_new_turn:
+            return
+
+        # Define inner and outer wall angles
+        if self.direction == 'ccw':
+            inner_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+            outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+        else: # cw
+            inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+            outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+
+        inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
+        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+        
+        # Condition: Both walls are visible and the path is not too wide (i.e., not in a corner).
+        if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and \
+        (inner_wall_dist + outer_wall_dist) < 1.2:
+            self.stable_alignment_counter += 1
+        else:
+            pass
+
+        # If the counter reaches a threshold, permit the next turn.
+        # The threshold (e.g., 50) means about 1 second of stable alignment at 50Hz.
+        if self.stable_alignment_counter > 50: 
+            self.can_start_new_turn = True
+            self.stable_alignment_counter = 0 # Reset after enabling
+            self.get_logger().warn("Stable alignment detected. New turn detection is ENABLED.")
+
     def _prepare_for_turning(self, base_angle_deg):
         """
         Calculates and sets up the necessary variables for a turn,
@@ -2278,11 +2425,12 @@ class ObstacleNavigatorNode(Node):
 
         self.inner_wall_far_counter = 0
         self.can_start_new_turn = False
+        self.stable_alignment_counter = 0
         self.state = State.TURNING
         self.turning_sub_state = TurningSubState.POSITIONING_REVERSE
         self.publish_twist_with_gain(0.0, 0.0)
 
-    def _complete_avoidance_phase(self, next_sub_state: StraightSubState, path_was_outer: bool, enable_next_turn: bool):
+    def _complete_avoidance_phase(self, next_sub_state: StraightSubState, path_was_outer: bool):
         """
         A generic helper function to finalize an avoidance phase (e.g., pass_through)
         and transition to the next state. It centralizes the resetting of state variables.
@@ -2290,15 +2438,10 @@ class ObstacleNavigatorNode(Node):
         Args:
             next_sub_state: The StraightSubState to transition into.
             path_was_outer: A boolean indicating if the completed path was on the outer side.
-            enable_next_turn: A boolean to set whether a new corner detection is allowed.
         """
         self.is_passing_obstacle = False
         self.last_avoidance_path_was_outer = path_was_outer
         self.straight_sub_state = next_sub_state
-
-        if enable_next_turn:
-            self.can_start_new_turn = True
-            self.get_logger().warn("Segment avoidance complete. New turn detection is ENABLED.")
         
         self.publish_twist_with_gain(0.0, 0.0)
 
