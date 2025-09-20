@@ -5,7 +5,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     imu_pkg_dir = get_package_share_directory('imu')
-    calibration_file_path = os.path.join(imu_pkg_dir, 'config', 'bno055_calibration.json')
+    calibration_file_path = os.path.join(imu_pkg_dir, 'config', 'bno055_full_calibration.json')
 
     yaw_publisher_node = Node(
         package='imu',

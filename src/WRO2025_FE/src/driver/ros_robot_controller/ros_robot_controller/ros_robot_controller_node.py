@@ -112,7 +112,7 @@ class RosRobotController(Node):
             with self.board.access_lock:
                 self.pub_button_data(self.button_pub)
                 self.pub_joy_data(self.joy_pub)
-                self.pub_imu_data(self.imu_pub)
+                # self.pub_imu_data(self.imu_pub)
                 self.pub_sbus_data(self.sbus_pub)
                 self.pub_battery_data(self.battery_pub)
 
