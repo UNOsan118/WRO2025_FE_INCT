@@ -137,14 +137,10 @@ class ObstacleNavigatorNode(Node):
         # --- NEW: Parameters for Simplified Turning Maneuver ---
         self.declare_parameter('turn_forward_speed', 0.15)
         self.declare_parameter('turn_speed', 0.15)
-        self.declare_parameter('turn_start_dist_outer_m', 0.25)
-        self.declare_parameter('turn_start_dist_outer_start_area_m', 0.5)
+        self.declare_parameter('turn_start_dist_outer_m', 0.33)
+        self.declare_parameter('turn_start_dist_outer_start_area_m', 0.57)
         self.declare_parameter('turn_start_dist_inner_m', 1.0)
         self.declare_parameter('turn_completion_yaw_threshold_deg', 15.0)
-
-        # --- PARAMETERS for Yaw Correction Logic ---0.9
-        self.declare_parameter('yaw_correction_threshold_deg', 75.0)
-        self.declare_parameter('yaw_correction_wide_dist', 1.5)
 
         # --- Driving Logic Parameters ---
         self.declare_parameter('forward_speed', 0.2)
@@ -168,12 +164,12 @@ class ObstacleNavigatorNode(Node):
 
         # --- NEW: Parameters for Simplified Avoidance Sequence ---
         self.declare_parameter('avoid_outer_approach_angle_deg', 40.0)
-        self.declare_parameter('avoid_outer_approach_target_dist_m', 0.20)
+        self.declare_parameter('avoid_outer_approach_target_dist_m', 0.23)
 
         self.declare_parameter('avoid_outer_approach_target_dist_start_area_m', 0.45)
 
         self.declare_parameter('avoid_inner_approach_angle_deg', 40.0)
-        self.declare_parameter('avoid_inner_approach_target_dist_m', 0.22)
+        self.declare_parameter('avoid_inner_approach_target_dist_m', 0.25)
 
         # self.declare_parameter('avoidance_path_plan', ['outer', 'inner_to_outer', 'outer_to_inner', 'inner'])
         self.declare_parameter('avoidance_path_plan', ['', '', '', ''])
@@ -215,15 +211,12 @@ class ObstacleNavigatorNode(Node):
         self.inner_wall_far_counter = 0
         self.turn_count = 0
         self.wall_segment_index = 0
-        self.approach_target_dist = 0.0
         self.approach_base_yaw_deg = 0.0
         self.last_valid_steer = 0.0
-        self.last_inner = 10.0
         self.current_yaw_deg = 0.0
 
         self.latest_scan_msg = None
         self.is_passing_obstacle = False
-        self.avoid_target_yaw_deg = 0.0
         self.can_start_new_turn = True
 
         self.last_avoidance_path_was_outer = True
@@ -233,15 +226,10 @@ class ObstacleNavigatorNode(Node):
         self.start_area_avoidance_required = False
         self.camera_init_sent = False
 
-        self.accept_new_frames = True
-        self.waiting_for_first_safe_frame = False
-
         # Variables for color detection logic
         self.latest_frame = None
         # This list now stores raw area data for stationary detection (initial)
         self.detection_results = []
-        #  List to store pattern classification for each frame during planning
-        self.planning_pattern_results = []
 
         self.planning_scan_roi_flat = [200, 0, 120, 480, 440, 480, 360, 0] # [x, y, width, height]
         self.max_red_blob_area = 0.0
@@ -261,13 +249,7 @@ class ObstacleNavigatorNode(Node):
         self.planning_initiated = False
         self.pre_scanning_reverse_target_dist_m = 0.7
 
-        self.min_inner_dist_planning_approach = float('inf')
-        self.planning_scan_complete = False
-
-        self.forward_adjust_start_dist = 0.0
         self.pre_parking_step = 0
-
-        self.reverse_start_dist_m = 0.0
         
         self.last_published_linear = 0.0
         self.last_published_angular = 0.0
@@ -282,9 +264,6 @@ class ObstacleNavigatorNode(Node):
         self.gain_straight_align_outer_wall = 1.0
         self.gain_straight_align_inner_wall = 1.0
         self.gain_straight_outer_turn_in = 1.0
-
-
-        self.ready_to_start_sampling = False
 
         self.is_in_avoidance_alignment = False
         self.stable_alignment_counter = 0
@@ -360,9 +339,6 @@ class ObstacleNavigatorNode(Node):
         self.roi_right = self.get_parameter('roi_right').get_parameter_value().integer_array_value
         self.detection_threshold = self.get_parameter('detection_pixel_threshold').get_parameter_value().integer_value
         self.detection_samples = self.get_parameter('detection_samples').get_parameter_value().integer_value
-
-        self.yaw_correction_threshold_deg = self.get_parameter('yaw_correction_threshold_deg').get_parameter_value().double_value
-        self.yaw_correction_wide_dist = self.get_parameter('yaw_correction_wide_dist').get_parameter_value().double_value
 
         self.turn_forward_speed = self.get_parameter('turn_forward_speed').get_parameter_value().double_value
         self.turn_speed = self.get_parameter('turn_speed').get_parameter_value().double_value
@@ -608,17 +584,8 @@ class ObstacleNavigatorNode(Node):
     def image_callback(self, msg):
         """Callback to receive and store the latest camera frame."""
         with self.state_lock:
-            if not self.accept_new_frames:
-                return
-
             try:
                 self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "rgb8")
-
-                # This logic is only for the initial stationary detection
-                if self.waiting_for_first_safe_frame:
-                    self.get_logger().info("First safe frame received. Ready for stationary sampling.")
-                    self.waiting_for_first_safe_frame = False
-                    self.is_sampling_for_planning = True
 
             except CvBridgeError as e:
                 self.get_logger().error(f'CV Bridge Error: {e}')
@@ -1874,10 +1841,6 @@ class ObstacleNavigatorNode(Node):
             self.get_logger().info("REVERSE_INTO_SPACE complete. Target angle reached.")
             self.publish_twist_with_gain(0.0, 0.0)
 
-            base_angle_deg = self._calculate_base_angle()
-            self.forward_adjust_start_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
-            self.get_logger().info(f"Storing start distance for forward adjust: {self.forward_adjust_start_dist:.3f}m")
-
             # self.parking_sub_state = ParkingSubState.FORWARD_ADJUST_1
             self.state = State.FINISHED
             return
@@ -2057,20 +2020,6 @@ class ObstacleNavigatorNode(Node):
         final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
         
         self.publish_twist_with_gain(self.avoid_speed, final_steer)
-
-    def _on_camera_settled_for_planning(self):
-        """
-        Callback triggered after the camera is assumed to have settled.
-        This re-enables frame updates and sets a flag to wait for the next frame.
-        """
-        with self.state_lock:
-            if self.planning_camera_wait_timer:
-                self.planning_camera_wait_timer.destroy()
-                self.planning_camera_wait_timer = None
-            
-            self.get_logger().info("Camera settled. Resuming frame updates and waiting for first safe frame.")
-            self.accept_new_frames = True
-            self.waiting_for_first_safe_frame = True
 
     def _detect_obstacle_color_in_frame(self, frame_rgb, rois_to_check=None):
         """
@@ -2653,22 +2602,6 @@ class ObstacleNavigatorNode(Node):
             self.get_logger().error(f"Invalid or missing avoidance_path_plan. Defaulting to '{default_path}'.")
             return default_path
 
-    def _get_planning_roi(self):
-        """Selects the appropriate planning ROI based on the robot's context."""
-        if self.direction == 'ccw':
-            if self.last_avoidance_path_was_outer:
-                roi_flat = self.roi_planning_ccw_outer_start_area_flat if self.turn_count == 3 else self.roi_planning_ccw_outer_flat
-            else: # inner
-                roi_flat = self.roi_planning_ccw_inner_start_area_flat if self.turn_count == 3 else self.roi_planning_ccw_inner_flat
-        else: # cw
-            if self.last_avoidance_path_was_outer:
-                roi_flat = self.roi_planning_cw_outer_start_area_flat if self.turn_count == 3 else self.roi_planning_cw_outer_flat
-            else: # inner
-                roi_flat = self.roi_planning_cw_inner_start_area_flat if self.turn_count == 3 else self.roi_planning_cw_inner_flat
-        
-        roi_points = self._reshape_roi_points(roi_flat)
-        return {'planning_roi': roi_points} if roi_points else None
-
     def _get_effective_detection_threshold(self, scan_msg: LaserScan):
         """Calculates the dynamic detection threshold based on the distance to the obstacle."""
         base_detection_distance_m = 1.2
@@ -2967,26 +2900,6 @@ class ObstacleNavigatorNode(Node):
         while diff <= -180.0: diff += 360.0
         while diff > 180.0: diff -= 360.0
         return diff
-
-    def _get_mid_angle(self, angle1_deg, angle2_deg):
-        """Calculates the midpoint of two angles, handling wraparound."""
-        angle1_rad = math.radians(angle1_deg)
-        angle2_rad = math.radians(angle2_deg)
-        mid_angle_rad = math.atan2(
-            math.sin(angle1_rad) + math.sin(angle2_rad),
-            math.cos(angle1_rad) + math.cos(angle2_rad)
-        )
-        return self._angle_normalize(math.degrees(mid_angle_rad))
-
-    def _start_scanning_while_moving(self):
-        """Callback to start the move-and-scan process after a timer."""
-        with self.state_lock:
-            if self.planning_camera_wait_timer:
-                self.planning_camera_wait_timer.destroy()
-                self.planning_camera_wait_timer = None
-            
-            self.is_scanning_while_moving = True
-            self.get_logger().info("Camera settled. Scanning started. Moving forward to scan the area.")
 
 def main(args=None):
     rclpy.init(args=args)
