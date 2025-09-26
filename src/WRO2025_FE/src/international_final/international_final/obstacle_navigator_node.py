@@ -22,11 +22,31 @@ import collections
 
 # (Enums are the same)
 class State(Enum):
+    PREPARATION = auto()    
+    UNPARKING = auto()
     DETERMINE_COURSE = auto() 
     FINISHED = auto()
     STRAIGHT = auto()
     TURNING = auto()
     PARKING = auto()
+
+class PreparationSubState(Enum):
+    WAITING_FOR_CONTROLLER = auto()
+    INITIALIZING_CAMERA = auto()
+    DETERMINE_DIRECTION = auto()
+
+class UnparkingSubState(Enum):
+    PRE_UNPARKING_DETECTION = auto()
+    INITIAL_TURN = auto()
+    AVOIDANCE_REVERSE = auto()
+    EXIT_STRAIGHT = auto()
+
+class UnparkingStrategy(Enum):
+    STANDARD_EXIT_TO_OUTER_LANE = auto()
+    STANDARD_EXIT_TO_INNER_LANE = auto()
+    AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW = auto()
+    AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW = auto()
+    UNDEFINED = auto() # Fallback for unexpected cases
 
 class DetermineCourseSubState(Enum):
     WAITING_FOR_CONTROLLER = auto()
@@ -62,9 +82,11 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('correct_mirrored_scan', True,)
 
         # --- State Machine Parameters ---
-        self.state = State.DETERMINE_COURSE
+        self.state = State.PREPARATION
         # self.state = State.PARKING
-        self.determine_course_sub_state = DetermineCourseSubState.WAITING_FOR_CONTROLLER
+        self.preparation_sub_state = PreparationSubState.WAITING_FOR_CONTROLLER
+        self.unparking_sub_state = UnparkingSubState.PRE_UNPARKING_DETECTION
+        self.unparking_strategy = UnparkingStrategy.UNDEFINED
         self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
         self.turning_sub_state = None 
         self.execute_turn_phase = 0 # 0: Forward, 1: Turning
@@ -73,6 +95,10 @@ class ObstacleNavigatorNode(Node):
         self.inner_wall_disappear_threshold = 1.3
         self.inner_wall_disappear_count = 3
         self.max_turns = 12
+
+        self.declare_parameter('unparking_exit_straight_dist_m', 0.33)
+        self.declare_parameter('unparking_speed', 0.05) 
+        self.declare_parameter('unparking_initial_turn_deg', 55.0)
 
         # --- Camera Control Parameters ---
         self.declare_parameter('pan_servo_id', 1, )
@@ -207,7 +233,18 @@ class ObstacleNavigatorNode(Node):
 
         self.max_valid_range_m = 3.0
 
+        self.detection_wait_timer = None
+        self.first_obstacle_detected = False
+        self.unparking_base_yaw_deg = 0.0
+
         # --- Internal State Variables ---
+        self.pre_detection_step = 0 # ADDED: 0=start, 1=waiting
+        self.pre_detection_timer = None
+        self.has_obstacle_at_parking_exit = False
+
+        self.post_planning_reverse_target_dist_m = 0.7 
+
+        self.direction_detection_patience_counter = 0
         self.inner_wall_far_counter = 0
         self.turn_count = 0
         self.wall_segment_index = 0
@@ -292,6 +329,10 @@ class ObstacleNavigatorNode(Node):
 
     def _load_parameters(self):
         """Loads all ROS2 parameters into class variables."""
+        self.unparking_exit_straight_dist_m = self.get_parameter('unparking_exit_straight_dist_m').get_parameter_value().double_value
+        self.unparking_speed = self.get_parameter('unparking_speed').get_parameter_value().double_value
+        self.unparking_initial_turn_deg = self.get_parameter('unparking_initial_turn_deg').get_parameter_value().double_value
+
         self.correct_mirrored_scan = self.get_parameter('correct_mirrored_scan').get_parameter_value().bool_value
 
         self.pan_servo_id = self.get_parameter('pan_servo_id').get_parameter_value().integer_value
@@ -566,7 +607,11 @@ class ObstacleNavigatorNode(Node):
             msg = self.latest_scan_msg
 
             # The logic from the old scan_callback is moved here.
-            if self.state == State.DETERMINE_COURSE:
+            if self.state == State.PREPARATION: 
+                self._handle_state_preparation(msg) 
+            elif self.state == State.UNPARKING:
+                self._handle_state_unparking(msg) 
+            elif self.state == State.DETERMINE_COURSE:
                 self._handle_state_determine_course(msg)
             elif self.state == State.FINISHED:
                 self._handle_state_finished()
@@ -590,6 +635,124 @@ class ObstacleNavigatorNode(Node):
             except CvBridgeError as e:
                 self.get_logger().error(f'CV Bridge Error: {e}')
 
+    def _process_pre_unparking_image_callback(self):
+        """
+        Callback for pre-unparking detection. Processes the image, logs the result,
+        and transitions to the next sub-state (INITIAL_TURN).
+        Includes a retry mechanism for image acquisition.
+        """
+        with self.state_lock:
+            # Clean up the primary timer if it exists.
+            if self.pre_detection_timer:
+                self.pre_detection_timer.destroy()
+                self.pre_detection_timer = None
+
+            if self.unparking_sub_state != UnparkingSubState.PRE_UNPARKING_DETECTION:
+                return
+            
+            if self.pre_detection_step != 1:
+                return
+
+            # --- ADDED: Frame acquisition check with retry logic ---
+            max_retries = 10 # Try for 0.5 seconds (10 * 50ms)
+            if self.latest_frame is None:
+                if self.image_acquisition_retries < max_retries:
+                    self.image_acquisition_retries += 1
+                    self.get_logger().warn(
+                        f"Frame not available yet. Retrying in 50ms... ({self.image_acquisition_retries}/{max_retries})"
+                    )
+                    # Create a short timer to try again
+                    self.pre_detection_timer = self.create_timer(
+                        0.05, # 50ms
+                        self._process_pre_unparking_image_callback
+                    )
+                    return # Exit the function and wait for the retry timer
+                else:
+                    self.get_logger().error(
+                        "Failed to acquire image after multiple retries. Aborting unparking."
+                    )
+                    self.state = State.FINISHED
+                    return
+            # --- END OF ADDED SECTION ---
+
+            self.get_logger().info("PRE-UNPARKING DETECT (Step 1): Image acquired. Processing image...")
+            
+            # Reset retry counter for the next time
+            self.image_acquisition_retries = 0
+            
+            dominant_color, max_red_area, max_green_area = self._find_and_save_dominant_blob(
+                frame_rgb=self.latest_frame,
+                turn_count=0,
+                base_name="pre_unparking_detection"
+            )
+            
+            dominant_color, max_red_area, max_green_area = self._find_and_save_dominant_blob(
+                frame_rgb=self.latest_frame,
+                turn_count=0,
+                base_name="pre_unparking_detection" # Use a new name for the saved files
+            )
+
+            close_obstacle_threshold = 3500.0
+            # Check if EITHER red or green blob is larger than the threshold
+            largest_blob_size = max(max_red_area, max_green_area)
+
+            if largest_blob_size >= close_obstacle_threshold:
+                self.has_obstacle_at_parking_exit = True
+                self.get_logger().error( # Use ERROR level for high importance
+                    f"!!! SPECIAL AVOIDANCE REQUIRED !!! Obstacle is very close (Max Blob: {largest_blob_size:.0f})."
+                )
+            else:
+                self.has_obstacle_at_parking_exit = False
+                self.get_logger().info(
+                    f"Standard unparking procedure. Obstacle is at a safe distance (Max Blob: {largest_blob_size:.0f})."
+                )
+
+            # --- ADDED: Determine Unparking Strategy based on the 3 conditions ---
+            strategy = UnparkingStrategy.UNDEFINED # Default to undefined
+
+            # --- Pattern 1 Logic ---
+            is_pattern1_case1 = self.direction == 'cw' and dominant_color == 'green'
+            is_pattern1_case2 = self.direction == 'ccw' and dominant_color == 'red'
+            is_pattern1_case3 = self.direction == 'ccw' and dominant_color == 'green' and not self.has_obstacle_at_parking_exit
+            if is_pattern1_case1 or is_pattern1_case2 or is_pattern1_case3:
+                strategy = UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE
+
+            # --- Pattern 2 Logic ---
+            is_pattern2 = self.direction == 'cw' and dominant_color == 'red' and not self.has_obstacle_at_parking_exit
+            if is_pattern2:
+                strategy = UnparkingStrategy.STANDARD_EXIT_TO_INNER_LANE
+
+            # --- Pattern 3 Logic ---
+            is_pattern3 = self.direction == 'cw' and dominant_color == 'red' and self.has_obstacle_at_parking_exit
+            if is_pattern3:
+                strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW
+
+            # --- Pattern 4 Logic ---
+            is_pattern4 = self.direction == 'ccw' and dominant_color == 'green' and self.has_obstacle_at_parking_exit
+            if is_pattern4:
+                strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW
+
+            # Store the decided strategy in the class variable for later use
+            self.unparking_strategy = strategy
+            # --- END OF ADDED SECTION ---
+
+            log_message = (
+                f"--- PRE-UNPARKING DETECTION RESULT ---\n"
+                f"      Direction: {self.direction.upper()}\n"
+                f"      Dominant Color Detected: '{dominant_color}'\n"
+                f"      Has Obstacle at Exit: {self.has_obstacle_at_parking_exit}\n"
+                f"      >> Decided Strategy: {self.unparking_strategy.name} <<\n" # Log the decided strategy
+                f"----------------------------------------"
+            )
+            self.get_logger().warn(log_message)
+
+            # Reset step counter for next time this state is entered (good practice)
+            self.pre_detection_step = 0
+
+            # --- Transition to the next step of the unparking sequence ---
+            self.get_logger().info("PRE-UNPARKING DETECT: Detection complete. Transitioning to INITIAL_TURN.")
+            self.unparking_sub_state = UnparkingSubState.INITIAL_TURN
+
     def shutdown_callback(self):
         with self.state_lock:
             self.publish_twist_with_gain(0.0, 0.0)
@@ -608,6 +771,42 @@ class ObstacleNavigatorNode(Node):
                 self.get_logger().info("Camera initialization complete. Transitioning to DETECTING_OBSTACLE_COLOR.")
                 # MODIFIED: Transition to the correct new state
                 self.determine_course_sub_state = DetermineCourseSubState.DETECTING_OBSTACLE_COLOR
+
+    def _preparation_complete_callback(self):
+        """
+        Called by a timer after the camera movement is complete.
+        Transitions the preparation sub-state to DETERMINE_DIRECTION.
+        """
+        with self.state_lock:
+            if self.camera_wait_timer:
+                self.camera_wait_timer.destroy()
+                self.camera_wait_timer = None
+
+            if self.preparation_sub_state == PreparationSubState.INITIALIZING_CAMERA:
+                self.get_logger().info("PREPARATION: Camera initialization complete.")
+                self.get_logger().info("--- Transitioning to DETERMINE_DIRECTION sub-state ---")
+                self.preparation_sub_state = PreparationSubState.DETERMINE_DIRECTION
+                self.camera_init_sent = False
+
+    def _handle_state_preparation(self, msg: LaserScan):
+        """Dispatches to the correct handler based on the preparation_sub_state."""
+        if self.preparation_sub_state == PreparationSubState.WAITING_FOR_CONTROLLER:
+            self._handle_preparation_sub_waiting_for_controller()
+        elif self.preparation_sub_state == PreparationSubState.INITIALIZING_CAMERA:
+            self._handle_preparation_sub_initializing_camera()
+        elif self.preparation_sub_state == PreparationSubState.DETERMINE_DIRECTION:
+            self._handle_preparation_sub_determine_direction(msg)
+
+    def _handle_state_unparking(self, msg: LaserScan):
+        """Dispatches to the correct handler based on the unparking_sub_state."""
+        if self.unparking_sub_state == UnparkingSubState.PRE_UNPARKING_DETECTION: 
+            self._handle_unparking_sub_pre_unparking_detection() 
+        elif self.unparking_sub_state == UnparkingSubState.INITIAL_TURN:
+            self._handle_unparking_sub_initial_turn()
+        elif self.unparking_sub_state == UnparkingSubState.AVOIDANCE_REVERSE: 
+            self._handle_unparking_sub_avoidance_reverse(msg) 
+        elif self.unparking_sub_state == UnparkingSubState.EXIT_STRAIGHT:
+            self._handle_unparking_sub_exit_straight(msg)
 
     # --- State Handler Functions ---
     def _handle_state_determine_course(self, msg: LaserScan):
@@ -680,6 +879,286 @@ class ObstacleNavigatorNode(Node):
             self._handle_parking_sub_pre_parking_adjust(msg)
         elif self.parking_sub_state == ParkingSubState.REVERSE_INTO_SPACE:
             self._handle_parking_sub_reverse_into_space(msg)
+
+    def _handle_preparation_sub_waiting_for_controller(self):
+        """
+        Sub-state: Waits for the controller service to become available, then transitions.
+        This is a non-blocking check within the main control loop.
+        """
+        if not self.controller_ready_client.service_is_ready():
+            self.get_logger().info('PREPARATION: Controller service not available, waiting...', throttle_duration_sec=1.0)
+            return
+
+        self.get_logger().info("PREPARATION: Controller service is ready. Transitioning to INITIALIZING_CAMERA.")
+        self.preparation_sub_state = PreparationSubState.INITIALIZING_CAMERA
+
+    def _handle_preparation_sub_initializing_camera(self):
+        """
+        Sub-state: Sends the command to move the camera to its initial angle
+        and waits for the movement to complete before proceeding to the UNPARKING state.
+        This function is a modified copy of _handle_determine_sub_initializing_camera.
+        """
+        # Publish the command periodically until the timer callback fires.
+        msg = SetPWMServoState()
+        msg.duration = self.camera_move_duration
+        
+        pan_state = PWMServoState()
+        pan_state.id = [self.pan_servo_id]
+        pan_state.position = [self.initial_pan_position]
+        msg.state = [pan_state]
+
+        self.servo_pub.publish(msg)
+        self.get_logger().debug("PREPARATION: Sending initial camera angle command...", throttle_duration_sec=0.2)
+
+        if not self.camera_init_sent:
+            self.get_logger().info("PREPARATION: Starting timer for initial camera movement.")
+            self.camera_init_sent = True
+            
+            wait_time = self.camera_move_duration + 1.5
+            
+            # This timer will call a new callback to transition out of the PREPARATION state.
+            self.camera_wait_timer = self.create_timer(
+                wait_time, 
+                self._preparation_complete_callback # Use a new callback for clarity
+            )
+            self.get_logger().info(f"PREPARATION: Waiting {wait_time:.2f} seconds for camera to move...")
+
+        # Keep the robot stationary during this state.
+        self.publish_twist_with_gain(0.0, 0.0)
+
+    def _handle_preparation_sub_determine_direction(self, msg: LaserScan):
+        """
+        Sub-state: Determines the course direction (CW/CCW) based on LiDAR readings
+        from the specific parking start position.
+        """
+        # Get distances at +90 (left) and -90 (right) degrees relative to the robot's front
+        left_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg + 90.0)
+        right_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg - 90.0)
+
+        # --- Define conditions for CW and CCW ---
+        # Condition for Clockwise (CW)
+        is_left_very_close = not math.isnan(left_dist) and left_dist < 0.30
+        is_right_mid_range = not math.isnan(right_dist) and 0.30 <= right_dist < 1.0
+
+        # Condition for Counter-Clockwise (CCW)
+        is_right_very_close = not math.isnan(right_dist) and right_dist < 0.30
+        is_left_mid_range = not math.isnan(left_dist) and 0.30 <= left_dist < 1.0
+
+        direction_determined = False
+        if is_left_very_close or is_right_mid_range:
+            self.direction = "cw"
+            self.get_logger().warn(
+                f"Direction determined: CW. (L:{left_dist:.2f}m, R:{right_dist:.2f}m)"
+            )
+            direction_determined = True
+        elif is_right_very_close or is_left_mid_range:
+            self.direction = "ccw"
+            self.get_logger().warn(
+                f"Direction determined: CCW. (L:{left_dist:.2f}m, R:{right_dist:.2f}m)"
+            )
+            direction_determined = True
+
+        if direction_determined:
+            # --- Direction is set, preparation is fully complete ---
+            self.get_logger().info("PREPARATION: All preparation steps complete.")
+
+            self.unparking_base_yaw_deg = self.current_yaw_deg
+            self.get_logger().info(f"UNPARKING: Stored base yaw: {self.unparking_base_yaw_deg:.2f} deg")
+
+            self.get_logger().info("--- Transitioning to UNPARKING state ---")
+            self.state = State.UNPARKING
+            self.publish_twist_with_gain(0.0, 0.0) # Stop the robot if it was moving
+        else:
+            # --- Insurance: If no valid data, move forward slowly ---
+            patience_threshold = 100 # Approx. 2 seconds at 50Hz
+            if self.direction_detection_patience_counter < patience_threshold:
+                self.direction_detection_patience_counter += 1
+                self.get_logger().debug(
+                    f"Waiting for valid LiDAR for direction detection... (L:{left_dist}, R:{right_dist})",
+                    throttle_duration_sec=1.0
+                )
+                self.publish_twist_with_gain(0.0, 0.0)
+            else:
+                self.get_logger().warn(
+                    "Could not determine direction from stationary position. Moving forward slowly.",
+                    throttle_duration_sec=1.0
+                )
+                # A very slow speed just to get a clear reading
+                self.publish_twist_with_gain(0.05, 0.0)
+
+    def _handle_unparking_sub_pre_unparking_detection(self):
+        """
+        Sub-state: Aims camera 45 degrees and starts a timer to wait for movement.
+        """
+        # --- Step 0: Aim the camera and start the wait timer ---
+        if self.pre_detection_step == 0:
+            self.get_logger().info("PRE-UNPARKING DETECT (Step 0): Aiming camera 45 deg...")
+
+            # Determine target camera angle
+            angle_offset_deg = 45.0
+            if self.direction == 'ccw':
+                target_world_angle_deg = self._angle_normalize(self.unparking_base_yaw_deg + angle_offset_deg)
+            else: # cw
+                target_world_angle_deg = self._angle_normalize(self.unparking_base_yaw_deg - angle_offset_deg)
+
+            # Calculate servo position and command the move
+            camera_relative_angle_deg = self._angle_diff(target_world_angle_deg, self.current_yaw_deg)
+            tilt_offset = camera_relative_angle_deg * self.servo_units_per_degree
+            target_tilt_pos = self.tilt_center_position + tilt_offset
+            clamped_tilt = int(max(self.tilt_min_position, min(self.tilt_max_position, target_tilt_pos)))
+            
+            self._set_camera_angle(
+                pan_position=self.initial_pan_position,
+                tilt_position=clamped_tilt,
+                duration_sec=self.camera_move_duration + 0.5
+            )
+
+            # --- Start a timer that waits for the camera move to complete ---
+            # Increase the buffer slightly to be safer
+            stabilization_buffer_sec = 1.5
+            wait_time_sec = self.camera_move_duration + 0.5 + stabilization_buffer_sec
+            self.get_logger().info(f"PRE-UNPARKING DETECT: Waiting {wait_time_sec:.2f} seconds for camera movement.")
+
+            self.pre_detection_timer = self.create_timer(
+                wait_time_sec,
+                self._process_pre_unparking_image_callback 
+            )
+            
+            # Advance to the "waiting" step to prevent this block from running again
+            self.pre_detection_step = 1
+
+        # While step is 1 (waiting), do nothing but keep the robot still.
+        self.publish_twist_with_gain(0.0, 0.0)
+
+    def _handle_unparking_sub_initial_turn(self):
+        """
+        Sub-state: Executes a parameterized turn. After completion, transitions
+        to the next state based on the pre-determined unparking strategy.
+        """
+        # --- 1. Determine target yaw and steer direction (No changes here) ---
+        if self.direction == 'ccw':
+            target_yaw_deg = self._angle_normalize(self.unparking_base_yaw_deg + self.unparking_initial_turn_deg)
+            steer = self.max_steer
+        else: # cw
+            target_yaw_deg = self._angle_normalize(self.unparking_base_yaw_deg - self.unparking_initial_turn_deg)
+            steer = -self.max_steer
+
+        # --- 2. Check for completion ---
+        yaw_error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
+        completion_threshold_deg = 10.0
+
+        self.get_logger().debug(
+            f"UNPARKING_TURN: TargetYaw:{target_yaw_deg:.1f}, CurrentYaw:{self.current_yaw_deg:.1f}, Err:{yaw_error_deg:.1f}",
+            throttle_duration_sec=0.2
+        )
+
+        if abs(yaw_error_deg) < completion_threshold_deg:
+            self.get_logger().info(f"UNPARKING_TURN: Turn complete. Current strategy is '{self.unparking_strategy.name}'.")
+            self.publish_twist_with_gain(0.0, 0.0)
+
+            # --- 3. ADDED: Transition based on the decided strategy ---
+            if self.unparking_strategy == UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE:
+                self.get_logger().info("Strategy requires outer lane. Transitioning to STRAIGHT state.")
+                self.state = State.STRAIGHT
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+            
+            elif self.unparking_strategy == UnparkingStrategy.STANDARD_EXIT_TO_INNER_LANE:
+                self.get_logger().info("Strategy requires inner lane. Transitioning to STRAIGHT state.")
+                self.state = State.STRAIGHT
+                self.straight_sub_state = StraightSubState.AVOID_INNER_TURN_IN
+
+            elif self.unparking_strategy == UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW:
+                self.get_logger().info("Strategy requires obstacle avoidance. Transitioning to EXIT_STRAIGHT.")
+                self.unparking_sub_state = UnparkingSubState.EXIT_STRAIGHT
+            
+            elif self.unparking_strategy == UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW:
+                self.get_logger().warn("Strategy for CCW obstacle avoidance. Transitioning to AVOIDANCE_REVERSE.")
+                self.unparking_sub_state = UnparkingSubState.AVOIDANCE_REVERSE
+            
+            else: # UNDEFINED or any other case
+                self.get_logger().error("Undefined unparking strategy! Halting for safety.")
+                self.state = State.FINISHED
+            
+            return # IMPORTANT: Exit after handling the state transition
+
+        # --- 4. Execute the turn (No changes here) ---
+        turn_speed = self.unparking_speed
+        self.publish_twist_with_gain(turn_speed, steer)
+
+    def _handle_unparking_sub_avoidance_reverse(self, msg: LaserScan):
+        """
+        Sub-state: Reverses straight back to create space from a close obstacle
+        at the parking exit.
+        """
+        # --- 1. Determine the front direction (relative to the parking spot) ---
+        # The "front" in this context is the original starting orientation.
+        front_angle_deg = self.unparking_base_yaw_deg
+        front_dist = self.get_distance_at_world_angle(msg, front_angle_deg)
+
+        # --- 2. Check for completion ---
+        target_dist = 1.1
+        if not math.isnan(front_dist) and front_dist > target_dist:
+            self.get_logger().info(
+                f"AVOIDANCE_REVERSE: Reverse complete. Front distance is now {front_dist:.2f}m."
+            )
+            self.get_logger().info("--- Transitioning to EXIT_STRAIGHT sub-state ---")
+            self.unparking_sub_state = UnparkingSubState.EXIT_STRAIGHT
+            self.publish_twist_with_gain(0.0, 0.0)
+            return
+
+        # --- 3. Execute reverse movement ---
+        # Reverse straight back. Steer should be 0 to maintain the current heading.
+        self.get_logger().debug(
+            f"AVOIDANCE_REVERSE: Reversing... FrontDist:{front_dist:.2f}m, Target: < {target_dist}m",
+            throttle_duration_sec=0.2
+        )
+        
+        # A slow and controlled reverse speed.
+        reverse_speed = -self.unparking_speed 
+        self.publish_twist_with_gain(reverse_speed, 0.0)
+
+
+    def _handle_unparking_sub_exit_straight(self, msg: LaserScan):
+        """
+        Sub-state: Moves straight forward until the side wall is at a specific distance.
+        """
+        # --- 1. Determine target yaw and wall measurement angle ---
+        # The target yaw is the one we achieved in the previous INITIAL_TURN sub-state.
+        # This MUST match the calculation in _handle_unparking_sub_initial_turn.
+        if self.direction == 'ccw':
+            target_yaw_deg = self._angle_normalize(self.unparking_base_yaw_deg + 90)
+        else: # cw
+            target_yaw_deg = self._angle_normalize(self.unparking_base_yaw_deg - 90)
+        wall_angle_deg = self._angle_normalize(target_yaw_deg)
+
+        # --- 2. Check for completion ---
+        wall_dist = self.get_distance_at_world_angle(msg, wall_angle_deg)
+        target_dist = self.unparking_exit_straight_dist_m
+
+        if not math.isnan(wall_dist) and wall_dist <= target_dist:
+            self.get_logger().info(
+                f"UNPARKING_STRAIGHT: Target wall distance reached ({wall_dist:.2f}m <= {target_dist:.2f}m)."
+            )
+            self.state = State.STRAIGHT
+            self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+            # Stop the robot to get a clear image for detection
+            self.publish_twist_with_gain(0.0, 0.0)
+            return
+
+        # --- 3. Execute PID-controlled straight movement (similar to _execute_pid_alignment) ---
+        # We only use the angle part of the PID control to go straight.
+        angle_error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
+        angle_steer = self.align_kp_angle * angle_error_deg
+        final_steer = max(min(angle_steer, self.max_steer), -self.max_steer)
+
+        self.get_logger().debug(
+            f"UNPARKING_STRAIGHT: TargetYaw:{target_yaw_deg:.1f}, CurrentYaw:{self.current_yaw_deg:.1f}, "
+            f"WallDist:{wall_dist:.2f}m, Steer:{final_steer:.2f}",
+            throttle_duration_sec=0.2
+        )
+
+        straight_speed = self.unparking_speed
+        self.publish_twist_with_gain(straight_speed, final_steer)
 
     def _handle_determine_sub_waiting_for_controller(self):
         """
@@ -963,8 +1442,7 @@ class ObstacleNavigatorNode(Node):
             self.state = State.STRAIGHT
             self.straight_sub_state = StraightSubState.PRE_SCANNING_REVERSE
 
-            # Set the absolute target distance for the reverse maneuver
-            self.post_planning_reverse_target_dist_m = 0.7 
+            
 
             self.publish_twist_with_gain(0.0, 0.0)
             return
@@ -1033,8 +1511,29 @@ class ObstacleNavigatorNode(Node):
             return
 
         # Driving logic is common for all scenarios.
+        disable_dist_control = False
+        yaw_error_deg = self._angle_diff(base_angle_deg, self.current_yaw_deg)
+        yaw_deviation_threshold_deg = 45.0
+
+        is_cw_deviation = self.direction == 'cw' and yaw_error_deg > yaw_deviation_threshold_deg
+        is_ccw_deviation = self.direction == 'ccw' and yaw_error_deg < -yaw_deviation_threshold_deg
+
+        if is_cw_deviation or is_ccw_deviation:
+            disable_dist_control = True
+            self.get_logger().warn(
+                f"Large inward deviation detected (YawErr: {yaw_error_deg:.1f}deg). Disabling distance control.",
+                throttle_duration_sec=1.0
+            )
+
+        # Driving logic is common for all scenarios.
         speed = self.forward_speed * 0.7 if self.turn_count == 0 else self.forward_speed
-        self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=True, speed=speed)
+        self._execute_pid_alignment(
+            msg, 
+            base_angle_deg, 
+            is_outer_wall=True, 
+            speed=speed,
+            disable_dist_control=disable_dist_control # Pass the dynamically set flag
+        )
 
     def _handle_straight_sub_align_with_inner_wall(self, msg: LaserScan):
         if self._check_for_finish_condition(msg):
@@ -1467,7 +1966,7 @@ class ObstacleNavigatorNode(Node):
                 sum_side_walls_dist = inner_wall_dist + outer_wall_dist
                 if(not math.isnan(outer_wall_dist) and not math.isnan(inner_wall_dist) 
                 and outer_wall_dist < self.avoid_inner_pass_thresh_m and sum_side_walls_dist < 0.7 and 
-                is_oriented_correctly):
+                is_oriented_correctly and self.turn_count != 0):
                     self.get_logger().warn(">>> Passing obstacle now (during INNER TURN_IN)...")
                     self.is_passing_obstacle = True
 
@@ -2153,7 +2652,59 @@ class ObstacleNavigatorNode(Node):
                 rois=rois_to_visualize,
                 sample_num=sample_num
             )
-    
+
+    def _find_and_save_dominant_blob(self, frame_rgb, turn_count, base_name):
+        """
+        Processes a full image frame to find the dominant color blob (red or green),
+        saves debug images, and returns the dominant color.
+
+        Returns:
+            A tuple (string, float, float):
+            - Dominant color ('red', 'green', or 'none')
+            - Max red blob area found
+            - Max green blob area found
+        """
+        if frame_rgb is None:
+            return 'none', 0.0, 0.0
+
+        # --- 1. Process the image to get color masks ---
+        detection_data = self._detect_obstacle_color_in_frame(frame_rgb)
+        if not detection_data:
+            return 'none', 0.0, 0.0
+
+        # --- 2. Find the largest blob for each color ---
+        red_mask = detection_data['masks']['RED']
+        green_mask = detection_data['masks']['GREEN']
+        max_red_area = self._find_largest_blob_area(red_mask)
+        max_green_area = self._find_largest_blob_area(green_mask)
+
+        # --- 3. Save annotated debug images ---
+        if self.save_debug_images:
+            # Since this is a full-frame detection, we don't need to draw an ROI.
+            # We pass `rois=None`.
+            self._save_annotated_image(
+                base_name=base_name,
+                turn_count=turn_count,
+                frame_bgr=detection_data['frame_bgr'],
+                masks={'RED': red_mask, 'GREEN': green_mask},
+                rois=None, # No specific ROI for this full-frame detection
+                sample_num=1
+            )
+            self.get_logger().info(f"Saved debug image for '{base_name}'")
+
+        # --- 4. Determine the dominant color ---
+        detection_threshold = 500  # This could be a parameter
+        is_red_dominant = max_red_area > max_green_area and max_red_area > detection_threshold
+        is_green_dominant = max_green_area > max_red_area and max_green_area > detection_threshold
+
+        dominant_color = 'none'
+        if is_red_dominant:
+            dominant_color = 'red'
+        elif is_green_dominant:
+            dominant_color = 'green'
+        
+        return dominant_color, max_red_area, max_green_area
+
     def _find_largest_blob_area(self, mask):
         """
         Finds all contiguous blobs in a binary mask and returns the area of the largest one.
