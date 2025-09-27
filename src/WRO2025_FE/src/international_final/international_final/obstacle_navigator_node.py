@@ -79,7 +79,8 @@ class ObstacleNavigatorNode(Node):
         super().__init__('obstacle_navigator_node')
 
         self.start_time = self.get_clock().now()
-        self.declare_parameter('correct_mirrored_scan', True,)
+        self.declare_parameter('start_from_parking', False) 
+        self.declare_parameter('correct_mirrored_scan', True)
 
         # --- State Machine Parameters ---
         self.state = State.PREPARATION
@@ -228,6 +229,21 @@ class ObstacleNavigatorNode(Node):
 
         # Load all parameters
         self._load_parameters()
+
+        if self.start_from_parking:
+            self.get_logger().info("###########################################")
+            self.get_logger().info("##  START MODE: From Parking Area        ##")
+            self.get_logger().info("###########################################")
+            self.state = State.PREPARATION
+            self.preparation_sub_state = PreparationSubState.WAITING_FOR_CONTROLLER
+        else:
+            self.get_logger().info("###########################################")
+            self.get_logger().info("##  START MODE: From Center (Legacy)     ##")
+            self.get_logger().info("###########################################")
+            self.state = State.DETERMINE_COURSE
+            # For the legacy start, we need to wait for the controller inside DETERMINE_COURSE
+            self.determine_course_sub_state = DetermineCourseSubState.WAITING_FOR_CONTROLLER
+
         # --- initialize the image directory ---
         self._initialize_debug_directory()
 
@@ -333,6 +349,7 @@ class ObstacleNavigatorNode(Node):
         self.unparking_speed = self.get_parameter('unparking_speed').get_parameter_value().double_value
         self.unparking_initial_turn_deg = self.get_parameter('unparking_initial_turn_deg').get_parameter_value().double_value
 
+        self.start_from_parking = self.get_parameter('start_from_parking').get_parameter_value().bool_value
         self.correct_mirrored_scan = self.get_parameter('correct_mirrored_scan').get_parameter_value().bool_value
 
         self.pan_servo_id = self.get_parameter('pan_servo_id').get_parameter_value().integer_value
