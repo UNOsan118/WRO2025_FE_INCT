@@ -79,50 +79,92 @@ class ObstacleNavigatorNode(Node):
     def __init__(self):
         super().__init__('obstacle_navigator_node')
 
+        # 1. CORE NODE SETUP
+        # =================
         self.start_time = self.get_clock().now()
-        self.declare_parameter('start_from_parking', False) 
-        self.declare_parameter('correct_mirrored_scan', True)
+        # Only publish commands at a maximum rate of ~30Hz (33ms interval)
+        # to avoid flooding the serial port of the controller.
+        self.cmd_pub_interval_ms = 33 
+        self.declare_parameter('log_level', 'DEBUG') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
+        # Load log_level immediately to affect subsequent logs
+        log_level_str = self.get_parameter('log_level').get_parameter_value().string_value
+        log_level_map = {
+            'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
+            'INFO': rclpy.logging.LoggingSeverity.INFO,
+            'WARN': rclpy.logging.LoggingSeverity.WARN,
+            'ERROR': rclpy.logging.LoggingSeverity.ERROR,
+        }
+        log_level = log_level_map.get(log_level_str.upper(), rclpy.logging.LoggingSeverity.INFO)
+        self.get_logger().set_level(log_level)
+        self.get_logger().info(f"Logger level set to {log_level_str.upper()}")
 
-        # --- State Machine Parameters ---
+
+        # 2. STATE MACHINE VARIABLES
+        # ==========================
+        # Main states and sub-states
         self.state = State.PREPARATION
         # self.state = State.PARKING
         self.preparation_sub_state = PreparationSubState.WAITING_FOR_CONTROLLER
         self.unparking_sub_state = UnparkingSubState.PRE_UNPARKING_DETECTION
-        self.unparking_strategy = UnparkingStrategy.UNDEFINED
+        self.determine_course_sub_state = DetermineCourseSubState.WAITING_FOR_CONTROLLER # Legacy
         self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
         self.turning_sub_state = None 
-        self.execute_turn_phase = 0 # 0: Forward, 1: Turning
         self.parking_sub_state = ParkingSubState.PRE_PARKING_ADJUST
-        
-        self.inner_wall_disappear_threshold = 1.3
-        self.inner_wall_disappear_count = 3
-        self.max_turns = 12
 
-        self.declare_parameter('unparking_exit_straight_dist_m', 0.33)
+
+        # Strategy and planning variables
+        self.unparking_strategy = UnparkingStrategy.UNDEFINED
+        self.declare_parameter('avoidance_path_plan', ['', '', '', ''])
+        self.declare_parameter('entrance_obstacle_plan', [False, False, False, False])
+
+
+        # 3. TUNING PARAMETERS (by category)
+        # ==================================
+        # --- General & Debug ---
+        self.declare_parameter('start_from_parking', False) 
+        self.declare_parameter('correct_mirrored_scan', True)
+        self.declare_parameter('save_debug_images', True)
+        self.declare_parameter('debug_image_path', '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images', )
+        self.max_valid_range_m = 3.0
+        self.max_turns = 12
+        
+        # --- Driving & Speed Control ---
+        self.declare_parameter('forward_speed', 0.2)
+        self.declare_parameter('max_steer', 1.5)
+        self.declare_parameter('gain', 2.0)
+        self.gain_straight_align_outer_wall = 1.0
+        self.gain_straight_align_inner_wall = 1.0
+        self.gain_straight_outer_turn_in = 1.0
+        self.declare_parameter('direction', 'cw') # Note: This will be overwritten by PREPARATION state
+        # --- Rate Limiter (Smoother) Parameters & Variables ---
+        self.declare_parameter('max_linear_acceleration', 3000.0) # m/s^2 past:30
+        self.declare_parameter('max_angular_acceleration_rad', 7000.0) # rad/s^2 past:70
+
+        # --- Unparking Sequence ---
         self.declare_parameter('unparking_speed', 0.05) 
         self.declare_parameter('unparking_initial_turn_deg', 55.0)
+        self.declare_parameter('unparking_exit_straight_dist_m', 0.33)
 
-        # --- Camera Control Parameters ---
+        # --- Camera & Vision ---
         self.declare_parameter('pan_servo_id', 1, )
         self.declare_parameter('tilt_servo_id', 2, )
         self.declare_parameter('initial_pan_position', 1850)
         self.declare_parameter('camera_move_duration_sec', 0.2)
-        self.declare_parameter('planning_detection_threshold', 570)
-        self.declare_parameter('planning_detection_threshold_outer_path_multiplier', 0.7)
-        
-        # --- NEW: Parameters for Dynamic Camera Aiming ---
-        self.declare_parameter('tilt_position_cw', 530)
-        self.declare_parameter('tilt_position_ccw', 2500)
-
-        # --- NEW: Parameters for Dynamic Tilt Stabilization ---
         self.declare_parameter('enable_dynamic_tilt', True)
         self.declare_parameter('tilt_center_position', 1500)
         self.declare_parameter('tilt_max_position', 2500)
         self.declare_parameter('tilt_min_position', 500)
+        self.declare_parameter('tilt_position_cw', 530)
+        self.declare_parameter('tilt_position_ccw', 2500)
         self.declare_parameter('tilt_update_interval_ms', 100) # Update tilt every 100ms (10Hz)
-
         self.declare_parameter('image_width', 640)
-
+        # Color Thresholds
+        self.declare_parameter('red_lower1', [0, 100, 80])
+        self.declare_parameter('red_upper1', [3, 255, 243])
+        self.declare_parameter('red_lower2', [174, 100, 80])
+        self.declare_parameter('red_upper2', [179, 255, 243])
+        self.declare_parameter('green_lower', [55, 100, 67])
+        self.declare_parameter('green_upper', [80, 255, 240])
         self.declare_parameter('roi_planning_ccw_inner_flat', [225, 30, 0, 480, 640, 480, 480, 30])
         self.declare_parameter('roi_planning_ccw_inner_start_area_flat', [225, 30, 0, 480, 560, 480, 320, 30])
         self.declare_parameter('roi_planning_ccw_outer_flat', [220, 15, 100, 260, 525, 260, 440, 15])
@@ -132,77 +174,38 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('roi_planning_cw_outer_flat', [160, 15, 120, 260, 545, 260, 380, 15])
         self.declare_parameter('roi_planning_cw_outer_start_area_flat', [280, 15, 150, 260, 545, 260, 380, 15])
 
-        # --- Course Detection Parameters ---
-        self.declare_parameter('course_detection_threshold_m', 1.5)
-        self.declare_parameter('course_detection_slow_speed', 0.1)
-        self.declare_parameter('course_detection_speed', 0.17)
-        self.declare_parameter('initial_approach_target_dist_inner_ccw_m', 0.3)
-        self.declare_parameter('initial_approach_target_dist_inner_cw_m', 0.25)
-        self.declare_parameter('initial_approach_target_dist_outer_m', 0.6)
+        # --- Alignment (PID) ---
+        self.declare_parameter('align_kp_angle', 0.04)
+        self.declare_parameter('align_kp_dist', 7.5)
+        self.declare_parameter('align_target_outer_dist_m', 0.2)
+        self.declare_parameter('align_target_outer_dist_start_area_m', 0.39)
+        self.declare_parameter('align_target_inner_dist_m', 0.2)
+        self.declare_parameter('align_dist_tolerance_m', 0.005)
 
-        # --- NEW: Vision Processing Parameters (from initial_obstacle_detection_node) ---
-        """
-        self.declare_parameter('red_lower1', [0, 50, 70])
-        self.declare_parameter('red_upper1', [4, 255, 255])
-        self.declare_parameter('red_lower2', [174, 50, 70])
-        self.declare_parameter('red_upper2', [179, 255, 255])
-        self.declare_parameter('green_lower', [60, 40, 90])
-        self.declare_parameter('green_upper', [93, 230, 255])
-        """
-
-        self.declare_parameter('red_lower1', [0, 100, 80])
-        self.declare_parameter('red_upper1', [3, 255, 243])
-        self.declare_parameter('red_lower2', [174, 100, 80])
-        self.declare_parameter('red_upper2', [179, 255, 243])
-        self.declare_parameter('green_lower', [55, 100, 67])
-        self.declare_parameter('green_upper', [80, 255, 240])
-
-        self.declare_parameter('roi_left', [150, 50, 90, 430])
-        self.declare_parameter('roi_right', [290, 50, 90, 430])
-        self.declare_parameter('detection_pixel_threshold', 500)
-        self.declare_parameter('detection_samples', 5) # Number of frames to sample for majority vote
-
-        # --- NEW: Parameters for Simplified Turning Maneuver ---
+        # --- Turning ---
+        self.pre_scanning_reverse_target_dist_m = 0.7
         self.declare_parameter('turn_forward_speed', 0.15)
         self.declare_parameter('turn_speed', 0.15)
         self.declare_parameter('turn_start_dist_outer_m', 0.33)
         self.declare_parameter('turn_start_dist_outer_start_area_m', 0.57)
         self.declare_parameter('turn_start_dist_inner_m', 1.0)
         self.declare_parameter('turn_completion_yaw_threshold_deg', 15.0)
+        self.inner_wall_disappear_threshold = 1.3
+        self.inner_wall_disappear_count = 3
 
-        # --- Driving Logic Parameters ---
-        self.declare_parameter('forward_speed', 0.2)
-        self.declare_parameter('max_steer', 1.5)
-        self.declare_parameter('gain', 2.0)
-        self.declare_parameter('direction', 'cw')
-
-        # NEW: Parameter for the required clearance distance from an obstacle
-        self.declare_parameter('obstacle_clearance_dist_m', 0.67)
-
-        # --- NEW: Parameters for Avoidance Control ---
-        self.declare_parameter('avoid_target_outer_dist_m', 0.2)
+        # --- Avoidance ---
+        self.declare_parameter('avoid_speed', 0.2)
         self.declare_parameter('avoid_kp_angle', 0.03) # P-gain for yaw control
         self.declare_parameter('avoid_kp_dist', 1.5)  # P-gain for distance control
-        self.declare_parameter('avoid_speed', 0.2)
-        self.declare_parameter('avoid_inner_pass_thresh_m', 0.6)
-
-        # --- NEW: Parameters for Avoidance Sequence Control ---
         self.declare_parameter('avoid_turn_in_kp_angle', 0.04)
-        self.declare_parameter('avoid_turn_in_yaw_tolerance_deg', 5.0)
-
-        # --- NEW: Parameters for Simplified Avoidance Sequence ---
         self.declare_parameter('avoid_outer_approach_angle_deg', 40.0)
         self.declare_parameter('avoid_outer_approach_target_dist_m', 0.23)
-
         self.declare_parameter('avoid_outer_approach_target_dist_start_area_m', 0.45)
-
         self.declare_parameter('avoid_inner_approach_angle_deg', 40.0)
         self.declare_parameter('avoid_inner_approach_target_dist_m', 0.25)
+        self.declare_parameter('avoid_inner_pass_thresh_m', 0.6)
 
-        # self.declare_parameter('avoidance_path_plan', ['outer', 'inner_to_outer', 'outer_to_inner', 'inner'])
-        self.declare_parameter('avoidance_path_plan', ['', '', '', ''])
-        self.declare_parameter('entrance_obstacle_plan', [False, False, False, False])
-
+        # --- Parking ---
         self.declare_parameter('parking_approach_ccw_dist_min_m', 0.6)
         self.declare_parameter('parking_approach_ccw_dist_max_m', 0.7)
         self.declare_parameter('parking_approach_cw_overshoot_dist_m', 1.0)
@@ -211,26 +214,94 @@ class ObstacleNavigatorNode(Node):
         self.declare_parameter('parking_reverse_in_target_angle_deg', 50.0)
         self.declare_parameter('parking_reverse_in_yaw_tolerance_deg', 2.0)
 
-        # --- NEW: Parameters for PID-based Wall Following ---
-        self.declare_parameter('align_target_inner_dist_m', 0.2)
-        self.declare_parameter('align_dist_tolerance_m', 0.005)
-        self.declare_parameter('align_kp_angle', 0.04)
-        self.declare_parameter('align_kp_dist', 7.5)
-        self.declare_parameter('align_target_outer_dist_m', 0.2)
-        self.declare_parameter('align_target_outer_dist_start_area_m', 0.39)
+        # --- Legacy Determine Course ---
+        self.declare_parameter('course_detection_threshold_m', 1.5)
+        self.declare_parameter('course_detection_slow_speed', 0.1)
+        self.declare_parameter('course_detection_speed', 0.17)
+        self.declare_parameter('roi_left', [150, 50, 90, 430])
+        self.declare_parameter('roi_right', [290, 50, 90, 430])
+        self.declare_parameter('detection_pixel_threshold', 500)
+        self.declare_parameter('detection_samples', 5) # Number of frames to sample for majority vote
+        self.declare_parameter('initial_approach_target_dist_inner_ccw_m', 0.3)
+        self.declare_parameter('initial_approach_target_dist_inner_cw_m', 0.25)
+        self.declare_parameter('initial_approach_target_dist_outer_m', 0.6)
+        self.initial_approach_target_dist_inner_m = 0.275
 
-        self.declare_parameter('save_debug_images', True, )
-        self.declare_parameter('debug_image_path', '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images', )
+        # 4. INTERNAL STATE VARIABLES
+        # ===========================
+        # These are modified during runtime
+        self.current_yaw_deg = 0.0
+        self.latest_scan_msg = None
+        self.latest_frame = None
 
-        self.declare_parameter('log_level', 'DEBUG') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
+        # Rate Limiter state
+        self.last_published_linear = 0.0
+        self.last_published_angular = 0.0
+        self.last_cmd_pub_time = self.get_clock().now()
 
-        # --- NEW: Rate Limiter (Smoother) Parameters & Variables ---
-        self.declare_parameter('max_linear_acceleration', 3000.0) # m/s^2 30
-        self.declare_parameter('max_angular_acceleration_rad', 7000.0) # rad/s^2 70
+        # Dynamic Tilt state
+        self.servo_units_per_degree = 1000.0 / 90.0
+        self.last_tilt_update_time = self.get_clock().now()
+        self.last_sent_tilt_position = -1 # Initialize with an invalid value
 
-        # Load all parameters
-        self._load_parameters()
+        # General state flags and counters
+        self.turn_count = 0
+        self.wall_segment_index = 0
+        self.is_passing_obstacle = False
+        self.can_start_new_turn = True
+        self.camera_init_sent = False
+        self.inner_wall_far_counter = 0
+        self.stable_alignment_counter = 0
+        self.lane_change_stability_counter = 0
+        self.last_avoidance_path_was_outer = True
+        self.initial_position_is_near = True
+        self.initial_path_is_left = True
+        self.initial_path_is_straight = False
+        self.start_area_avoidance_required = False
+        self.last_valid_steer = 0.0
+        self.is_in_avoidance_alignment = False
 
+        # State-specific variables
+        self.unparking_base_yaw_deg = 0.0
+        self.pre_detection_step = 0 # 0=start, 1=waiting
+        self.pre_detection_timer = None
+        self.direction_detection_patience_counter = 0
+        self.has_obstacle_at_parking_exit = False
+        self.image_acquisition_retries = 0
+        self.approach_base_yaw_deg = 0.0
+        self.execute_turn_phase = 0 # 0: Forward, 1: Turning
+        self.pre_parking_step = 0
+        self.detection_results = []
+
+        # Planning state variables
+        self.planning_initiated = False
+        self.declare_parameter('planning_detection_threshold', 570)
+        self.declare_parameter('planning_detection_threshold_outer_path_multiplier', 0.7)
+        self.post_planning_reverse_target_dist_m = 0.7 
+        self.planning_scan_roi_flat = [200, 0, 120, 480, 440, 480, 360, 0] # [x, y, width, height]
+        self.planning_scan_interval = 2
+        self.planning_scan_stop_dist = 0.25
+        self.planning_scan_stop_dist_start_area = 0.38
+        self.planning_scan_start_dist_m = 0.5
+        self.planning_camera_wait_timer = None
+        self.is_sampling_for_planning = False 
+        self.is_sampling_for_planning = False 
+        self.max_red_blob_area = 0.0
+        self.max_green_blob_area = 0.0
+        self.max_red_blob_sample_num = 0
+        self.max_green_blob_sample_num = 0
+
+        # 5. CORE COMPONENTS
+        # ==================
+        self.state_lock = threading.RLock()
+        self.bridge = CvBridge()
+
+
+        # 6. SYSTEM INITIALIZATION CALLS
+        # ==============================
+        self._load_parameters() # Load all declared parameters into self.xxx variables
+
+        # Set initial state AFTER loading parameters
         if self.start_from_parking:
             self.get_logger().info("###########################################")
             self.get_logger().info("##  START MODE: From Parking Area        ##")
@@ -244,98 +315,14 @@ class ObstacleNavigatorNode(Node):
             self.state = State.DETERMINE_COURSE
             # For the legacy start, we need to wait for the controller inside DETERMINE_COURSE
             self.determine_course_sub_state = DetermineCourseSubState.WAITING_FOR_CONTROLLER
-
-        # --- initialize the image directory ---
-        self.image_acquisition_retries = 0
-        self._initialize_debug_directory()
-
-        self.max_valid_range_m = 3.0
-
-        self.detection_wait_timer = None
-        self.first_obstacle_detected = False
-        self.unparking_base_yaw_deg = 0.0
-
-        # --- Internal State Variables ---
-        self.pre_detection_step = 0 # ADDED: 0=start, 1=waiting
-        self.pre_detection_timer = None
-        self.has_obstacle_at_parking_exit = False
-
-        self.post_planning_reverse_target_dist_m = 0.7 
-
-        self.direction_detection_patience_counter = 0
-        self.inner_wall_far_counter = 0
-        self.turn_count = 0
-        self.wall_segment_index = 0
-        self.approach_base_yaw_deg = 0.0
-        self.last_valid_steer = 0.0
-        self.current_yaw_deg = 0.0
-
-        self.latest_scan_msg = None
-        self.is_passing_obstacle = False
-        self.can_start_new_turn = True
-
-        self.last_avoidance_path_was_outer = True
-        self.initial_position_is_near = True
-        self.initial_path_is_left = True
-        self.initial_path_is_straight = False
-        self.start_area_avoidance_required = False
-        self.camera_init_sent = False
-
-        # Variables for color detection logic
-        self.latest_frame = None
-        # This list now stores raw area data for stationary detection (initial)
-        self.detection_results = []
-
-        self.planning_scan_roi_flat = [200, 0, 120, 480, 440, 480, 360, 0] # [x, y, width, height]
-        self.max_red_blob_area = 0.0
-        self.max_green_blob_area = 0.0
-        self.max_red_blob_sample_num = 0
-        self.max_green_blob_sample_num = 0
-
-        self.planning_scan_interval = 2
-        self.planning_scan_stop_dist = 0.25
-        self.planning_scan_stop_dist_start_area = 0.38
-        self.planning_scan_start_dist_m = 0.5
-
-        self.planning_camera_wait_timer = None
-        self.is_sampling_for_planning = False 
-
-        self.is_sampling_for_planning = False 
-        self.planning_initiated = False
-        self.pre_scanning_reverse_target_dist_m = 0.7
-
-        self.pre_parking_step = 0
         
-        self.last_published_linear = 0.0
-        self.last_published_angular = 0.0
-
-        # --- NEW: Internal variables for dynamic tilt ---
-        self.servo_units_per_degree = 1000.0 / 90.0
-        self.last_tilt_update_time = self.get_clock().now()
-        self.last_sent_tilt_position = -1 # Initialize with an invalid value
-
-        self.initial_approach_target_dist_inner_m = 27.5
-
-        self.gain_straight_align_outer_wall = 1.0
-        self.gain_straight_align_inner_wall = 1.0
-        self.gain_straight_outer_turn_in = 1.0
-
-        self.is_in_avoidance_alignment = False
-        self.stable_alignment_counter = 0
-        self.lane_change_stability_counter = 0
-
-        # --- System Setup ---
-        self.state_lock = threading.RLock()
-        self.bridge = CvBridge()
+        self._initialize_debug_directory()
         self._setup_ros_communications()
         self.controller_ready_client = self.create_client(Trigger, '/ros_robot_controller/init_finish')
 
-        # --- NEW: Throttling for command publishing ---
-        # Only publish commands at a maximum rate of ~30Hz (33ms interval)
-        # to avoid flooding the serial port of the controller.
-        self.cmd_pub_interval_ms = 33 # 33 
-        self.last_cmd_pub_time = self.get_clock().now()
 
+        # 7. MAIN LOOP TIMER
+        # ==================
         control_loop_rate = 50.0 # Hz
         self.control_loop_timer = self.create_timer(
             1.0 / control_loop_rate,
@@ -411,18 +398,14 @@ class ObstacleNavigatorNode(Node):
         self.max_steer = self.get_parameter('max_steer').get_parameter_value().double_value
         self.gain = self.get_parameter('gain').get_parameter_value().double_value
         self.direction = self.get_parameter('direction').get_parameter_value().string_value
-        
-        self.obstacle_clearance_dist_m = self.get_parameter('obstacle_clearance_dist_m').get_parameter_value().double_value
 
         # NEW: Load avoidance parameters
-        self.avoid_target_outer_dist_m = self.get_parameter('avoid_target_outer_dist_m').get_parameter_value().double_value
         self.avoid_kp_angle = self.get_parameter('avoid_kp_angle').get_parameter_value().double_value
         self.avoid_kp_dist = self.get_parameter('avoid_kp_dist').get_parameter_value().double_value
         self.avoid_speed = self.get_parameter('avoid_speed').get_parameter_value().double_value
         self.avoid_inner_pass_thresh_m = self.get_parameter('avoid_inner_pass_thresh_m').get_parameter_value().double_value
 
         self.avoid_turn_in_kp_angle = self.get_parameter('avoid_turn_in_kp_angle').get_parameter_value().double_value
-        self.avoid_turn_in_yaw_tolerance_deg = self.get_parameter('avoid_turn_in_yaw_tolerance_deg').get_parameter_value().double_value
 
         self.avoid_approach_angle_deg = self.get_parameter('avoid_outer_approach_angle_deg').get_parameter_value().double_value
         self.avoid_approach_target_dist_m = self.get_parameter('avoid_outer_approach_target_dist_m').get_parameter_value().double_value
@@ -452,27 +435,8 @@ class ObstacleNavigatorNode(Node):
         self.save_debug_images = self.get_parameter('save_debug_images').get_parameter_value().bool_value
         self.debug_image_path = self.get_parameter('debug_image_path').get_parameter_value().string_value
 
-        log_level_str = self.get_parameter('log_level').get_parameter_value().string_value
-        log_level_map = {
-            'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
-            'INFO': rclpy.logging.LoggingSeverity.INFO,
-            'WARN': rclpy.logging.LoggingSeverity.WARN,
-            'ERROR': rclpy.logging.LoggingSeverity.ERROR,
-        }
-        log_level = log_level_map.get(log_level_str.upper(), rclpy.logging.LoggingSeverity.INFO)
-        self.get_logger().set_level(log_level)
-        self.get_logger().info(f"Logger level set to {log_level_str.upper()}")
-
         self.max_linear_acceleration = self.get_parameter('max_linear_acceleration').get_parameter_value().double_value
         self.max_angular_acceleration_rad = self.get_parameter('max_angular_acceleration_rad').get_parameter_value().double_value
-
-        self.get_logger().info("--- Parameters Initialized ---")
-        self.get_logger().info(f"Direction: '{self.direction}'")
-        self.get_logger().info(f"Base Speed: {self.forward_speed}, Gain: {self.gain}")
-        self.get_logger().info(f"Inner Wall Threshold: {self.inner_wall_disappear_threshold} m")
-        self.get_logger().info(f"Will stop after {self.max_turns} turns.")
-        self.get_logger().info(f"Loaded avoidance path plan: {self.avoidance_path_plan}")
-        self.get_logger().info("----------------------------")
 
     def _initialize_debug_directory(self):
         """
