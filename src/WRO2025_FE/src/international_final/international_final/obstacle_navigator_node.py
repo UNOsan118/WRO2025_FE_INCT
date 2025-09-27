@@ -75,161 +75,237 @@ class ParkingSubState(Enum):
     REVERSE_INTO_SPACE = auto()
 
 class ObstacleNavigatorNode(Node):
+    # --- Initialization & Lifecycle ---
     def __init__(self):
         super().__init__('obstacle_navigator_node')
 
+        # 1. CORE NODE SETUP
+        # =================
         self.start_time = self.get_clock().now()
-        self.declare_parameter('start_from_parking', False) 
-        self.declare_parameter('correct_mirrored_scan', True)
+        # Only publish commands at a maximum rate of ~30Hz (33ms interval)
+        # to avoid flooding the serial port of the controller.
+        self.cmd_pub_interval_ms = 33
 
-        # --- State Machine Parameters ---
+        self.declare_parameter('log_level_str', 'DEBUG') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
+        # Load log_level immediately to affect subsequent logs
+        log_level_str = self.get_parameter('log_level_str').get_parameter_value().string_value
+        log_level_map = {
+            'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
+            'INFO': rclpy.logging.LoggingSeverity.INFO,
+            'WARN': rclpy.logging.LoggingSeverity.WARN,
+            'ERROR': rclpy.logging.LoggingSeverity.ERROR,
+        }
+        log_level = log_level_map.get(log_level_str.upper(), rclpy.logging.LoggingSeverity.INFO)
+        self.get_logger().set_level(log_level)
+        self.get_logger().info(f"Logger level set to {log_level_str.upper()}")
+
+
+        # 2. STATE MACHINE VARIABLES
+        # ==========================
+        # Main states and sub-states
         self.state = State.PREPARATION
         # self.state = State.PARKING
         self.preparation_sub_state = PreparationSubState.WAITING_FOR_CONTROLLER
         self.unparking_sub_state = UnparkingSubState.PRE_UNPARKING_DETECTION
-        self.unparking_strategy = UnparkingStrategy.UNDEFINED
+        self.determine_course_sub_state = DetermineCourseSubState.WAITING_FOR_CONTROLLER # Legacy
         self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
         self.turning_sub_state = None 
-        self.execute_turn_phase = 0 # 0: Forward, 1: Turning
         self.parking_sub_state = ParkingSubState.PRE_PARKING_ADJUST
+
+
+        # Strategy and planning variables
+        self.unparking_strategy = UnparkingStrategy.UNDEFINED
+        self.avoidance_path_plan = ['', '', '', '']
+        self.entrance_obstacle_plan = [False, False, False, False]
+
+
+        # 3. TUNING PARAMETERS (by category)
+        # ==================================
+        # --- General & Debug ---
+        self.start_from_parking = False
+        self.correct_mirrored_scan = True
+        self.save_debug_images = True
+        self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images'
+        self.max_valid_range_m = 3.0
+        self.max_turns = 12
         
+        # --- Driving & Speed Control ---
+        self.forward_speed = 0.2
+        self.max_steer = 1.5
+        self.declare_parameter('gain', 2.0)
+        self.gain_straight_align_outer_wall = 1.0
+        self.gain_straight_align_inner_wall = 1.0
+        self.gain_straight_outer_turn_in = 1.0
+        self.direction = 'cw' # Note: This will be overwritten by PREPARATION state
+        # --- Rate Limiter (Smoother) Parameters & Variables ---
+        self.max_linear_acceleration = 3000.0 # m/s^2 past:30
+        self.max_angular_acceleration_rad = 7000.0 # rad/s^2 past:70
+
+        # --- Unparking Sequence ---
+        self.unparking_speed = 0.05
+        self.unparking_initial_turn_deg = 55.0
+        self.unparking_exit_straight_dist_m = 0.33
+
+        # --- Camera & Vision ---
+        self.pan_servo_id = 1
+        self.tilt_servo_id = 2
+        self.initial_pan_position = 1850
+        self.camera_move_duration = 0.2
+        self.enable_dynamic_tilt = True
+        self.tilt_center_position = 1500
+        self.tilt_max_position = 2500
+        self.tilt_min_position = 500
+        self.tilt_position_cw = 530
+        self.tilt_position_ccw = 2500
+        self.tilt_update_interval_ms = 100 # Update tilt every 100ms (10Hz)
+        self.image_width = 640
+        # Color Thresholds
+        self.red_lower1 = [0, 100, 80]
+        self.red_upper1 = [3, 255, 243]
+        self.red_lower2 = [174, 100, 80]
+        self.red_upper2 = [179, 255, 243]
+        self.green_lower = [55, 100, 67]
+        self.green_upper = [80, 255, 240]
+        """
+        self.roi_planning_ccw_inner_flat = [225, 30, 0, 480, 640, 480, 480, 30]
+        self.roi_planning_ccw_inner_start_area_flat = [225, 30, 0, 480, 560, 480, 320, 30]
+        self.roi_planning_ccw_outer_flat = [220, 15, 100, 260, 525, 260, 440, 15]
+        self.roi_planning_ccw_outer_start_area_flat = [220, 15, 100, 260, 425, 260, 300, 15]
+        self.roi_planning_cw_inner_flat = [160, 30, 0, 480, 640, 480, 400, 30]
+        self.roi_planning_cw_inner_start_area_flat = [320, 30, 80, 480, 640, 480, 400, 30]
+        self.roi_planning_cw_outer_flat = [160, 15, 120, 260, 545, 260, 380, 15]
+        self.roi_planning_cw_outer_start_area_flat = [280, 15, 150, 260, 545, 260, 380, 15]
+        """
+        
+        # --- Alignment (PID) ---
+        self.align_kp_angle = 0.04
+        self.align_kp_dist = 7.5
+        self.align_target_outer_dist_m = 0.2
+        self.align_target_outer_dist_start_area_m = 0.39
+        self.align_target_inner_dist_m = 0.2
+        self.align_dist_tolerance_m = 0.005
+
+        # --- Turning ---
+        self.pre_scanning_reverse_target_dist_m = 0.7
+        self.turn_forward_speed = 0.15
+        self.turn_speed = 0.15
+        self.turn_start_dist_outer_m = 0.33
+        self.turn_start_dist_outer_start_area_m = 0.57
+        self.turn_start_dist_inner_m = 1.0
+        self.turn_completion_yaw_threshold_deg = 15.0
         self.inner_wall_disappear_threshold = 1.3
         self.inner_wall_disappear_count = 3
-        self.max_turns = 12
 
-        self.declare_parameter('unparking_exit_straight_dist_m', 0.33)
-        self.declare_parameter('unparking_speed', 0.05) 
-        self.declare_parameter('unparking_initial_turn_deg', 55.0)
+        # --- Avoidance ---
+        self.avoid_speed = 0.2
+        self.avoid_kp_angle = 0.03 # P-gain for yaw control
+        self.avoid_kp_dist = 1.5  # P-gain for distance control
+        self.avoid_turn_in_kp_angle = 0.04
+        self.avoid_outer_approach_angle_deg = 40.0
+        self.avoid_outer_approach_target_dist_m = 0.23
+        self.avoid_outer_approach_target_dist_start_area_m = 0.45
+        self.avoid_inner_approach_angle_deg = 40.0
+        self.avoid_inner_approach_target_dist_m = 0.25
+        self.avoid_inner_pass_thresh_m = 0.6
 
-        # --- Camera Control Parameters ---
-        self.declare_parameter('pan_servo_id', 1, )
-        self.declare_parameter('tilt_servo_id', 2, )
-        self.declare_parameter('initial_pan_position', 1850)
-        self.declare_parameter('camera_move_duration_sec', 0.2)
-        self.declare_parameter('planning_detection_threshold', 570)
-        self.declare_parameter('planning_detection_threshold_outer_path_multiplier', 0.7)
-        
-        # --- NEW: Parameters for Dynamic Camera Aiming ---
-        self.declare_parameter('tilt_position_cw', 530)
-        self.declare_parameter('tilt_position_ccw', 2500)
+        # --- Parking ---
+        self.parking_approach_ccw_dist_min_m = 0.6
+        self.parking_approach_ccw_dist_max_m = 0.7
+        self.parking_approach_cw_overshoot_dist_m = 1.0
+        self.parking_approach_cw_final_dist_min_m = 1.15
+        self.parking_approach_cw_final_dist_max_m = 1.25
+        self.parking_reverse_in_target_angle_deg = 50.0
+        self.parking_reverse_in_yaw_tolerance_deg = 2.0
 
-        # --- NEW: Parameters for Dynamic Tilt Stabilization ---
-        self.declare_parameter('enable_dynamic_tilt', True)
-        self.declare_parameter('tilt_center_position', 1500)
-        self.declare_parameter('tilt_max_position', 2500)
-        self.declare_parameter('tilt_min_position', 500)
-        self.declare_parameter('tilt_update_interval_ms', 100) # Update tilt every 100ms (10Hz)
+        # --- Legacy Determine Course ---
+        self.course_detection_threshold_m = 1.5
+        self.course_detection_slow_speed = 0.1
+        self.course_detection_speed = 0.17
+        self.roi_left = [150, 50, 90, 430]
+        self.roi_right = [290, 50, 90, 430]
+        self.detection_pixel_threshold = 500
+        self.detection_samples = 5 # Number of frames to sample for majority vote
+        self.initial_approach_target_dist_inner_ccw_m = 0.3
+        self.initial_approach_target_dist_inner_cw_m = 0.25
+        self.initial_approach_target_dist_outer_m = 0.6
+        self.initial_approach_target_dist_inner_m = 0.275
 
-        self.declare_parameter('image_width', 640)
+        # 4. INTERNAL STATE VARIABLES
+        # ===========================
+        # These are modified during runtime
+        self.current_yaw_deg = 0.0
+        self.latest_scan_msg = None
+        self.latest_frame = None
 
-        self.declare_parameter('roi_planning_ccw_inner_flat', [225, 30, 0, 480, 640, 480, 480, 30])
-        self.declare_parameter('roi_planning_ccw_inner_start_area_flat', [225, 30, 0, 480, 560, 480, 320, 30])
-        self.declare_parameter('roi_planning_ccw_outer_flat', [220, 15, 100, 260, 525, 260, 440, 15])
-        self.declare_parameter('roi_planning_ccw_outer_start_area_flat', [220, 15, 100, 260, 425, 260, 300, 15])
-        self.declare_parameter('roi_planning_cw_inner_flat', [160, 30, 0, 480, 640, 480, 400, 30])
-        self.declare_parameter('roi_planning_cw_inner_start_area_flat', [320, 30, 80, 480, 640, 480, 400, 30])
-        self.declare_parameter('roi_planning_cw_outer_flat', [160, 15, 120, 260, 545, 260, 380, 15])
-        self.declare_parameter('roi_planning_cw_outer_start_area_flat', [280, 15, 150, 260, 545, 260, 380, 15])
+        # Rate Limiter state
+        self.last_published_linear = 0.0
+        self.last_published_angular = 0.0
+        self.last_cmd_pub_time = self.get_clock().now()
 
-        # --- Course Detection Parameters ---
-        self.declare_parameter('course_detection_threshold_m', 1.5)
-        self.declare_parameter('course_detection_slow_speed', 0.1)
-        self.declare_parameter('course_detection_speed', 0.17)
-        self.declare_parameter('initial_approach_target_dist_inner_ccw_m', 0.3)
-        self.declare_parameter('initial_approach_target_dist_inner_cw_m', 0.25)
-        self.declare_parameter('initial_approach_target_dist_outer_m', 0.6)
+        # Dynamic Tilt state
+        self.servo_units_per_degree = 1000.0 / 90.0
+        self.last_tilt_update_time = self.get_clock().now()
+        self.last_sent_tilt_position = -1 # Initialize with an invalid value
 
-        # --- NEW: Vision Processing Parameters (from initial_obstacle_detection_node) ---
-        """
-        self.declare_parameter('red_lower1', [0, 50, 70])
-        self.declare_parameter('red_upper1', [4, 255, 255])
-        self.declare_parameter('red_lower2', [174, 50, 70])
-        self.declare_parameter('red_upper2', [179, 255, 255])
-        self.declare_parameter('green_lower', [60, 40, 90])
-        self.declare_parameter('green_upper', [93, 230, 255])
-        """
+        # General state flags and counters
+        self.turn_count = 0
+        self.wall_segment_index = 0
+        self.is_passing_obstacle = False
+        self.can_start_new_turn = True
+        self.camera_init_sent = False
+        self.inner_wall_far_counter = 0
+        self.stable_alignment_counter = 0
+        self.lane_change_stability_counter = 0
+        self.last_avoidance_path_was_outer = True
+        self.initial_position_is_near = True
+        self.initial_path_is_left = True
+        self.initial_path_is_straight = False
+        self.start_area_avoidance_required = False
+        self.last_valid_steer = 0.0
+        self.is_in_avoidance_alignment = False
 
-        self.declare_parameter('red_lower1', [0, 100, 80])
-        self.declare_parameter('red_upper1', [3, 255, 243])
-        self.declare_parameter('red_lower2', [174, 100, 80])
-        self.declare_parameter('red_upper2', [179, 255, 243])
-        self.declare_parameter('green_lower', [55, 100, 67])
-        self.declare_parameter('green_upper', [80, 255, 240])
+        # State-specific variables
+        self.unparking_base_yaw_deg = 0.0
+        self.pre_detection_step = 0 # 0=start, 1=waiting
+        self.pre_detection_timer = None
+        self.direction_detection_patience_counter = 0
+        self.has_obstacle_at_parking_exit = False
+        self.image_acquisition_retries = 0
+        self.approach_base_yaw_deg = 0.0
+        self.execute_turn_phase = 0 # 0: Forward, 1: Turning
+        self.pre_parking_step = 0
+        self.detection_results = []
 
-        self.declare_parameter('roi_left', [150, 50, 90, 430])
-        self.declare_parameter('roi_right', [290, 50, 90, 430])
-        self.declare_parameter('detection_pixel_threshold', 500)
-        self.declare_parameter('detection_samples', 5) # Number of frames to sample for majority vote
+        # Planning state variables
+        self.planning_initiated = False
+        self.planning_detection_threshold = 570
+        self.planning_detection_threshold_outer_path_multiplier = 0.7
+        self.post_planning_reverse_target_dist_m = 0.7 
+        self.planning_scan_roi_flat = [200, 0, 120, 480, 440, 480, 360, 0] # [x, y, width, height]
+        self.planning_scan_interval = 2
+        self.planning_scan_stop_dist = 0.25
+        self.planning_scan_stop_dist_start_area = 0.38
+        self.planning_scan_start_dist_m = 0.5
+        self.planning_camera_wait_timer = None
+        self.is_sampling_for_planning = False 
+        self.is_sampling_for_planning = False 
+        self.max_red_blob_area = 0.0
+        self.max_green_blob_area = 0.0
+        self.max_red_blob_sample_num = 0
+        self.max_green_blob_sample_num = 0
 
-        # --- NEW: Parameters for Simplified Turning Maneuver ---
-        self.declare_parameter('turn_forward_speed', 0.15)
-        self.declare_parameter('turn_speed', 0.15)
-        self.declare_parameter('turn_start_dist_outer_m', 0.33)
-        self.declare_parameter('turn_start_dist_outer_start_area_m', 0.57)
-        self.declare_parameter('turn_start_dist_inner_m', 1.0)
-        self.declare_parameter('turn_completion_yaw_threshold_deg', 15.0)
+        # 5. CORE COMPONENTS
+        # ==================
+        self.state_lock = threading.RLock()
+        self.bridge = CvBridge()
 
-        # --- Driving Logic Parameters ---
-        self.declare_parameter('forward_speed', 0.2)
-        self.declare_parameter('max_steer', 1.5)
-        self.declare_parameter('gain', 2.0)
-        self.declare_parameter('direction', 'cw')
 
-        # NEW: Parameter for the required clearance distance from an obstacle
-        self.declare_parameter('obstacle_clearance_dist_m', 0.67)
+        # 6. SYSTEM INITIALIZATION CALLS
+        # ==============================
+        self._load_parameters() # Load all declared parameters into self.xxx variables
+        self._initialize_variables()
 
-        # --- NEW: Parameters for Avoidance Control ---
-        self.declare_parameter('avoid_target_outer_dist_m', 0.2)
-        self.declare_parameter('avoid_kp_angle', 0.03) # P-gain for yaw control
-        self.declare_parameter('avoid_kp_dist', 1.5)  # P-gain for distance control
-        self.declare_parameter('avoid_speed', 0.2)
-        self.declare_parameter('avoid_inner_pass_thresh_m', 0.6)
-
-        # --- NEW: Parameters for Avoidance Sequence Control ---
-        self.declare_parameter('avoid_turn_in_kp_angle', 0.04)
-        self.declare_parameter('avoid_turn_in_yaw_tolerance_deg', 5.0)
-
-        # --- NEW: Parameters for Simplified Avoidance Sequence ---
-        self.declare_parameter('avoid_outer_approach_angle_deg', 40.0)
-        self.declare_parameter('avoid_outer_approach_target_dist_m', 0.23)
-
-        self.declare_parameter('avoid_outer_approach_target_dist_start_area_m', 0.45)
-
-        self.declare_parameter('avoid_inner_approach_angle_deg', 40.0)
-        self.declare_parameter('avoid_inner_approach_target_dist_m', 0.25)
-
-        # self.declare_parameter('avoidance_path_plan', ['outer', 'inner_to_outer', 'outer_to_inner', 'inner'])
-        self.declare_parameter('avoidance_path_plan', ['', '', '', ''])
-        self.declare_parameter('entrance_obstacle_plan', [False, False, False, False])
-
-        self.declare_parameter('parking_approach_ccw_dist_min_m', 0.6)
-        self.declare_parameter('parking_approach_ccw_dist_max_m', 0.7)
-        self.declare_parameter('parking_approach_cw_overshoot_dist_m', 1.0)
-        self.declare_parameter('parking_approach_cw_final_dist_min_m', 1.15)
-        self.declare_parameter('parking_approach_cw_final_dist_max_m', 1.25)
-        self.declare_parameter('parking_reverse_in_target_angle_deg', 50.0)
-        self.declare_parameter('parking_reverse_in_yaw_tolerance_deg', 2.0)
-
-        # --- NEW: Parameters for PID-based Wall Following ---
-        self.declare_parameter('align_target_inner_dist_m', 0.2)
-        self.declare_parameter('align_dist_tolerance_m', 0.005)
-        self.declare_parameter('align_kp_angle', 0.04)
-        self.declare_parameter('align_kp_dist', 7.5)
-        self.declare_parameter('align_target_outer_dist_m', 0.2)
-        self.declare_parameter('align_target_outer_dist_start_area_m', 0.39)
-
-        self.declare_parameter('save_debug_images', True, )
-        self.declare_parameter('debug_image_path', '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images', )
-
-        self.declare_parameter('log_level', 'DEBUG') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
-
-        # --- NEW: Rate Limiter (Smoother) Parameters & Variables ---
-        self.declare_parameter('max_linear_acceleration', 3000.0) # m/s^2 30
-        self.declare_parameter('max_angular_acceleration_rad', 7000.0) # rad/s^2 70
-
-        # Load all parameters
-        self._load_parameters()
-
+        # Set initial state AFTER loading parameters
         if self.start_from_parking:
             self.get_logger().info("###########################################")
             self.get_logger().info("##  START MODE: From Parking Area        ##")
@@ -243,97 +319,14 @@ class ObstacleNavigatorNode(Node):
             self.state = State.DETERMINE_COURSE
             # For the legacy start, we need to wait for the controller inside DETERMINE_COURSE
             self.determine_course_sub_state = DetermineCourseSubState.WAITING_FOR_CONTROLLER
-
-        # --- initialize the image directory ---
-        self._initialize_debug_directory()
-
-        self.max_valid_range_m = 3.0
-
-        self.detection_wait_timer = None
-        self.first_obstacle_detected = False
-        self.unparking_base_yaw_deg = 0.0
-
-        # --- Internal State Variables ---
-        self.pre_detection_step = 0 # ADDED: 0=start, 1=waiting
-        self.pre_detection_timer = None
-        self.has_obstacle_at_parking_exit = False
-
-        self.post_planning_reverse_target_dist_m = 0.7 
-
-        self.direction_detection_patience_counter = 0
-        self.inner_wall_far_counter = 0
-        self.turn_count = 0
-        self.wall_segment_index = 0
-        self.approach_base_yaw_deg = 0.0
-        self.last_valid_steer = 0.0
-        self.current_yaw_deg = 0.0
-
-        self.latest_scan_msg = None
-        self.is_passing_obstacle = False
-        self.can_start_new_turn = True
-
-        self.last_avoidance_path_was_outer = True
-        self.initial_position_is_near = True
-        self.initial_path_is_left = True
-        self.initial_path_is_straight = False
-        self.start_area_avoidance_required = False
-        self.camera_init_sent = False
-
-        # Variables for color detection logic
-        self.latest_frame = None
-        # This list now stores raw area data for stationary detection (initial)
-        self.detection_results = []
-
-        self.planning_scan_roi_flat = [200, 0, 120, 480, 440, 480, 360, 0] # [x, y, width, height]
-        self.max_red_blob_area = 0.0
-        self.max_green_blob_area = 0.0
-        self.max_red_blob_sample_num = 0
-        self.max_green_blob_sample_num = 0
-
-        self.planning_scan_interval = 2
-        self.planning_scan_stop_dist = 0.25
-        self.planning_scan_stop_dist_start_area = 0.38
-        self.planning_scan_start_dist_m = 0.5
-
-        self.planning_camera_wait_timer = None
-        self.is_sampling_for_planning = False 
-
-        self.is_sampling_for_planning = False 
-        self.planning_initiated = False
-        self.pre_scanning_reverse_target_dist_m = 0.7
-
-        self.pre_parking_step = 0
         
-        self.last_published_linear = 0.0
-        self.last_published_angular = 0.0
-
-        # --- NEW: Internal variables for dynamic tilt ---
-        self.servo_units_per_degree = 1000.0 / 90.0
-        self.last_tilt_update_time = self.get_clock().now()
-        self.last_sent_tilt_position = -1 # Initialize with an invalid value
-
-        self.initial_approach_target_dist_inner_m = 27.5
-
-        self.gain_straight_align_outer_wall = 1.0
-        self.gain_straight_align_inner_wall = 1.0
-        self.gain_straight_outer_turn_in = 1.0
-
-        self.is_in_avoidance_alignment = False
-        self.stable_alignment_counter = 0
-        self.lane_change_stability_counter = 0
-
-        # --- System Setup ---
-        self.state_lock = threading.RLock()
-        self.bridge = CvBridge()
+        self._initialize_debug_directory()
         self._setup_ros_communications()
         self.controller_ready_client = self.create_client(Trigger, '/ros_robot_controller/init_finish')
 
-        # --- NEW: Throttling for command publishing ---
-        # Only publish commands at a maximum rate of ~30Hz (33ms interval)
-        # to avoid flooding the serial port of the controller.
-        self.cmd_pub_interval_ms = 33 # 33 
-        self.last_cmd_pub_time = self.get_clock().now()
 
+        # 7. MAIN LOOP TIMER
+        # ==================
         control_loop_rate = 50.0 # Hz
         self.control_loop_timer = self.create_timer(
             1.0 / control_loop_rate,
@@ -342,136 +335,23 @@ class ObstacleNavigatorNode(Node):
 
         self.get_logger().info(f'Course Detector Node started. Initial state: {self.state.name}')
 
-
     def _load_parameters(self):
-        """Loads all ROS2 parameters into class variables."""
-        self.unparking_exit_straight_dist_m = self.get_parameter('unparking_exit_straight_dist_m').get_parameter_value().double_value
-        self.unparking_speed = self.get_parameter('unparking_speed').get_parameter_value().double_value
-        self.unparking_initial_turn_deg = self.get_parameter('unparking_initial_turn_deg').get_parameter_value().double_value
-
-        self.start_from_parking = self.get_parameter('start_from_parking').get_parameter_value().bool_value
-        self.correct_mirrored_scan = self.get_parameter('correct_mirrored_scan').get_parameter_value().bool_value
-
-        self.pan_servo_id = self.get_parameter('pan_servo_id').get_parameter_value().integer_value
-        self.tilt_servo_id = self.get_parameter('tilt_servo_id').get_parameter_value().integer_value
-        self.initial_pan_position = self.get_parameter('initial_pan_position').get_parameter_value().integer_value
-        self.camera_move_duration = self.get_parameter('camera_move_duration_sec').get_parameter_value().double_value
-        self.planning_detection_threshold = self.get_parameter('planning_detection_threshold').get_parameter_value().integer_value 
-        self.planning_detection_threshold_outer_path_multiplier = self.get_parameter('planning_detection_threshold_outer_path_multiplier').get_parameter_value().double_value
-
-
-        self.tilt_position_cw = self.get_parameter('tilt_position_cw').get_parameter_value().integer_value
-        self.tilt_position_ccw = self.get_parameter('tilt_position_ccw').get_parameter_value().integer_value
-
-        self.enable_dynamic_tilt = self.get_parameter('enable_dynamic_tilt').get_parameter_value().bool_value
-        self.tilt_center_position = self.get_parameter('tilt_center_position').get_parameter_value().integer_value
-        self.tilt_max_position = self.get_parameter('tilt_max_position').get_parameter_value().integer_value
-        self.tilt_min_position = self.get_parameter('tilt_min_position').get_parameter_value().integer_value
-        self.tilt_update_interval_ms = self.get_parameter('tilt_update_interval_ms').get_parameter_value().integer_value
-
-        self.image_width = self.get_parameter('image_width').get_parameter_value().integer_value
-
-        self.roi_planning_ccw_inner_flat = self.get_parameter('roi_planning_ccw_inner_flat').get_parameter_value().integer_array_value
-        self.roi_planning_ccw_inner_start_area_flat = self.get_parameter('roi_planning_ccw_inner_start_area_flat').get_parameter_value().integer_array_value
-        self.roi_planning_ccw_outer_flat = self.get_parameter('roi_planning_ccw_outer_flat').get_parameter_value().integer_array_value
-        self.roi_planning_ccw_outer_start_area_flat = self.get_parameter('roi_planning_ccw_outer_start_area_flat').get_parameter_value().integer_array_value
-        self.roi_planning_cw_inner_flat = self.get_parameter('roi_planning_cw_inner_flat').get_parameter_value().integer_array_value
-        self.roi_planning_cw_inner_start_area_flat = self.get_parameter('roi_planning_cw_inner_start_area_flat').get_parameter_value().integer_array_value
-        self.roi_planning_cw_outer_flat = self.get_parameter('roi_planning_cw_outer_flat').get_parameter_value().integer_array_value
-        self.roi_planning_cw_outer_start_area_flat = self.get_parameter('roi_planning_cw_outer_start_area_flat').get_parameter_value().integer_array_value
-
-        self.course_detection_threshold_m = self.get_parameter('course_detection_threshold_m').get_parameter_value().double_value
-        self.course_detection_speed = self.get_parameter('course_detection_speed').get_parameter_value().double_value
-        self.course_detection_slow_speed = self.get_parameter('course_detection_slow_speed').get_parameter_value().double_value
-        self.initial_approach_target_dist_inner_ccw_m = self.get_parameter('initial_approach_target_dist_inner_ccw_m').get_parameter_value().double_value
-        self.initial_approach_target_dist_inner_cw_m = self.get_parameter('initial_approach_target_dist_inner_cw_m').get_parameter_value().double_value
-        self.initial_approach_target_dist_outer_m = self.get_parameter('initial_approach_target_dist_outer_m').get_parameter_value().double_value
-
-        self.red_lower1 = np.array(self.get_parameter('red_lower1').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.red_upper1 = np.array(self.get_parameter('red_upper1').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.red_lower2 = np.array(self.get_parameter('red_lower2').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.red_upper2 = np.array(self.get_parameter('red_upper2').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.green_lower = np.array(self.get_parameter('green_lower').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.green_upper = np.array(self.get_parameter('green_upper').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.roi_left = self.get_parameter('roi_left').get_parameter_value().integer_array_value
-        self.roi_right = self.get_parameter('roi_right').get_parameter_value().integer_array_value
-        self.detection_threshold = self.get_parameter('detection_pixel_threshold').get_parameter_value().integer_value
-        self.detection_samples = self.get_parameter('detection_samples').get_parameter_value().integer_value
-
-        self.turn_forward_speed = self.get_parameter('turn_forward_speed').get_parameter_value().double_value
-        self.turn_speed = self.get_parameter('turn_speed').get_parameter_value().double_value
-        self.turn_start_dist_outer_m = self.get_parameter('turn_start_dist_outer_m').get_parameter_value().double_value
-        self.turn_start_dist_outer_start_area_m = self.get_parameter('turn_start_dist_outer_start_area_m').get_parameter_value().double_value
-        self.turn_start_dist_inner_m = self.get_parameter('turn_start_dist_inner_m').get_parameter_value().double_value
-        self.turn_completion_yaw_threshold_deg = self.get_parameter('turn_completion_yaw_threshold_deg').get_parameter_value().double_value
-
-        # Driving
-        self.forward_speed = self.get_parameter('forward_speed').get_parameter_value().double_value
-        self.max_steer = self.get_parameter('max_steer').get_parameter_value().double_value
         self.gain = self.get_parameter('gain').get_parameter_value().double_value
-        self.direction = self.get_parameter('direction').get_parameter_value().string_value
-        
-        self.obstacle_clearance_dist_m = self.get_parameter('obstacle_clearance_dist_m').get_parameter_value().double_value
 
-        # NEW: Load avoidance parameters
-        self.avoid_target_outer_dist_m = self.get_parameter('avoid_target_outer_dist_m').get_parameter_value().double_value
-        self.avoid_kp_angle = self.get_parameter('avoid_kp_angle').get_parameter_value().double_value
-        self.avoid_kp_dist = self.get_parameter('avoid_kp_dist').get_parameter_value().double_value
-        self.avoid_speed = self.get_parameter('avoid_speed').get_parameter_value().double_value
-        self.avoid_inner_pass_thresh_m = self.get_parameter('avoid_inner_pass_thresh_m').get_parameter_value().double_value
+    def _initialize_variables(self):
+        """
+        Performs post-processing on variables after they are defined.
+        e.g., converting lists to numpy arrays for OpenCV.
+        """
+        # Convert color threshold lists to numpy arrays
+        self.red_lower1 = np.array(self.red_lower1, dtype=np.uint8)
+        self.red_upper1 = np.array(self.red_upper1, dtype=np.uint8)
+        self.red_lower2 = np.array(self.red_lower2, dtype=np.uint8)
+        self.red_upper2 = np.array(self.red_upper2, dtype=np.uint8)
+        self.green_lower = np.array(self.green_lower, dtype=np.uint8)
+        self.green_upper = np.array(self.green_upper, dtype=np.uint8)
 
-        self.avoid_turn_in_kp_angle = self.get_parameter('avoid_turn_in_kp_angle').get_parameter_value().double_value
-        self.avoid_turn_in_yaw_tolerance_deg = self.get_parameter('avoid_turn_in_yaw_tolerance_deg').get_parameter_value().double_value
-
-        self.avoid_approach_angle_deg = self.get_parameter('avoid_outer_approach_angle_deg').get_parameter_value().double_value
-        self.avoid_approach_target_dist_m = self.get_parameter('avoid_outer_approach_target_dist_m').get_parameter_value().double_value
-        self.avoid_outer_approach_target_dist_start_area_m = self.get_parameter('avoid_outer_approach_target_dist_start_area_m').get_parameter_value().double_value
-
-        self.avoid_inner_approach_angle_deg = self.get_parameter('avoid_inner_approach_angle_deg').get_parameter_value().double_value
-        self.avoid_inner_approach_target_dist_m = self.get_parameter('avoid_inner_approach_target_dist_m').get_parameter_value().double_value
-
-        self.align_target_inner_dist_m = self.get_parameter('align_target_inner_dist_m').get_parameter_value().double_value
-        self.align_dist_tolerance_m = self.get_parameter('align_dist_tolerance_m').get_parameter_value().double_value
-        self.align_kp_angle = self.get_parameter('align_kp_angle').get_parameter_value().double_value
-        self.align_kp_dist = self.get_parameter('align_kp_dist').get_parameter_value().double_value
-        self.align_target_outer_dist_m = self.get_parameter('align_target_outer_dist_m').get_parameter_value().double_value
-        self.align_target_outer_dist_start_area_m = self.get_parameter('align_target_outer_dist_start_area_m').get_parameter_value().double_value
-
-        self.avoidance_path_plan = self.get_parameter('avoidance_path_plan').get_parameter_value().string_array_value
-        self.entrance_obstacle_plan = self.get_parameter('entrance_obstacle_plan').get_parameter_value().bool_array_value
-
-        self.parking_approach_ccw_dist_min_m = self.get_parameter('parking_approach_ccw_dist_min_m').get_parameter_value().double_value
-        self.parking_approach_ccw_dist_max_m = self.get_parameter('parking_approach_ccw_dist_max_m').get_parameter_value().double_value
-        self.parking_approach_cw_overshoot_dist_m = self.get_parameter('parking_approach_cw_overshoot_dist_m').get_parameter_value().double_value
-        self.parking_approach_cw_final_dist_min_m = self.get_parameter('parking_approach_cw_final_dist_min_m').get_parameter_value().double_value
-        self.parking_approach_cw_final_dist_max_m = self.get_parameter('parking_approach_cw_final_dist_max_m').get_parameter_value().double_value
-        self.parking_reverse_in_target_angle_deg = self.get_parameter('parking_reverse_in_target_angle_deg').get_parameter_value().double_value
-        self.parking_reverse_in_yaw_tolerance_deg = self.get_parameter('parking_reverse_in_yaw_tolerance_deg').get_parameter_value().double_value
-
-        self.save_debug_images = self.get_parameter('save_debug_images').get_parameter_value().bool_value
-        self.debug_image_path = self.get_parameter('debug_image_path').get_parameter_value().string_value
-
-        log_level_str = self.get_parameter('log_level').get_parameter_value().string_value
-        log_level_map = {
-            'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
-            'INFO': rclpy.logging.LoggingSeverity.INFO,
-            'WARN': rclpy.logging.LoggingSeverity.WARN,
-            'ERROR': rclpy.logging.LoggingSeverity.ERROR,
-        }
-        log_level = log_level_map.get(log_level_str.upper(), rclpy.logging.LoggingSeverity.INFO)
-        self.get_logger().set_level(log_level)
-        self.get_logger().info(f"Logger level set to {log_level_str.upper()}")
-
-        self.max_linear_acceleration = self.get_parameter('max_linear_acceleration').get_parameter_value().double_value
-        self.max_angular_acceleration_rad = self.get_parameter('max_angular_acceleration_rad').get_parameter_value().double_value
-
-        self.get_logger().info("--- Parameters Initialized ---")
-        self.get_logger().info(f"Direction: '{self.direction}'")
-        self.get_logger().info(f"Base Speed: {self.forward_speed}, Gain: {self.gain}")
-        self.get_logger().info(f"Inner Wall Threshold: {self.inner_wall_disappear_threshold} m")
-        self.get_logger().info(f"Will stop after {self.max_turns} turns.")
-        self.get_logger().info(f"Loaded avoidance path plan: {self.avoidance_path_plan}")
-        self.get_logger().info("----------------------------")
+        self.get_logger().info("Internal variables initialized (e.g., numpy conversions).")
 
     def _initialize_debug_directory(self):
         """
@@ -495,29 +375,6 @@ class ObstacleNavigatorNode(Node):
 
         except Exception as e:
             self.get_logger().error(f"Failed to initialize debug directory at {self.debug_image_path}: {e}")
-
-    def _correct_mirrored_scan(self, msg: LaserScan) -> LaserScan:
-        """
-        Corrects a mirrored (clockwise) LaserScan message by reversing its data arrays.
-        This function creates a new message and does not modify the original.
-        """
-        corrected_msg = LaserScan()
-        # Copy all header and metadata fields
-        corrected_msg.header = msg.header
-        corrected_msg.angle_min = msg.angle_min
-        corrected_msg.angle_max = msg.angle_max
-        corrected_msg.angle_increment = msg.angle_increment
-        corrected_msg.time_increment = msg.time_increment
-        corrected_msg.scan_time = msg.scan_time
-        corrected_msg.range_min = msg.range_min
-        corrected_msg.range_max = msg.range_max
-        
-        # Reverse the main data arrays
-        corrected_msg.ranges = list(reversed(msg.ranges))
-        if msg.intensities:
-            corrected_msg.intensities = list(reversed(msg.intensities))
-            
-        return corrected_msg
 
     def _setup_ros_communications(self):
         # --- QoS profile for reliable command velocity publishing ---
@@ -570,44 +427,12 @@ class ObstacleNavigatorNode(Node):
         )
         rclpy.get_default_context().on_shutdown(self.shutdown_callback)
 
-    def wait_for_controller_ready(self):
-        """
-        Waits until the ros_robot_controller node reports that it is ready.
-        """
-        self.get_logger().info("Waiting for ros_robot_controller to be ready...")
-        client = self.create_client(Trigger, '/ros_robot_controller/init_finish')
-        while not client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('Controller service not available, waiting again...')
-        
-        request = Trigger.Request()
-        future = client.call_async(request)
-        rclpy.spin_until_future_complete(self, future)
-        
-        if future.result() is not None and future.result().success:
-            self.get_logger().info("ros_robot_controller is ready. Starting navigation.")
-        else:
-            self.get_logger().error("Failed to confirm controller readiness. The node might not function correctly.")
-
-    # --- Main Callback and State Dispatcher ---
-    def scan_callback(self, msg):
-        """Callback for LaserScan data. Only saves the latest message."""
+    def shutdown_callback(self):
         with self.state_lock:
-            if not msg.ranges:
-                return
+            self.publish_twist_with_gain(0.0, 0.0)
 
-            # msg.ranges is often a tuple, so we convert to a list for modification
-            ranges = list(msg.ranges)
-            for i in range(len(ranges)):
-                if ranges[i] > self.max_valid_range_m:
-                    ranges[i] = math.inf
-            # Assign the modified list back to the message
-            msg.ranges = ranges
 
-            if self.correct_mirrored_scan:
-                self.latest_scan_msg = self._correct_mirrored_scan(msg)
-            else:
-                self.latest_scan_msg = msg
-
+    # --- Main Loop & Sensor Callbacks ---
     def control_loop_callback(self):
         """
         Main logic loop, running at a high frequency (e.g., 50Hz).
@@ -639,6 +464,25 @@ class ObstacleNavigatorNode(Node):
             elif self.state == State.PARKING:
                 self._handle_state_parking(msg)
 
+    def scan_callback(self, msg):
+        """Callback for LaserScan data. Only saves the latest message."""
+        with self.state_lock:
+            if not msg.ranges:
+                return
+
+            # msg.ranges is often a tuple, so we convert to a list for modification
+            ranges = list(msg.ranges)
+            for i in range(len(ranges)):
+                if ranges[i] > self.max_valid_range_m:
+                    ranges[i] = math.inf
+            # Assign the modified list back to the message
+            msg.ranges = ranges
+
+            if self.correct_mirrored_scan:
+                self.latest_scan_msg = self._correct_mirrored_scan(msg)
+            else:
+                self.latest_scan_msg = msg
+
     def yaw_callback(self, msg):
         with self.state_lock:
             self.current_yaw_deg = msg.data
@@ -652,159 +496,8 @@ class ObstacleNavigatorNode(Node):
             except CvBridgeError as e:
                 self.get_logger().error(f'CV Bridge Error: {e}')
 
-    def _process_pre_unparking_image_callback(self):
-        """
-        Callback for pre-unparking detection. Processes the image, logs the result,
-        and transitions to the next sub-state (INITIAL_TURN).
-        Includes a retry mechanism for image acquisition.
-        """
-        with self.state_lock:
-            # Clean up the primary timer if it exists.
-            if self.pre_detection_timer:
-                self.pre_detection_timer.destroy()
-                self.pre_detection_timer = None
 
-            if self.unparking_sub_state != UnparkingSubState.PRE_UNPARKING_DETECTION:
-                return
-            
-            if self.pre_detection_step != 1:
-                return
-
-            # --- ADDED: Frame acquisition check with retry logic ---
-            max_retries = 10 # Try for 0.5 seconds (10 * 50ms)
-            if self.latest_frame is None:
-                if self.image_acquisition_retries < max_retries:
-                    self.image_acquisition_retries += 1
-                    self.get_logger().warn(
-                        f"Frame not available yet. Retrying in 50ms... ({self.image_acquisition_retries}/{max_retries})"
-                    )
-                    # Create a short timer to try again
-                    self.pre_detection_timer = self.create_timer(
-                        0.05, # 50ms
-                        self._process_pre_unparking_image_callback
-                    )
-                    return # Exit the function and wait for the retry timer
-                else:
-                    self.get_logger().error(
-                        "Failed to acquire image after multiple retries. Aborting unparking."
-                    )
-                    self.state = State.FINISHED
-                    return
-            # --- END OF ADDED SECTION ---
-
-            self.get_logger().info("PRE-UNPARKING DETECT (Step 1): Image acquired. Processing image...")
-            
-            # Reset retry counter for the next time
-            self.image_acquisition_retries = 0
-            
-            dominant_color, max_red_area, max_green_area = self._find_and_save_dominant_blob(
-                frame_rgb=self.latest_frame,
-                turn_count=0,
-                base_name="pre_unparking_detection"
-            )
-            
-            dominant_color, max_red_area, max_green_area = self._find_and_save_dominant_blob(
-                frame_rgb=self.latest_frame,
-                turn_count=0,
-                base_name="pre_unparking_detection" # Use a new name for the saved files
-            )
-
-            close_obstacle_threshold = 3500.0
-            # Check if EITHER red or green blob is larger than the threshold
-            largest_blob_size = max(max_red_area, max_green_area)
-
-            if largest_blob_size >= close_obstacle_threshold:
-                self.has_obstacle_at_parking_exit = True
-                self.get_logger().error( # Use ERROR level for high importance
-                    f"!!! SPECIAL AVOIDANCE REQUIRED !!! Obstacle is very close (Max Blob: {largest_blob_size:.0f})."
-                )
-            else:
-                self.has_obstacle_at_parking_exit = False
-                self.get_logger().info(
-                    f"Standard unparking procedure. Obstacle is at a safe distance (Max Blob: {largest_blob_size:.0f})."
-                )
-
-            # --- ADDED: Determine Unparking Strategy based on the 3 conditions ---
-            strategy = UnparkingStrategy.UNDEFINED # Default to undefined
-
-            # --- Pattern 1 Logic ---
-            is_pattern1_case1 = self.direction == 'cw' and dominant_color == 'green'
-            is_pattern1_case2 = self.direction == 'ccw' and dominant_color == 'red'
-            is_pattern1_case3 = self.direction == 'ccw' and dominant_color == 'green' and not self.has_obstacle_at_parking_exit
-            if is_pattern1_case1 or is_pattern1_case2 or is_pattern1_case3:
-                strategy = UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE
-
-            # --- Pattern 2 Logic ---
-            is_pattern2 = self.direction == 'cw' and dominant_color == 'red' and not self.has_obstacle_at_parking_exit
-            if is_pattern2:
-                strategy = UnparkingStrategy.STANDARD_EXIT_TO_INNER_LANE
-
-            # --- Pattern 3 Logic ---
-            is_pattern3 = self.direction == 'cw' and dominant_color == 'red' and self.has_obstacle_at_parking_exit
-            if is_pattern3:
-                strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW
-
-            # --- Pattern 4 Logic ---
-            is_pattern4 = self.direction == 'ccw' and dominant_color == 'green' and self.has_obstacle_at_parking_exit
-            if is_pattern4:
-                strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW
-
-            # Store the decided strategy in the class variable for later use
-            self.unparking_strategy = strategy
-            # --- END OF ADDED SECTION ---
-
-            log_message = (
-                f"--- PRE-UNPARKING DETECTION RESULT ---\n"
-                f"      Direction: {self.direction.upper()}\n"
-                f"      Dominant Color Detected: '{dominant_color}'\n"
-                f"      Has Obstacle at Exit: {self.has_obstacle_at_parking_exit}\n"
-                f"      >> Decided Strategy: {self.unparking_strategy.name} <<\n" # Log the decided strategy
-                f"----------------------------------------"
-            )
-            self.get_logger().warn(log_message)
-
-            # Reset step counter for next time this state is entered (good practice)
-            self.pre_detection_step = 0
-
-            # --- Transition to the next step of the unparking sequence ---
-            self.get_logger().info("PRE-UNPARKING DETECT: Detection complete. Transitioning to INITIAL_TURN.")
-            self.unparking_sub_state = UnparkingSubState.INITIAL_TURN
-
-    def shutdown_callback(self):
-        with self.state_lock:
-            self.publish_twist_with_gain(0.0, 0.0)
-
-    def _camera_initialization_complete_callback(self):
-        """
-        Called by a timer after the camera has had time to move.
-        Transitions the state machine to the color detection step and destroys the timer.
-        """
-        with self.state_lock:
-            if self.camera_wait_timer:
-                self.camera_wait_timer.destroy()
-                self.camera_wait_timer = None
-
-            if self.determine_course_sub_state == DetermineCourseSubState.INITIALIZING_CAMERA:
-                self.get_logger().info("Camera initialization complete. Transitioning to DETECTING_OBSTACLE_COLOR.")
-                # MODIFIED: Transition to the correct new state
-                self.determine_course_sub_state = DetermineCourseSubState.DETECTING_OBSTACLE_COLOR
-
-    def _preparation_complete_callback(self):
-        """
-        Called by a timer after the camera movement is complete.
-        Transitions the preparation sub-state to DETERMINE_DIRECTION.
-        """
-        with self.state_lock:
-            if self.camera_wait_timer:
-                self.camera_wait_timer.destroy()
-                self.camera_wait_timer = None
-
-            if self.preparation_sub_state == PreparationSubState.INITIALIZING_CAMERA:
-                self.get_logger().info("PREPARATION: Camera initialization complete.")
-                self.get_logger().info("--- Transitioning to DETERMINE_DIRECTION sub-state ---")
-                self.preparation_sub_state = PreparationSubState.DETERMINE_DIRECTION
-                self.camera_init_sent = False
-
+    # --- Main State Handlers ---
     def _handle_state_preparation(self, msg: LaserScan):
         """Dispatches to the correct handler based on the preparation_sub_state."""
         if self.preparation_sub_state == PreparationSubState.WAITING_FOR_CONTROLLER:
@@ -825,7 +518,6 @@ class ObstacleNavigatorNode(Node):
         elif self.unparking_sub_state == UnparkingSubState.EXIT_STRAIGHT:
             self._handle_unparking_sub_exit_straight(msg)
 
-    # --- State Handler Functions ---
     def _handle_state_determine_course(self, msg: LaserScan):
         """Dispatches to the correct handler based on the determine_course_sub_state."""
         if self.determine_course_sub_state == DetermineCourseSubState.WAITING_FOR_CONTROLLER:
@@ -842,29 +534,6 @@ class ObstacleNavigatorNode(Node):
             self._handle_determine_sub_approach_initial_wall(msg)
         elif self.determine_course_sub_state == DetermineCourseSubState.DETECTING_STRAIGHT:
             self._handle_determine_sub_detecting_straight(msg)
-
-    def _handle_state_finished(self):
-        """Action for the FINISHED state: stop the robot."""
-        self.publish_twist_with_gain(0.0, 0.0)
-
-        # Calculate and log elapsed time, ensuring it only runs once.
-        if self.start_time is not None:
-            end_time = self.get_clock().now()
-            duration_total_seconds = (end_time - self.start_time).nanoseconds / 1e9
-
-            # --- MODIFIED: Calculation for minutes and seconds with one decimal place ---
-            minutes = int(duration_total_seconds // 60)
-            # Use floating point for seconds and then format it
-            seconds = duration_total_seconds % 60
-
-            self.get_logger().info("=============================================")
-            self.get_logger().info("               R U N   F I N I S H E D               ")
-            # Use an f-string with formatting to show one decimal place for seconds
-            self.get_logger().info(f"    Elapsed Time: {minutes} minutes, {seconds:.1f} seconds")
-            self.get_logger().info("=============================================")
-
-            # Set start_time to None to prevent this from running again
-            self.start_time = None
 
     def _handle_state_straight(self, msg):
         """Dispatches to the correct handler based on the straight_sub_state."""
@@ -897,6 +566,32 @@ class ObstacleNavigatorNode(Node):
         elif self.parking_sub_state == ParkingSubState.REVERSE_INTO_SPACE:
             self._handle_parking_sub_reverse_into_space(msg)
 
+    def _handle_state_finished(self):
+        """Action for the FINISHED state: stop the robot."""
+        self.publish_twist_with_gain(0.0, 0.0)
+
+        # Calculate and log elapsed time, ensuring it only runs once.
+        if self.start_time is not None:
+            end_time = self.get_clock().now()
+            duration_total_seconds = (end_time - self.start_time).nanoseconds / 1e9
+
+            # --- MODIFIED: Calculation for minutes and seconds with one decimal place ---
+            minutes = int(duration_total_seconds // 60)
+            # Use floating point for seconds and then format it
+            seconds = duration_total_seconds % 60
+
+            self.get_logger().info("=============================================")
+            self.get_logger().info("               R U N   F I N I S H E D               ")
+            # Use an f-string with formatting to show one decimal place for seconds
+            self.get_logger().info(f"    Elapsed Time: {minutes} minutes, {seconds:.1f} seconds")
+            self.get_logger().info("=============================================")
+
+            # Set start_time to None to prevent this from running again
+            self.start_time = None
+
+
+    # --- Sub-State Handlers ---
+    # --- Preparation Sub-States ---
     def _handle_preparation_sub_waiting_for_controller(self):
         """
         Sub-state: Waits for the controller service to become available, then transitions.
@@ -1003,6 +698,7 @@ class ObstacleNavigatorNode(Node):
                 # A very slow speed just to get a clear reading
                 self.publish_twist_with_gain(0.05, 0.0)
 
+    # --- Unparking Sub-States ---
     def _handle_unparking_sub_pre_unparking_detection(self):
         """
         Sub-state: Aims camera 45 degrees and starts a timer to wait for movement.
@@ -1134,7 +830,6 @@ class ObstacleNavigatorNode(Node):
         reverse_speed = -self.unparking_speed 
         self.publish_twist_with_gain(reverse_speed, 0.0)
 
-
     def _handle_unparking_sub_exit_straight(self, msg: LaserScan):
         """
         Sub-state: Moves straight forward until the side wall is at a specific distance.
@@ -1177,6 +872,7 @@ class ObstacleNavigatorNode(Node):
         straight_speed = self.unparking_speed
         self.publish_twist_with_gain(straight_speed, final_steer)
 
+    # --- Determine Course Sub-States (Legacy) ---
     def _handle_determine_sub_waiting_for_controller(self):
         """
         Sub-state: Waits for the controller service to become available, then transitions.
@@ -1189,7 +885,6 @@ class ObstacleNavigatorNode(Node):
         self.get_logger().info("Controller service is ready. Transitioning to INITIALIZING_CAMERA.")
         self.determine_course_sub_state = DetermineCourseSubState.INITIALIZING_CAMERA
 
-    # NEW: Handler for the PREPARE_TO_START sub-state
     def _handle_determine_sub_initializing_camera(self):
         """
         Sub-state: Sends the command to move the camera to its initial angle
@@ -1249,10 +944,10 @@ class ObstacleNavigatorNode(Node):
         right_areas = detection_data['areas']['right']
         
         # --- MODIFIED: Store detailed detection results ---
-        is_red_left = left_areas['RED'] > self.detection_threshold
-        is_red_right = right_areas['RED'] > self.detection_threshold
-        is_green_left = left_areas['GREEN'] > self.detection_threshold
-        is_green_right = right_areas['GREEN'] > self.detection_threshold
+        is_red_left = left_areas['RED'] > self.detection_pixel_threshold
+        is_red_right = right_areas['RED'] > self.detection_pixel_threshold
+        is_green_left = left_areas['GREEN'] > self.detection_pixel_threshold
+        is_green_right = right_areas['GREEN'] > self.detection_pixel_threshold
 
         result_data = {'color': 'NONE', 'left': False, 'right': False}
         if is_red_left or is_red_right:
@@ -1489,6 +1184,7 @@ class ObstacleNavigatorNode(Node):
             self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=is_following_outer_wall,
                                         speed=self.course_detection_speed)
 
+    # --- Straight Sub-States ---
     def _handle_straight_sub_align_with_outer_wall(self, msg: LaserScan):
         if self._check_for_finish_condition(msg):
             return
@@ -1593,6 +1289,279 @@ class ObstacleNavigatorNode(Node):
         # Driving logic is common for all scenarios.
         speed = self.forward_speed * 0.7 if self.turn_count == 0 else self.forward_speed
         self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=False, speed=speed)
+
+    def _handle_straight_sub_avoid_outer_turn_in(self, msg: LaserScan):
+        """Phase 1: Approach the outer wall, while also checking if the obstacle is passed."""
+        if self._check_for_finish_condition(msg):
+            return
+            
+        base_angle_deg = self._calculate_base_angle()
+    
+        # --- NEW: Update turn permission counter during TURN_IN phase ---
+        self._update_turn_permission_counter(msg, base_angle_deg)
+
+        # Define target yaw and wall measurement angles
+        if self.direction == 'ccw':
+            target_yaw_deg = self._angle_normalize(base_angle_deg - self.avoid_outer_approach_angle_deg)
+            outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+            inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg + 90.0)
+        else: # cw
+            target_yaw_deg = self._angle_normalize(base_angle_deg + self.avoid_outer_approach_angle_deg)
+            outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+            inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg - 90.0)
+
+        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+        inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle_for_pass_check)
+
+        # Monitor for passing the obstacle during the turn-in phase
+        path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='outer')
+
+        if path_type != 'inner_to_outer':
+            if self.is_passing_obstacle:
+                # Check if we have completed the pass MANEUVER during the turn-in
+                if not math.isnan(inner_wall_dist) and inner_wall_dist > self.avoid_inner_pass_thresh_m:
+                    self.get_logger().warn("!!! Obstacle passed completely during TURN_IN phase.")
+                    if path_type == 'outer_to_inner':
+                        self._complete_avoidance_phase(
+                            next_sub_state=StraightSubState.AVOID_INNER_TURN_IN,
+                            path_was_outer=True)
+                    else:
+                        self._complete_avoidance_phase(
+                            next_sub_state=StraightSubState.ALIGN_WITH_OUTER_WALL,
+                            path_was_outer=True)
+                    return
+            else:
+                # Check if we have started passing the obstacle
+                is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 45.0)
+                sum_side_walls_dist = inner_wall_dist + outer_wall_dist
+                if(not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and 
+                    inner_wall_dist < self.avoid_inner_pass_thresh_m and sum_side_walls_dist < 0.7 and 
+                    is_oriented_correctly):
+                    self.get_logger().warn(">>> Passing obstacle now (during TURN_IN)...")
+                    self.is_passing_obstacle = True
+        
+        # --- MODIFIED: Relaxed the isnan check to continue steering ---
+        if math.isnan(outer_wall_dist):
+            self.get_logger().warn("Lost sight of outer wall during approach. Continuing with P-control.", throttle_duration_sec=1.0)
+            # Do not return; allow P-control to continue steering
+        
+        if self.wall_segment_index == 0:
+            approach_target_dist = self.avoid_outer_approach_target_dist_start_area_m
+        else:
+            approach_target_dist = self.avoid_outer_approach_target_dist_m
+
+        is_distance_met = not math.isnan(outer_wall_dist) and outer_wall_dist > 0.0 and outer_wall_dist <= approach_target_dist
+
+        # Check if this maneuver is specifically an 'inner_to_outer' lane change
+        path_type = self._get_path_type_for_segment(self.wall_segment_index)
+        is_specific_lane_change = (path_type == 'inner_to_outer')
+
+        if is_specific_lane_change:
+            # For this specific lane change, we require BOTH distance and stability.
+            is_lane_change_stable = False
+            if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and \
+               (inner_wall_dist + outer_wall_dist) < 1.1:
+                self.lane_change_stability_counter += 1
+            else:
+                pass
+
+            # --- THROTTLED LOGGING ---
+            self.get_logger().debug(
+                f"Lane change [I->O] stability counter: {self.lane_change_stability_counter}",
+                throttle_duration_sec=0.1 # Log every 0.5 seconds
+            )
+
+            if self.lane_change_stability_counter > 25:
+                is_lane_change_stable = True
+            
+            if is_distance_met and is_lane_change_stable:
+                self.get_logger().info(f"Lane change [I->O] complete (Dist & Stable). Transitioning.")
+                self.lane_change_stability_counter = 0
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+                self.is_in_avoidance_alignment = True
+                self.is_passing_obstacle = False
+                self.publish_twist_with_gain(0.0, 0.0)
+                return
+        else:
+            # For simple avoidance (e.g., 'outer'), only the distance matters.
+            if is_distance_met:
+                self.get_logger().info(f"Approach complete (Simple Avoidance, Dist: {outer_wall_dist:.2f}m). Transitioning.")
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+                self.is_in_avoidance_alignment = True
+                self.is_passing_obstacle = False
+                self.publish_twist_with_gain(0.0, 0.0)
+                return
+
+        # P-control to maintain the approach angle
+        error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
+        angular_z = self.avoid_turn_in_kp_angle * error_deg
+        final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
+        
+        self.get_logger().debug(
+            f"AVOID_APPROACH | TargetYaw: {target_yaw_deg:.1f}, "
+            f"CurrentYaw: {self.current_yaw_deg:.1f}, "
+            f"WallDist: {outer_wall_dist:.2f}m | Steer: {final_steer:.2f}",
+            throttle_duration_sec=0.2
+        )
+        
+        self.publish_twist_with_gain(self.avoid_speed, final_steer)
+
+    def _handle_straight_sub_avoid_inner_turn_in(self, msg: LaserScan):
+        """Phase 1: Approach the INNER wall at a fixed angle.
+        Completion is determined by the distance to the OUTER wall.
+        """
+        if self._check_for_finish_condition(msg):
+            return
+
+        base_angle_deg = self._calculate_base_angle()
+
+        # --- NEW: Update turn permission counter during TURN_IN phase ---
+        self._update_turn_permission_counter(msg, base_angle_deg)
+
+        if self.direction == 'ccw':
+            target_yaw_deg = self._angle_normalize(base_angle_deg + self.avoid_inner_approach_angle_deg)
+            outer_wall_angle_for_approach_check = self._angle_normalize(base_angle_deg - 90.0)
+            inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg + 90.0)
+        else: # cw
+            target_yaw_deg = self._angle_normalize(base_angle_deg - self.avoid_inner_approach_angle_deg)
+            outer_wall_angle_for_approach_check = self._angle_normalize(base_angle_deg + 90.0)
+            inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg - 90.0)
+        
+        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle_for_approach_check)
+        inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle_for_pass_check)
+        
+        # Monitor for passing the obstacle during the turn-in phase
+        path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='inner')
+
+        if path_type != 'outer_to_inner':
+            if self.is_passing_obstacle:
+                # Check if we have completed the pass MANEUVER during the turn-in
+                if(not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and 
+                    outer_wall_dist < self.avoid_inner_pass_thresh_m):
+                    self.get_logger().warn("!!! Obstacle passed completely during INNER TURN_IN phase.")
+                    if path_type == 'inner_to_outer':
+                        self._complete_avoidance_phase(
+                            next_sub_state=StraightSubState.AVOID_OUTER_TURN_IN,
+                            path_was_outer=False)
+                    else:
+                        self._complete_avoidance_phase(
+                            next_sub_state=StraightSubState.ALIGN_WITH_INNER_WALL,
+                            path_was_outer=False)
+                    return
+            else:
+                # Check if we have started passing the obstacle (based on outer wall getting close)
+                is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 60.0)
+                sum_side_walls_dist = inner_wall_dist + outer_wall_dist
+                if(not math.isnan(outer_wall_dist) and not math.isnan(inner_wall_dist) 
+                and outer_wall_dist < self.avoid_inner_pass_thresh_m and sum_side_walls_dist < 0.7 and 
+                is_oriented_correctly and self.turn_count != 0):
+                    self.get_logger().warn(">>> Passing obstacle now (during INNER TURN_IN)...")
+                    self.is_passing_obstacle = True
+
+        # Original approach logic
+        if math.isnan(outer_wall_dist):
+            self.get_logger().error("Lost sight of outer wall during inner approach. But Not Stopping.", throttle_duration_sec=1.0)
+            # self.publish_twist_with_gain(0.0, 0.0)
+            # Do not return here, let the P-control continue to steer towards the target yaw
+        
+        effective_dist = 1.0 - outer_wall_dist if not math.isnan(outer_wall_dist) else float('inf')
+        is_distance_met = effective_dist >= 0 and effective_dist <= self.avoid_inner_approach_target_dist_m
+
+        # Check if this maneuver is specifically an 'outer_to_inner' lane change
+        path_type = self._get_path_type_for_segment(self.wall_segment_index)
+        is_specific_lane_change = (path_type == 'outer_to_inner')
+
+        if is_specific_lane_change:
+            # For this specific lane change, we require BOTH distance and stability.
+            is_lane_change_stable = False
+            if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and \
+               (inner_wall_dist + outer_wall_dist) < 1.1:
+                self.lane_change_stability_counter += 1
+            else:
+                pass
+
+            # --- THROTTLED LOGGING ---
+            self.get_logger().debug(
+                f"Lane change [O->I] stability counter: {self.lane_change_stability_counter}",
+                throttle_duration_sec=0.1 # Log every 0.5 seconds
+            )
+            
+            if self.lane_change_stability_counter > 25:
+                is_lane_change_stable = True
+
+            if is_distance_met and is_lane_change_stable:
+                self.get_logger().info(f"Lane change [O->I] complete (Dist & Stable). Transitioning.")
+                self.lane_change_stability_counter = 0
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+                self.is_in_avoidance_alignment = True
+                self.is_passing_obstacle = False
+                self.publish_twist_with_gain(0.0, 0.0)
+                return
+        else:
+            # For simple avoidance (e.g., 'inner'), only the distance matters.
+            if is_distance_met:
+                self.get_logger().info(f"Approach complete (Simple Avoidance, EffectiveDist: {effective_dist:.2f}m). Transitioning.")
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+                self.is_in_avoidance_alignment = True
+                self.is_passing_obstacle = False
+                self.publish_twist_with_gain(0.0, 0.0)
+                return
+
+
+        # P-control to maintain the approach angle
+        error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
+        angular_z = self.avoid_turn_in_kp_angle * error_deg
+        final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
+        
+        self.publish_twist_with_gain(self.avoid_speed, final_steer)
+
+    def _handle_straight_sub_pre_scanning_reverse(self, msg: LaserScan):
+        """
+        Sub-state: Reverses straight back to create space before the move-and-scan phase.
+        """
+        front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
+
+        if math.isnan(front_dist):
+            self.get_logger().warn("Cannot get front distance for reversing. Reversing slowly.", throttle_duration_sec=1.0)
+            self.publish_twist_with_gain(-self.forward_speed * 0.8, 0.0)
+            return
+
+        # --- Reverted to check against a fixed absolute distance ---
+        if front_dist >= self.post_planning_reverse_target_dist_m:
+            self.get_logger().info(f"Reverse complete (Front Dist: {front_dist:.3f}m).")
+            self.get_logger().info("Transitioning to move-and-scan planning phase.")
+            self.state = State.STRAIGHT
+            self.straight_sub_state = StraightSubState.PLAN_NEXT_AVOIDANCE
+            self.publish_twist_with_gain(0.0, 0.0)
+        else:
+            self.get_logger().debug(
+                f"Reversing... Target: > {self.post_planning_reverse_target_dist_m:.2f}m, "
+                f"Current: {front_dist:.3f}m",
+                throttle_duration_sec=0.2
+            )
+            # --- MODIFIED: Use PID alignment for stable reverse movement ---
+            # The driving side depends on the last path taken to reach the corner.
+            if self.last_avoidance_path_was_outer:
+                # If last path was outer, simply follow the outer wall.
+                self._execute_pid_alignment(
+                    msg, 
+                    self.approach_base_yaw_deg, 
+                    is_outer_wall=True,
+                    speed=-self.forward_speed,
+                    disable_dist_control=True
+                )
+            else:
+                # If last path was inner, the inner wall is gone.
+                # Follow the OUTER wall instead, but maintain the ideal inner path distance.
+                override_dist = 1.0 - self.align_target_inner_dist_m
+                self._execute_pid_alignment(
+                    msg,
+                    self.approach_base_yaw_deg,
+                    is_outer_wall=True, # Forcibly use the outer wall for alignment
+                    speed=-self.forward_speed,
+                    override_target_dist=override_dist,
+                    disable_dist_control=True
+                )
 
     def _handle_straight_sub_plan_next_avoidance(self, msg: LaserScan):
         """
@@ -1771,280 +1740,7 @@ class ObstacleNavigatorNode(Node):
         
         self.state = State.TURNING
 
-    def _handle_straight_sub_pre_scanning_reverse(self, msg: LaserScan):
-        """
-        Sub-state: Reverses straight back to create space before the move-and-scan phase.
-        """
-        front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
-
-        if math.isnan(front_dist):
-            self.get_logger().warn("Cannot get front distance for reversing. Reversing slowly.", throttle_duration_sec=1.0)
-            self.publish_twist_with_gain(-self.forward_speed * 0.8, 0.0)
-            return
-
-        # --- Reverted to check against a fixed absolute distance ---
-        if front_dist >= self.post_planning_reverse_target_dist_m:
-            self.get_logger().info(f"Reverse complete (Front Dist: {front_dist:.3f}m).")
-            self.get_logger().info("Transitioning to move-and-scan planning phase.")
-            self.state = State.STRAIGHT
-            self.straight_sub_state = StraightSubState.PLAN_NEXT_AVOIDANCE
-            self.publish_twist_with_gain(0.0, 0.0)
-        else:
-            self.get_logger().debug(
-                f"Reversing... Target: > {self.post_planning_reverse_target_dist_m:.2f}m, "
-                f"Current: {front_dist:.3f}m",
-                throttle_duration_sec=0.2
-            )
-            # --- MODIFIED: Use PID alignment for stable reverse movement ---
-            # The driving side depends on the last path taken to reach the corner.
-            if self.last_avoidance_path_was_outer:
-                # If last path was outer, simply follow the outer wall.
-                self._execute_pid_alignment(
-                    msg, 
-                    self.approach_base_yaw_deg, 
-                    is_outer_wall=True,
-                    speed=-self.forward_speed,
-                    disable_dist_control=True
-                )
-            else:
-                # If last path was inner, the inner wall is gone.
-                # Follow the OUTER wall instead, but maintain the ideal inner path distance.
-                override_dist = 1.0 - self.align_target_inner_dist_m
-                self._execute_pid_alignment(
-                    msg,
-                    self.approach_base_yaw_deg,
-                    is_outer_wall=True, # Forcibly use the outer wall for alignment
-                    speed=-self.forward_speed,
-                    override_target_dist=override_dist,
-                    disable_dist_control=True
-                )
-
-    def _handle_straight_sub_avoid_outer_turn_in(self, msg: LaserScan):
-        """Phase 1: Approach the outer wall, while also checking if the obstacle is passed."""
-        if self._check_for_finish_condition(msg):
-            return
-            
-        base_angle_deg = self._calculate_base_angle()
-    
-        # --- NEW: Update turn permission counter during TURN_IN phase ---
-        self._update_turn_permission_counter(msg, base_angle_deg)
-
-        # Define target yaw and wall measurement angles
-        if self.direction == 'ccw':
-            target_yaw_deg = self._angle_normalize(base_angle_deg - self.avoid_approach_angle_deg)
-            outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
-            inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg + 90.0)
-        else: # cw
-            target_yaw_deg = self._angle_normalize(base_angle_deg + self.avoid_approach_angle_deg)
-            outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
-            inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg - 90.0)
-
-        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
-        inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle_for_pass_check)
-
-        # Monitor for passing the obstacle during the turn-in phase
-        path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='outer')
-
-        if path_type != 'inner_to_outer':
-            if self.is_passing_obstacle:
-                # Check if we have completed the pass MANEUVER during the turn-in
-                if not math.isnan(inner_wall_dist) and inner_wall_dist > self.avoid_inner_pass_thresh_m:
-                    self.get_logger().warn("!!! Obstacle passed completely during TURN_IN phase.")
-                    if path_type == 'outer_to_inner':
-                        self._complete_avoidance_phase(
-                            next_sub_state=StraightSubState.AVOID_INNER_TURN_IN,
-                            path_was_outer=True)
-                    else:
-                        self._complete_avoidance_phase(
-                            next_sub_state=StraightSubState.ALIGN_WITH_OUTER_WALL,
-                            path_was_outer=True)
-                    return
-            else:
-                # Check if we have started passing the obstacle
-                is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 45.0)
-                sum_side_walls_dist = inner_wall_dist + outer_wall_dist
-                if(not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and 
-                    inner_wall_dist < self.avoid_inner_pass_thresh_m and sum_side_walls_dist < 0.7 and 
-                    is_oriented_correctly):
-                    self.get_logger().warn(">>> Passing obstacle now (during TURN_IN)...")
-                    self.is_passing_obstacle = True
-        
-        # --- MODIFIED: Relaxed the isnan check to continue steering ---
-        if math.isnan(outer_wall_dist):
-            self.get_logger().warn("Lost sight of outer wall during approach. Continuing with P-control.", throttle_duration_sec=1.0)
-            # Do not return; allow P-control to continue steering
-        
-        if self.wall_segment_index == 0:
-            approach_target_dist = self.avoid_outer_approach_target_dist_start_area_m
-        else:
-            approach_target_dist = self.avoid_approach_target_dist_m
-
-        is_distance_met = not math.isnan(outer_wall_dist) and outer_wall_dist > 0.0 and outer_wall_dist <= approach_target_dist
-
-        # Check if this maneuver is specifically an 'inner_to_outer' lane change
-        path_type = self._get_path_type_for_segment(self.wall_segment_index)
-        is_specific_lane_change = (path_type == 'inner_to_outer')
-
-        if is_specific_lane_change:
-            # For this specific lane change, we require BOTH distance and stability.
-            is_lane_change_stable = False
-            if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and \
-               (inner_wall_dist + outer_wall_dist) < 1.1:
-                self.lane_change_stability_counter += 1
-            else:
-                pass
-
-            # --- THROTTLED LOGGING ---
-            self.get_logger().debug(
-                f"Lane change [I->O] stability counter: {self.lane_change_stability_counter}",
-                throttle_duration_sec=0.1 # Log every 0.5 seconds
-            )
-
-            if self.lane_change_stability_counter > 25:
-                is_lane_change_stable = True
-            
-            if is_distance_met and is_lane_change_stable:
-                self.get_logger().info(f"Lane change [I->O] complete (Dist & Stable). Transitioning.")
-                self.lane_change_stability_counter = 0
-                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
-                self.is_in_avoidance_alignment = True
-                self.is_passing_obstacle = False
-                self.publish_twist_with_gain(0.0, 0.0)
-                return
-        else:
-            # For simple avoidance (e.g., 'outer'), only the distance matters.
-            if is_distance_met:
-                self.get_logger().info(f"Approach complete (Simple Avoidance, Dist: {outer_wall_dist:.2f}m). Transitioning.")
-                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
-                self.is_in_avoidance_alignment = True
-                self.is_passing_obstacle = False
-                self.publish_twist_with_gain(0.0, 0.0)
-                return
-
-        # P-control to maintain the approach angle
-        error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
-        angular_z = self.avoid_turn_in_kp_angle * error_deg
-        final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
-        
-        self.get_logger().debug(
-            f"AVOID_APPROACH | TargetYaw: {target_yaw_deg:.1f}, "
-            f"CurrentYaw: {self.current_yaw_deg:.1f}, "
-            f"WallDist: {outer_wall_dist:.2f}m | Steer: {final_steer:.2f}",
-            throttle_duration_sec=0.2
-        )
-        
-        self.publish_twist_with_gain(self.avoid_speed, final_steer)
-
-    def _handle_straight_sub_avoid_inner_turn_in(self, msg: LaserScan):
-        """Phase 1: Approach the INNER wall at a fixed angle.
-        Completion is determined by the distance to the OUTER wall.
-        """
-        if self._check_for_finish_condition(msg):
-            return
-
-        base_angle_deg = self._calculate_base_angle()
-
-        # --- NEW: Update turn permission counter during TURN_IN phase ---
-        self._update_turn_permission_counter(msg, base_angle_deg)
-
-        if self.direction == 'ccw':
-            target_yaw_deg = self._angle_normalize(base_angle_deg + self.avoid_inner_approach_angle_deg)
-            outer_wall_angle_for_approach_check = self._angle_normalize(base_angle_deg - 90.0)
-            inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg + 90.0)
-        else: # cw
-            target_yaw_deg = self._angle_normalize(base_angle_deg - self.avoid_inner_approach_angle_deg)
-            outer_wall_angle_for_approach_check = self._angle_normalize(base_angle_deg + 90.0)
-            inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg - 90.0)
-        
-        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle_for_approach_check)
-        inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle_for_pass_check)
-        
-        # Monitor for passing the obstacle during the turn-in phase
-        path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='inner')
-
-        if path_type != 'outer_to_inner':
-            if self.is_passing_obstacle:
-                # Check if we have completed the pass MANEUVER during the turn-in
-                if(not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and 
-                    outer_wall_dist < self.avoid_inner_pass_thresh_m):
-                    self.get_logger().warn("!!! Obstacle passed completely during INNER TURN_IN phase.")
-                    if path_type == 'inner_to_outer':
-                        self._complete_avoidance_phase(
-                            next_sub_state=StraightSubState.AVOID_OUTER_TURN_IN,
-                            path_was_outer=False)
-                    else:
-                        self._complete_avoidance_phase(
-                            next_sub_state=StraightSubState.ALIGN_WITH_INNER_WALL,
-                            path_was_outer=False)
-                    return
-            else:
-                # Check if we have started passing the obstacle (based on outer wall getting close)
-                is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 60.0)
-                sum_side_walls_dist = inner_wall_dist + outer_wall_dist
-                if(not math.isnan(outer_wall_dist) and not math.isnan(inner_wall_dist) 
-                and outer_wall_dist < self.avoid_inner_pass_thresh_m and sum_side_walls_dist < 0.7 and 
-                is_oriented_correctly and self.turn_count != 0):
-                    self.get_logger().warn(">>> Passing obstacle now (during INNER TURN_IN)...")
-                    self.is_passing_obstacle = True
-
-        # Original approach logic
-        if math.isnan(outer_wall_dist):
-            self.get_logger().error("Lost sight of outer wall during inner approach. But Not Stopping.", throttle_duration_sec=1.0)
-            # self.publish_twist_with_gain(0.0, 0.0)
-            # Do not return here, let the P-control continue to steer towards the target yaw
-        
-        effective_dist = 1.0 - outer_wall_dist if not math.isnan(outer_wall_dist) else float('inf')
-        is_distance_met = effective_dist >= 0 and effective_dist <= self.avoid_inner_approach_target_dist_m
-
-        # Check if this maneuver is specifically an 'outer_to_inner' lane change
-        path_type = self._get_path_type_for_segment(self.wall_segment_index)
-        is_specific_lane_change = (path_type == 'outer_to_inner')
-
-        if is_specific_lane_change:
-            # For this specific lane change, we require BOTH distance and stability.
-            is_lane_change_stable = False
-            if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and \
-               (inner_wall_dist + outer_wall_dist) < 1.1:
-                self.lane_change_stability_counter += 1
-            else:
-                pass
-
-            # --- THROTTLED LOGGING ---
-            self.get_logger().debug(
-                f"Lane change [O->I] stability counter: {self.lane_change_stability_counter}",
-                throttle_duration_sec=0.1 # Log every 0.5 seconds
-            )
-            
-            if self.lane_change_stability_counter > 25:
-                is_lane_change_stable = True
-
-            if is_distance_met and is_lane_change_stable:
-                self.get_logger().info(f"Lane change [O->I] complete (Dist & Stable). Transitioning.")
-                self.lane_change_stability_counter = 0
-                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
-                self.is_in_avoidance_alignment = True
-                self.is_passing_obstacle = False
-                self.publish_twist_with_gain(0.0, 0.0)
-                return
-        else:
-            # For simple avoidance (e.g., 'inner'), only the distance matters.
-            if is_distance_met:
-                self.get_logger().info(f"Approach complete (Simple Avoidance, EffectiveDist: {effective_dist:.2f}m). Transitioning.")
-                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
-                self.is_in_avoidance_alignment = True
-                self.is_passing_obstacle = False
-                self.publish_twist_with_gain(0.0, 0.0)
-                return
-
-
-        # P-control to maintain the approach angle
-        error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
-        angular_z = self.avoid_turn_in_kp_angle * error_deg
-        final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
-        
-        self.publish_twist_with_gain(self.avoid_speed, final_steer)
-
-    # --- Turning Sub-State Handlers ---
+    # --- Turning Sub-States ---
     def _handle_turning_sub_positioning_reverse(self, msg: LaserScan):
         """
         Sub-state: Before approaching, reverse straight until the robot is in
@@ -2247,6 +1943,7 @@ class ObstacleNavigatorNode(Node):
         self.turning_sub_state = None
         self.publish_twist_with_gain(0.0, 0.0)
 
+    # --- Parking Sub-States ---
     def _handle_parking_sub_pre_parking_adjust(self, msg: LaserScan):
         """
         Sub-state: Final approach to the pre-parking position.
@@ -2365,33 +2062,199 @@ class ObstacleNavigatorNode(Node):
         reverse_speed = -self.forward_speed * 1.2
         self.publish_twist_with_gain(reverse_speed, steer)
 
-    def _set_camera_angle(self, pan_position: int, tilt_position: int = 1500, duration_sec: float = 0.5):
+    # --- Timer Callbacks ---
+    def _preparation_complete_callback(self):
         """
-        Sends a command to set the pan and tilt servos to a specific position.
-        
-        Args:
-            pan_position: The target position for the pan servo.
-            tilt_position: The target position for the tilt servo (default is level).
-            duration_sec: The time duration for the servo movement.
+        Called by a timer after the camera movement is complete.
+        Transitions the preparation sub-state to DETERMINE_DIRECTION.
         """
-        self.get_logger().info(f"Setting camera pan to {pan_position}, tilt to {tilt_position}.")
+        with self.state_lock:
+            if self.camera_wait_timer:
+                self.camera_wait_timer.destroy()
+                self.camera_wait_timer = None
+
+            if self.preparation_sub_state == PreparationSubState.INITIALIZING_CAMERA:
+                self.get_logger().info("PREPARATION: Camera initialization complete.")
+                self.get_logger().info("--- Transitioning to DETERMINE_DIRECTION sub-state ---")
+                self.preparation_sub_state = PreparationSubState.DETERMINE_DIRECTION
+                self.camera_init_sent = False
+
+    def _process_pre_unparking_image_callback(self):
+        """
+        Callback for pre-unparking detection. Processes the image, logs the result,
+        and transitions to the next sub-state (INITIAL_TURN).
+        Includes a retry mechanism for image acquisition.
+        """
+        with self.state_lock:
+            # Clean up the primary timer if it exists.
+            if self.pre_detection_timer:
+                self.pre_detection_timer.destroy()
+                self.pre_detection_timer = None
+
+            if self.unparking_sub_state != UnparkingSubState.PRE_UNPARKING_DETECTION:
+                return
+            
+            if self.pre_detection_step != 1:
+                return
+
+            # --- ADDED: Frame acquisition check with retry logic ---
+            max_retries = 10 # Try for 0.5 seconds (10 * 50ms)
+            if self.latest_frame is None:
+                if self.image_acquisition_retries < max_retries:
+                    self.image_acquisition_retries += 1
+                    self.get_logger().warn(
+                        f"Frame not available yet. Retrying in 50ms... ({self.image_acquisition_retries}/{max_retries})"
+                    )
+                    # Create a short timer to try again
+                    self.pre_detection_timer = self.create_timer(
+                        0.05, # 50ms
+                        self._process_pre_unparking_image_callback
+                    )
+                    return # Exit the function and wait for the retry timer
+                else:
+                    self.get_logger().error(
+                        "Failed to acquire image after multiple retries. Aborting unparking."
+                    )
+                    self.state = State.FINISHED
+                    return
+            # --- END OF ADDED SECTION ---
+
+            self.get_logger().info("PRE-UNPARKING DETECT (Step 1): Image acquired. Processing image...")
+            
+            # Reset retry counter for the next time
+            self.image_acquisition_retries = 0
+            
+            dominant_color, max_red_area, max_green_area = self._find_and_save_dominant_blob(
+                frame_rgb=self.latest_frame,
+                turn_count=0,
+                base_name="pre_unparking_detection"
+            )
+            
+            close_obstacle_threshold = 3500.0
+            # Check if EITHER red or green blob is larger than the threshold
+            largest_blob_size = max(max_red_area, max_green_area)
+
+            if largest_blob_size >= close_obstacle_threshold:
+                self.has_obstacle_at_parking_exit = True
+                self.get_logger().error( # Use ERROR level for high importance
+                    f"!!! SPECIAL AVOIDANCE REQUIRED !!! Obstacle is very close (Max Blob: {largest_blob_size:.0f})."
+                )
+            else:
+                self.has_obstacle_at_parking_exit = False
+                self.get_logger().info(
+                    f"Standard unparking procedure. Obstacle is at a safe distance (Max Blob: {largest_blob_size:.0f})."
+                )
+
+            # --- ADDED: Determine Unparking Strategy based on the 3 conditions ---
+            strategy = UnparkingStrategy.UNDEFINED # Default to undefined
+
+            # --- Pattern 1 Logic ---
+            is_pattern1_case1 = self.direction == 'cw' and dominant_color == 'green'
+            is_pattern1_case2 = self.direction == 'ccw' and dominant_color == 'red'
+            is_pattern1_case3 = self.direction == 'ccw' and dominant_color == 'green' and not self.has_obstacle_at_parking_exit
+            if is_pattern1_case1 or is_pattern1_case2 or is_pattern1_case3:
+                strategy = UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE
+
+            # --- Pattern 2 Logic ---
+            is_pattern2 = self.direction == 'cw' and dominant_color == 'red' and not self.has_obstacle_at_parking_exit
+            if is_pattern2:
+                strategy = UnparkingStrategy.STANDARD_EXIT_TO_INNER_LANE
+
+            # --- Pattern 3 Logic ---
+            is_pattern3 = self.direction == 'cw' and dominant_color == 'red' and self.has_obstacle_at_parking_exit
+            if is_pattern3:
+                strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW
+
+            # --- Pattern 4 Logic ---
+            is_pattern4 = self.direction == 'ccw' and dominant_color == 'green' and self.has_obstacle_at_parking_exit
+            if is_pattern4:
+                strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW
+
+            # Store the decided strategy in the class variable for later use
+            self.unparking_strategy = strategy
+            # --- END OF ADDED SECTION ---
+
+            log_message = (
+                f"--- PRE-UNPARKING DETECTION RESULT ---\n"
+                f"      Direction: {self.direction.upper()}\n"
+                f"      Dominant Color Detected: '{dominant_color}'\n"
+                f"      Has Obstacle at Exit: {self.has_obstacle_at_parking_exit}\n"
+                f"      >> Decided Strategy: {self.unparking_strategy.name} <<\n" # Log the decided strategy
+                f"----------------------------------------"
+            )
+            self.get_logger().warn(log_message)
+
+            # Reset step counter for next time this state is entered (good practice)
+            self.pre_detection_step = 0
+
+            # --- Transition to the next step of the unparking sequence ---
+            self.get_logger().info("PRE-UNPARKING DETECT: Detection complete. Transitioning to INITIAL_TURN.")
+            self.unparking_sub_state = UnparkingSubState.INITIAL_TURN
+
+    def _camera_initialization_complete_callback(self):
+        """
+        Called by a timer after the camera has had time to move.
+        Transitions the state machine to the color detection step and destroys the timer.
+        """
+        with self.state_lock:
+            if self.camera_wait_timer:
+                self.camera_wait_timer.destroy()
+                self.camera_wait_timer = None
+
+            if self.determine_course_sub_state == DetermineCourseSubState.INITIALIZING_CAMERA:
+                self.get_logger().info("Camera initialization complete. Transitioning to DETECTING_OBSTACLE_COLOR.")
+                # MODIFIED: Transition to the correct new state
+                self.determine_course_sub_state = DetermineCourseSubState.DETECTING_OBSTACLE_COLOR
+
+    # --- Core Driving/Action Functions ---
+    def publish_twist_with_gain(self, linear_x, angular_z):
+        """
+        Calculates the final velocity command, applies gain, rate limiting, and publishes the Twist message.
+        """
+        # --- Throttling Logic (no changes here) ---
+        current_time = self.get_clock().now()
+        duration_since_last_pub = (current_time - self.last_cmd_pub_time).nanoseconds / 1e6
+
+        if duration_since_last_pub < self.cmd_pub_interval_ms:
+            return
         
-        msg = SetPWMServoState()
-        msg.duration = duration_sec
+        self.last_cmd_pub_time = current_time
+
+        # --- Gain Application ---
+        state_specific_gain = self._get_state_specific_gain()
+        target_linear = linear_x * self.gain * state_specific_gain
+        target_angular = angular_z * self.gain * state_specific_gain
         
-        pan_state = PWMServoState()
-        pan_state.id = [self.pan_servo_id]
-        pan_state.position = [pan_position]
+        # --- NEW: Rate Limiter Logic ---
+        # Calculate time delta (dt) based on the control loop rate (50Hz)
+        dt = 1.0 / 50.0
 
-        tilt_state = PWMServoState()
-        tilt_state.id = [self.tilt_servo_id]
-        tilt_state.position = [tilt_position]
+        # Limit the change in linear velocity
+        max_delta_linear = self.max_linear_acceleration * dt
+        final_linear_x = np.clip(
+            target_linear,
+            self.last_published_linear - max_delta_linear,
+            self.last_published_linear + max_delta_linear
+        )
 
-        msg.state = [pan_state, tilt_state]
+        # Limit the change in angular velocity
+        max_delta_angular = self.max_angular_acceleration_rad * dt
+        final_angular_z = np.clip(
+            target_angular,
+            self.last_published_angular - max_delta_angular,
+            self.last_published_angular + max_delta_angular
+        )
+        # --- END OF NEW ---
 
-        self.servo_pub.publish(msg)
+        # --- Publish and Store Last Values ---
+        twist_msg = Twist()
+        twist_msg.linear.x = final_linear_x
+        twist_msg.angular.z = final_angular_z
+        self.publisher_.publish(twist_msg)
+        
+        self.last_published_linear = final_linear_x
+        self.last_published_angular = final_angular_z
 
-    # --- Logic and Calculation Helper Functions ---
     def _execute_pid_alignment(self, msg: LaserScan, base_angle_deg: float, is_outer_wall: bool,
                             speed: float, override_target_dist: float = None,
                             disable_dist_control: bool = False):
@@ -2484,58 +2347,136 @@ class ObstacleNavigatorNode(Node):
         self.publish_twist_with_gain(speed, final_steer)
         return final_steer
 
-    def _execute_avoid_turn_in(self, msg: LaserScan, is_outer_turn_in: bool):
+    def _set_camera_angle(self, pan_position: int, tilt_position: int = 1500, duration_sec: float = 0.5):
         """
-        Generic executor for the 'turn_in' phase of an avoidance maneuver.
-        It approaches either the inner or outer wall at a fixed angle.
+        Sends a command to set the pan and tilt servos to a specific position.
+        
+        Args:
+            pan_position: The target position for the pan servo.
+            tilt_position: The target position for the tilt servo (default is level).
+            duration_sec: The time duration for the servo movement.
+        """
+        self.get_logger().info(f"Setting camera pan to {pan_position}, tilt to {tilt_position}.")
+        
+        msg = SetPWMServoState()
+        msg.duration = duration_sec
+        
+        pan_state = PWMServoState()
+        pan_state.id = [self.pan_servo_id]
+        pan_state.position = [pan_position]
+
+        tilt_state = PWMServoState()
+        tilt_state.id = [self.tilt_servo_id]
+        tilt_state.position = [tilt_position]
+
+        msg.state = [pan_state, tilt_state]
+
+        self.servo_pub.publish(msg)
+
+    def _update_dynamic_tilt(self, target_world_angle_deg: float):
+        """
+        Calculates and sends the tilt position to keep the camera aimed at a
+        specific absolute world angle, throttled to a specific update rate.
 
         Args:
-            msg: The current LaserScan message.
-            is_outer_turn_in: True to execute the turn-in towards the outer wall,
-                            False for the inner wall.
+            target_world_angle_deg: The absolute angle in the world frame that the camera should point to.
         """
-        base_angle_deg = self._calculate_base_angle()
+        # --- Throttle the update rate ---
+        current_time = self.get_clock().now()
+        duration_since_last_update = (current_time - self.last_tilt_update_time).nanoseconds / 1e6
 
-        if is_outer_turn_in:
-            target_approach_angle = self.avoid_approach_angle_deg
-            wall_offset_deg = -90.0
-            target_dist = self.avoid_outer_approach_target_dist_start_area_m if self.wall_segment_index == 0 else self.avoid_approach_target_dist_m
-            next_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
-        else: # Inner turn-in
-            target_approach_angle = self.avoid_inner_approach_angle_deg
-            wall_offset_deg = 90.0 # Completion check is against the outer wall
-            target_dist = self.avoid_inner_approach_target_dist_m
-            next_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
-
-        direction_multiplier = 1.0 if self.direction == 'ccw' else -1.0
-        target_yaw_deg = self._angle_normalize(base_angle_deg - (target_approach_angle * direction_multiplier))
-        wall_angle_for_check = self._angle_normalize(base_angle_deg + (wall_offset_deg * direction_multiplier))
-
-        check_wall_dist = self.get_distance_at_world_angle(msg, wall_angle_for_check)
-        
-        if math.isnan(check_wall_dist):
-            self.get_logger().error(f"Lost sight of wall during AVOID_TURN_IN. Stopping.", throttle_duration_sec=1.0)
-            self.publish_twist_with_gain(0.0, 0.0)
+        if duration_since_last_update < self.tilt_update_interval_ms:
             return
 
-        completion_met = False
-        if is_outer_turn_in:
-            completion_met = (check_wall_dist <= target_dist)
-        else: # Inner turn-in's completion is based on effective distance
-            effective_dist = 1.0 - check_wall_dist
-            completion_met = (effective_dist <= target_dist)
+        self.last_tilt_update_time = current_time
 
-        if completion_met:
-            self.get_logger().info(f"AVOID_TURN_IN complete. Transitioning to ALIGN_WITH_WALL.")
-            self.straight_sub_state = next_sub_state
-            self.publish_twist_with_gain(0.0, 0.0)
-            return
+        # --- Calculation Logic (integrated from the old _calculate function) ---
 
-        error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
-        angular_z = self.avoid_turn_in_kp_angle * error_deg
-        final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
+        # Step 1: Calculate the angle the camera needs to point, relative to the CURRENT robot body.
+        camera_relative_angle_deg = self._angle_diff(target_world_angle_deg, self.current_yaw_deg)
         
-        self.publish_twist_with_gain(self.avoid_speed, final_steer)
+        # Step 2: Convert the relative camera angle to a servo command value (offset from center).
+        tilt_offset = camera_relative_angle_deg * self.servo_units_per_degree
+        
+        # Adjust the offset based on servo orientation and driving direction.
+        # This assumes a positive offset means turning the camera left.
+        # This might need to be inverted depending on the physical servo setup.
+        target_tilt = self.tilt_center_position + tilt_offset
+        
+        # Step 3: Clamp the final value to be within the servo's physical limits.
+        clamped_tilt = int(max(self.tilt_min_position, min(self.tilt_max_position, target_tilt)))
+        
+        # --- Servo Command Publishing ---
+        
+        # Only send a new command if the target position has changed.
+        if clamped_tilt != self.last_sent_tilt_position:
+            self.get_logger().debug(f"Updating dynamic tilt. Target World: {target_world_angle_deg:.1f}, Servo Pos: {clamped_tilt}", throttle_duration_sec=1.0)
+            
+            msg = SetPWMServoState()
+            msg.duration = 0.1 # Short duration for smooth, continuous updates
+            
+            tilt_state = PWMServoState()
+            tilt_state.id = [self.tilt_servo_id]
+            tilt_state.position = [clamped_tilt]
+            msg.state = [tilt_state]
+
+            self.servo_pub.publish(msg)
+            self.last_sent_tilt_position = clamped_tilt
+
+
+    # --- Vision & Image Processing Helpers ---
+    # --- Primary Vision Logic ---
+    def _find_and_save_dominant_blob(self, frame_rgb, turn_count, base_name):
+        """
+        Processes a full image frame to find the dominant color blob (red or green),
+        saves debug images, and returns the dominant color.
+
+        Returns:
+            A tuple (string, float, float):
+            - Dominant color ('red', 'green', or 'none')
+            - Max red blob area found
+            - Max green blob area found
+        """
+        if frame_rgb is None:
+            return 'none', 0.0, 0.0
+
+        # --- 1. Process the image to get color masks ---
+        detection_data = self._detect_obstacle_color_in_frame(frame_rgb)
+        if not detection_data:
+            return 'none', 0.0, 0.0
+
+        # --- 2. Find the largest blob for each color ---
+        red_mask = detection_data['masks']['RED']
+        green_mask = detection_data['masks']['GREEN']
+        max_red_area = self._find_largest_blob_area(red_mask)
+        max_green_area = self._find_largest_blob_area(green_mask)
+
+        # --- 3. Save annotated debug images ---
+        if self.save_debug_images:
+            # Since this is a full-frame detection, we don't need to draw an ROI.
+            # We pass `rois=None`.
+            self._save_annotated_image(
+                base_name=base_name,
+                turn_count=turn_count,
+                frame_bgr=detection_data['frame_bgr'],
+                masks={'RED': red_mask, 'GREEN': green_mask},
+                rois=None, # No specific ROI for this full-frame detection
+                sample_num=1
+            )
+            self.get_logger().info(f"Saved debug image for '{base_name}'")
+
+        # --- 4. Determine the dominant color ---
+        detection_threshold = 500  # This could be a parameter
+        is_red_dominant = max_red_area > max_green_area and max_red_area > detection_threshold
+        is_green_dominant = max_green_area > max_red_area and max_green_area > detection_threshold
+
+        dominant_color = 'none'
+        if is_red_dominant:
+            dominant_color = 'red'
+        elif is_green_dominant:
+            dominant_color = 'green'
+        
+        return dominant_color, max_red_area, max_green_area
 
     def _detect_obstacle_color_in_frame(self, frame_rgb, rois_to_check=None):
         """
@@ -2592,6 +2533,122 @@ class ObstacleNavigatorNode(Node):
             'masks': {'RED': full_red_mask, 'GREEN': full_green_mask},
             'areas': areas
         }
+
+    def _find_largest_blob_area(self, mask):
+        """
+        Finds all contiguous blobs in a binary mask and returns the area of the largest one.
+        Uses connectedComponentsWithStats for efficient blob analysis.
+        """
+        # Find connected components
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
+
+        if num_labels <= 1: # Only background found
+            return 0
+
+        # The first label (0) is the background, so we ignore it by slicing from 1.
+        areas = stats[1:, cv2.CC_STAT_AREA]
+        
+        if areas.size == 0:
+            return 0
+            
+        return np.max(areas)
+
+    def _calculate_color_area(self, hsv_image, lower_bound, upper_bound, points=None):
+        """
+        Creates a binary mask for a specific color within a given region.
+
+        Args:
+            hsv_image: The input image in HSV color space.
+            lower_bound: The lower bound of the color range.
+            upper_bound: The upper bound of the color range.
+            points (optional): A list of 4 points for a quadrilateral ROI.
+
+        Returns:
+            A binary mask (cv2 image) of the detected color.
+        """
+        color_mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
+
+        if points is not None:
+            region_mask = np.zeros(hsv_image.shape[:2], dtype=np.uint8)
+            roi_corners = np.array([points], dtype=np.int32)
+            cv2.fillPoly(region_mask, roi_corners, 255)
+            final_mask = cv2.bitwise_and(color_mask, region_mask)
+        else:
+            final_mask = color_mask
+            
+        return final_mask
+
+    def _save_annotated_image(self, base_name: str, turn_count: int, frame_bgr, masks, rois, sample_num: int = 1):
+        """
+        Saves annotated debug images for color detection, organizing planning
+        images into corner-specific subfolders.
+        """
+        if not self.save_debug_images:
+            return
+
+        try:
+            # --- Determine the save path dynamically ---
+            save_path = self.debug_image_path
+            # For planning images, create and use a corner-specific subfolder
+            if base_name == 'planning_detection' and turn_count > 0:
+                corner_folder_name = f"corner{turn_count}"
+                save_path = os.path.join(self.debug_image_path, corner_folder_name)
+                # Create the directory if it doesn't exist; exist_ok=True prevents errors
+                os.makedirs(save_path, exist_ok=True)
+
+            # Create a unique filename suffix
+            filename_suffix = f"turn{turn_count}_sample{sample_num}"
+            
+            # Annotated ROI Image
+            annotated_frame = frame_bgr.copy()
+            if rois:
+                for roi_name, roi_points in rois.items():
+                    if roi_points: # Check if points list is not empty
+                        cv2.polylines(annotated_frame, [np.array(roi_points, dtype=np.int32)], True, (255, 255, 0), 2)
+            
+            filename_annotated = os.path.join(save_path, f"{base_name}_{filename_suffix}_annotated.jpg")
+            cv2.imwrite(filename_annotated, annotated_frame)
+
+            # Combined Color Mask Image
+            red_mask = masks.get('RED', np.zeros(frame_bgr.shape[:2], dtype=np.uint8))
+            green_mask = masks.get('GREEN', np.zeros(frame_bgr.shape[:2], dtype=np.uint8))
+            
+            combined_mask_viz = np.zeros_like(frame_bgr)
+            combined_mask_viz[np.where(green_mask == 255)] = (0, 255, 0) # BGR for Green
+            combined_mask_viz[np.where(red_mask == 255)] = (0, 0, 255) # BGR for Red
+
+            if rois:
+                for roi_name, roi_points in rois.items():
+                    cv2.polylines(combined_mask_viz, [np.array(roi_points, dtype=np.int32)], True, (255, 255, 0), 2)
+
+            filename_mask = os.path.join(save_path, f"{base_name}_{filename_suffix}_masks.jpg")
+            cv2.imwrite(filename_mask, combined_mask_viz)
+
+            # Log only the first saved image to avoid flooding the console
+            if sample_num == 1:
+                self.get_logger().info(f"Saved debug images for {base_name} turn {turn_count} to: {save_path}")
+
+        except Exception as e:
+            self.get_logger().error(f"Failed to save debug image: {e}")
+
+    # --- Planning-Specific Vision Logic ---
+    def _get_obstacle_pattern_from_areas(self, red_area, green_area, threshold):
+        """
+        Classifies the obstacle pattern based on the detected red and green pixel areas
+        from a single frame.
+        """
+        is_red_present = red_area > threshold
+        is_green_present = green_area > threshold
+
+        if is_red_present and is_green_present:
+            # If both are present, assume the one with the larger area is the primary
+            return 'red_to_green' if red_area >= green_area else 'green_to_red'
+        elif is_red_present:
+            return 'red_only'
+        elif is_green_present:
+            return 'green_only'
+        else:
+            return 'none'
 
     def _scan_and_collect_data(self):
         """
@@ -2670,393 +2727,40 @@ class ObstacleNavigatorNode(Node):
                 sample_num=sample_num
             )
 
-    def _find_and_save_dominant_blob(self, frame_rgb, turn_count, base_name):
+    # --- ROI Manipulation Helpers ---
+    def _reshape_roi_points(self, flat_points: list[int]) -> list[list[int]]:
+        """Converts a flat list of coordinates [x1,y1,x2,y2,...] to a list of points [[x1,y1],[x2,y2],...]."""
+        if len(flat_points) != 8:
+            self.get_logger().error(f"Invalid ROI definition. Expected 8 values, got {len(flat_points)}. Using empty ROI.")
+            return []
+        return [
+            [flat_points[0], flat_points[1]],
+            [flat_points[2], flat_points[3]],
+            [flat_points[4], flat_points[5]],
+            [flat_points[6], flat_points[7]],
+        ]
+
+    def _mirror_roi_points(self, roi_points: list[list[int]]) -> list[list[int]]:
         """
-        Processes a full image frame to find the dominant color blob (red or green),
-        saves debug images, and returns the dominant color.
-
-        Returns:
-            A tuple (string, float, float):
-            - Dominant color ('red', 'green', or 'none')
-            - Max red blob area found
-            - Max green blob area found
-        """
-        if frame_rgb is None:
-            return 'none', 0.0, 0.0
-
-        # --- 1. Process the image to get color masks ---
-        detection_data = self._detect_obstacle_color_in_frame(frame_rgb)
-        if not detection_data:
-            return 'none', 0.0, 0.0
-
-        # --- 2. Find the largest blob for each color ---
-        red_mask = detection_data['masks']['RED']
-        green_mask = detection_data['masks']['GREEN']
-        max_red_area = self._find_largest_blob_area(red_mask)
-        max_green_area = self._find_largest_blob_area(green_mask)
-
-        # --- 3. Save annotated debug images ---
-        if self.save_debug_images:
-            # Since this is a full-frame detection, we don't need to draw an ROI.
-            # We pass `rois=None`.
-            self._save_annotated_image(
-                base_name=base_name,
-                turn_count=turn_count,
-                frame_bgr=detection_data['frame_bgr'],
-                masks={'RED': red_mask, 'GREEN': green_mask},
-                rois=None, # No specific ROI for this full-frame detection
-                sample_num=1
-            )
-            self.get_logger().info(f"Saved debug image for '{base_name}'")
-
-        # --- 4. Determine the dominant color ---
-        detection_threshold = 500  # This could be a parameter
-        is_red_dominant = max_red_area > max_green_area and max_red_area > detection_threshold
-        is_green_dominant = max_green_area > max_red_area and max_green_area > detection_threshold
-
-        dominant_color = 'none'
-        if is_red_dominant:
-            dominant_color = 'red'
-        elif is_green_dominant:
-            dominant_color = 'green'
-        
-        return dominant_color, max_red_area, max_green_area
-
-    def _find_largest_blob_area(self, mask):
-        """
-        Finds all contiguous blobs in a binary mask and returns the area of the largest one.
-        Uses connectedComponentsWithStats for efficient blob analysis.
-        """
-        # Find connected components
-        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
-
-        if num_labels <= 1: # Only background found
-            return 0
-
-        # The first label (0) is the background, so we ignore it by slicing from 1.
-        areas = stats[1:, cv2.CC_STAT_AREA]
-        
-        if areas.size == 0:
-            return 0
-            
-        return np.max(areas)
-
-    def _get_obstacle_pattern_from_areas(self, red_area, green_area, threshold):
-        """
-        Classifies the obstacle pattern based on the detected red and green pixel areas
-        from a single frame.
-        """
-        is_red_present = red_area > threshold
-        is_green_present = green_area > threshold
-
-        if is_red_present and is_green_present:
-            # If both are present, assume the one with the larger area is the primary
-            return 'red_to_green' if red_area >= green_area else 'green_to_red'
-        elif is_red_present:
-            return 'red_only'
-        elif is_green_present:
-            return 'green_only'
-        else:
-            return 'none'
-    
-    def _has_passed_obstacle(self, msg: LaserScan, base_angle_deg: float, is_checking_from_outer_wall: bool) -> bool:
-        """
-        Checks if the robot has finished passing an obstacle. This is a pure check function.
-
+        Mirrors the ROI horizontally based on the image width.
         Args:
-            is_checking_from_outer_wall: True if we are on the outer wall, checking the inner side.
-
+            roi_points: A list of [x, y] coordinates for the ROI vertices.
         Returns:
-            True if the obstacle has been passed, False otherwise.
+            A new list of mirrored [x, y] coordinates.
         """
-        # Determine which wall to measure based on the current driving lane
-        if is_checking_from_outer_wall:
-            # We are on the OUTER wall, check the distance to the INNER wall.
-            check_wall_offset_deg = 90.0 if self.direction == 'ccw' else -90.0
-        else: # Checking from inner wall
-            # We are on the INNER wall, check the distance to the OUTER wall.
-            check_wall_offset_deg = -90.0 if self.direction == 'ccw' else 90.0
+        mirrored_points = []
+        for point in roi_points:
+            mirrored_x = self.image_width - point[0]
+            mirrored_points.append([mirrored_x, point[1]])
         
-        check_wall_angle = self._angle_normalize(base_angle_deg + check_wall_offset_deg)
-        check_wall_dist = self.get_distance_at_world_angle(msg, check_wall_angle)
+        # The order of vertices might be clockwise after mirroring, which is usually fine for fillPoly.
+        # If winding order matters for other functions, it might need to be reversed.
+        # For simple drawing and masking, this is sufficient.
+        return mirrored_points
 
-        pass_thresh_m = self.avoid_inner_pass_thresh_m
-        # Apply special threshold for the start area
-        if self.wall_segment_index == 0 and is_checking_from_outer_wall:
-            pass_thresh_m -= 0.2
 
-        # --- Passing Detection Logic ---
-        # First, check if we have started passing the obstacle yet.
-        if not self.is_passing_obstacle:
-            current_wall_dist = self.get_distance_at_world_angle(msg, self._angle_normalize(check_wall_angle + 180.0))
-            is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 45.0)
-            sum_side_dist = (check_wall_dist or 0) + (current_wall_dist or 0)
-            
-            if is_oriented_correctly and not math.isnan(sum_side_dist) and sum_side_dist < 0.7:
-                self.get_logger().warn(">>> Passing obstacle now (during alignment)...")
-                self.is_passing_obstacle = True
-            return False # We have either just started passing or not started yet.
-
-        # --- Completion Check Logic ---
-        # If we are already in the "passing" state, check if we're done.
-        if not math.isnan(check_wall_dist) and check_wall_dist > pass_thresh_m:
-            return True # We are clear of the obstacle.
-        
-        return False # Still passing.
-
-    def _update_dynamic_tilt(self, target_world_angle_deg: float):
-        """
-        Calculates and sends the tilt position to keep the camera aimed at a
-        specific absolute world angle, throttled to a specific update rate.
-
-        Args:
-            target_world_angle_deg: The absolute angle in the world frame that the camera should point to.
-        """
-        # --- Throttle the update rate ---
-        current_time = self.get_clock().now()
-        duration_since_last_update = (current_time - self.last_tilt_update_time).nanoseconds / 1e6
-
-        if duration_since_last_update < self.tilt_update_interval_ms:
-            return
-
-        self.last_tilt_update_time = current_time
-
-        # --- Calculation Logic (integrated from the old _calculate function) ---
-
-        # Step 1: Calculate the angle the camera needs to point, relative to the CURRENT robot body.
-        camera_relative_angle_deg = self._angle_diff(target_world_angle_deg, self.current_yaw_deg)
-        
-        # Step 2: Convert the relative camera angle to a servo command value (offset from center).
-        tilt_offset = camera_relative_angle_deg * self.servo_units_per_degree
-        
-        # Adjust the offset based on servo orientation and driving direction.
-        # This assumes a positive offset means turning the camera left.
-        # This might need to be inverted depending on the physical servo setup.
-        target_tilt = self.tilt_center_position + tilt_offset
-        
-        # Step 3: Clamp the final value to be within the servo's physical limits.
-        clamped_tilt = int(max(self.tilt_min_position, min(self.tilt_max_position, target_tilt)))
-        
-        # --- Servo Command Publishing ---
-        
-        # Only send a new command if the target position has changed.
-        if clamped_tilt != self.last_sent_tilt_position:
-            self.get_logger().debug(f"Updating dynamic tilt. Target World: {target_world_angle_deg:.1f}, Servo Pos: {clamped_tilt}", throttle_duration_sec=1.0)
-            
-            msg = SetPWMServoState()
-            msg.duration = 0.1 # Short duration for smooth, continuous updates
-            
-            tilt_state = PWMServoState()
-            tilt_state.id = [self.tilt_servo_id]
-            tilt_state.position = [clamped_tilt]
-            msg.state = [tilt_state]
-
-            self.servo_pub.publish(msg)
-            self.last_sent_tilt_position = clamped_tilt
-
-    def _update_avoidance_plan_based_on_vision(self, final_pattern: str):
-        """
-        Determines the next avoidance path based on the final decided pattern
-        from the majority vote.
-        """
-        # Map obstacle configuration to path type based on driving direction
-        if self.direction == 'ccw':
-            path_mapping = {
-                'red_only': 'outer',
-                'green_only': 'inner',
-                'red_to_green': 'outer_to_inner',
-                'green_to_red': 'inner_to_outer',
-                'none': 'outer' # Failsafe: if no obstacle is detected, take the wider outer path
-            }
-        else:  # cw
-            path_mapping = {
-                'red_only': 'inner',
-                'green_only': 'outer',
-                'red_to_green': 'inner_to_outer',
-                'green_to_red': 'outer_to_inner',
-                'none': 'outer' # Failsafe: if no obstacle is detected, take the wider outer path
-            }
-        
-        next_avoidance_path = path_mapping.get(final_pattern, 'outer')
-        next_segment_index = (self.wall_segment_index + 1) % len(self.avoidance_path_plan)
-        
-        # Update the path plan
-        self.avoidance_path_plan[next_segment_index] = next_avoidance_path
-        self.get_logger().info(f"Path plan for segment {next_segment_index} set to: '{next_avoidance_path}'")
-
-        # --- This part correctly handles the "lane change" requirement ---
-        if next_avoidance_path in ['outer_to_inner', 'inner_to_outer']:
-            if not self.entrance_obstacle_plan[next_segment_index]:
-                self.get_logger().warn(
-                    f"Path is a lane change ('{next_avoidance_path}'). "
-                    f"Forcing entrance_obstacle_plan to True for a safer turn."
-                )
-                self.entrance_obstacle_plan[next_segment_index] = True
-
-    def _update_turn_permission_counter(self, msg: LaserScan, base_angle_deg: float):
-        """
-        Updates a counter based on stable wall detection to determine when it's safe
-        to detect a new corner.
-        """
-        # If a turn is already permitted, no need to count.
-        if self.can_start_new_turn:
-            return
-
-        # Define inner and outer wall angles
-        if self.direction == 'ccw':
-            inner_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
-            outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
-        else: # cw
-            inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
-            outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
-
-        inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
-        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
-        
-        # Condition: Both walls are visible and the path is not too wide (i.e., not in a corner).
-        if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and \
-        (inner_wall_dist + outer_wall_dist) < 1.2:
-            self.stable_alignment_counter += 1
-        else:
-            pass
-
-        # If the counter reaches a threshold, permit the next turn.
-        # The threshold (e.g., 50) means about 1 second of stable alignment at 50Hz.
-        if self.stable_alignment_counter > 50: 
-            self.can_start_new_turn = True
-            self.stable_alignment_counter = 0 # Reset after enabling
-            self.get_logger().warn("Stable alignment detected. New turn detection is ENABLED.")
-
-    def _prepare_for_turning(self, base_angle_deg):
-        """
-        Calculates and sets up the necessary variables for a turn,
-        but does not transition the state itself.
-        """
-        self.approach_base_yaw_deg = base_angle_deg
-        
-        # This logic is no longer needed as the turn is simpler
-
-        self.get_logger().info("--- Preparing for simplified turn ---")
-        self.get_logger().info(f"  Base Angle for Turn: {base_angle_deg:.2f} deg")
-        self.get_logger().info("-------------------------------------")
-
-        self.inner_wall_far_counter = 0
-        self.can_start_new_turn = False
-        self.stable_alignment_counter = 0
-        self.state = State.TURNING
-        self.turning_sub_state = TurningSubState.POSITIONING_REVERSE
-        self.publish_twist_with_gain(0.0, 0.0)
-
-    def _complete_avoidance_phase(self, next_sub_state: StraightSubState, path_was_outer: bool):
-        """
-        A generic helper function to finalize an avoidance phase (e.g., pass_through)
-        and transition to the next state. It centralizes the resetting of state variables.
-
-        Args:
-            next_sub_state: The StraightSubState to transition into.
-            path_was_outer: A boolean indicating if the completed path was on the outer side.
-        """
-        self.is_passing_obstacle = False
-        self.last_avoidance_path_was_outer = path_was_outer
-        self.straight_sub_state = next_sub_state
-        
-        self.publish_twist_with_gain(0.0, 0.0)
-
-    def _check_for_finish_condition(self, msg: LaserScan) -> bool:
-        """
-        Checks if the robot should transition to the FINISHED state.
-        This is called from all straight-driving sub-states.
-        """
-        if self.turn_count >= self.max_turns:
-            base_angle_deg = self._calculate_base_angle()
-            front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
-            
-            if self.direction == 'ccw':
-                inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
-                outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
-            else: # cw
-                inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
-                outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
-            inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
-            outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
-
-            sum_side_walls_dist = inner_wall_dist + outer_wall_dist
-            
-            # --- Use the new helper function for the check ---
-            is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 30.0)
-            
-            if (not math.isnan(front_dist) and front_dist < 1.5 and front_dist > 1.0 and
-                not math.isnan(inner_wall_dist) and inner_wall_dist < 1.0 and 
-                not math.isnan(sum_side_walls_dist) and sum_side_walls_dist < 1.1 and sum_side_walls_dist > 0.4 and
-                is_oriented_correctly # Using the result of the new function
-                ):
-                self.get_logger().warn(
-                    f"FINISH CONDITION MET: Turn count ({self.turn_count}) >= max_turns ({self.max_turns}) "
-                    f"AND FrontDist ({front_dist:.2f}m) is within range "
-                    f"AND InnerDist ({inner_wall_dist:.2f}m) < 1.0m."
-                )
-                self.get_logger().warn("FINISH CONDITION MET. TRANSITIONING TO PARKING STATE.")
-                self.state = State.PARKING
-                self.parking_sub_state = ParkingSubState.PRE_PARKING_ADJUST
-                self.pre_parking_step = 0
-                self.publish_twist_with_gain(0.0, 0.0)
-                return True
-            
-            # --- Updated debug log ---
-            elif (not math.isnan(front_dist) and front_dist < 1.5 and front_dist > 1.0 and
-                    not math.isnan(inner_wall_dist) and inner_wall_dist < 1.0):
-                if not is_oriented_correctly:
-                    # Recalculate deviation here just for the log message
-                    yaw_deviation_deg = abs(self._angle_diff(self.current_yaw_deg, base_angle_deg))
-                    self.get_logger().debug(f"Finish conditions met, but yaw deviation {yaw_deviation_deg:.1f}deg is > 45deg. Not finishing.",
-                                            throttle_duration_sec=1.0)
-
-        return False
-
-    def _check_course_and_get_direction(self, msg: LaserScan) -> tuple[bool, str]:
-        """
-        Checks left and right wall distances to determine course direction.
-        
-        Returns:
-            A tuple containing:
-            - bool: True if the course direction was found, False otherwise.
-            - str: The determined direction ('cw', 'ccw', or an empty string).
-        """
-        left_wall_angle = self._angle_normalize(0.0 + 90.0)
-        right_wall_angle = self._angle_normalize(0.0 - 90.0)
-
-        left_dist = self.get_distance_at_world_angle(msg, left_wall_angle)
-        right_dist = self.get_distance_at_world_angle(msg, right_wall_angle)
-        
-        self.get_logger().debug(
-            f"Checking distances -> Left: {left_dist:.2f}m, Right: {right_dist:.2f}m",
-            throttle_duration_sec=0.5
-        )
-
-        if not math.isnan(left_dist) and left_dist < 3.0 and left_dist > self.course_detection_threshold_m:
-            # MODIFIED: Set the node's direction parameter immediately
-            self.direction = "ccw"
-            if not self.initial_path_is_left or self.initial_position_is_near:
-                self.last_avoidance_path_was_outer = True
-            else:
-                self.last_avoidance_path_was_outer = False
-            
-            self.get_logger().warn(f"Left side is open (dist: {left_dist:.2f}m). Course is CCW.")
-            return True, "ccw"
-        
-        if not math.isnan(right_dist) and right_dist < 3.0 and right_dist > self.course_detection_threshold_m:
-            # MODIFIED: Set the node's direction parameter immediately
-            self.direction = "cw"
-            if self.initial_path_is_left or self.initial_position_is_near:
-                self.last_avoidance_path_was_outer = True
-            else:
-                self.last_avoidance_path_was_outer = False
-            
-            self.get_logger().warn(f"Right side is open (dist: {right_dist:.2f}m). Course is CW.")
-            return True, "cw"
-            
-        return False, ""
-
+    # --- General Helpers & Calculation Functions ---
+    # --- State Logic Helpers ---
     def _check_for_corner(self, msg: LaserScan, base_angle_deg: float) -> tuple[bool, float]:
         """
         Checks for a corner. If the path plan is not yet complete, it transitions 
@@ -3138,22 +2842,135 @@ class ObstacleNavigatorNode(Node):
         
         return False, inner_wall_dist
 
-    def _check_yaw_alignment(self, base_angle_deg: float, tolerance_deg: float) -> bool:
+    def _check_for_finish_condition(self, msg: LaserScan) -> bool:
         """
-        Checks if the current yaw is within a tolerance of a base angle.
+        Checks if the robot should transition to the FINISHED state.
+        This is called from all straight-driving sub-states.
+        """
+        if self.turn_count >= self.max_turns:
+            base_angle_deg = self._calculate_base_angle()
+            front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
+            
+            if self.direction == 'ccw':
+                inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+                outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+            else: # cw
+                inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+                outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+            inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
+            outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+
+            sum_side_walls_dist = inner_wall_dist + outer_wall_dist
+            
+            # --- Use the new helper function for the check ---
+            is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 30.0)
+            
+            if (not math.isnan(front_dist) and front_dist < 1.5 and front_dist > 1.0 and
+                not math.isnan(inner_wall_dist) and inner_wall_dist < 1.0 and 
+                not math.isnan(sum_side_walls_dist) and sum_side_walls_dist < 1.1 and sum_side_walls_dist > 0.4 and
+                is_oriented_correctly # Using the result of the new function
+                ):
+                self.get_logger().warn(
+                    f"FINISH CONDITION MET: Turn count ({self.turn_count}) >= max_turns ({self.max_turns}) "
+                    f"AND FrontDist ({front_dist:.2f}m) is within range "
+                    f"AND InnerDist ({inner_wall_dist:.2f}m) < 1.0m."
+                )
+                self.get_logger().warn("FINISH CONDITION MET. TRANSITIONING TO PARKING STATE.")
+                self.state = State.PARKING
+                self.parking_sub_state = ParkingSubState.PRE_PARKING_ADJUST
+                self.pre_parking_step = 0
+                self.publish_twist_with_gain(0.0, 0.0)
+                return True
+            
+            # --- Updated debug log ---
+            elif (not math.isnan(front_dist) and front_dist < 1.5 and front_dist > 1.0 and
+                    not math.isnan(inner_wall_dist) and inner_wall_dist < 1.0):
+                if not is_oriented_correctly:
+                    # Recalculate deviation here just for the log message
+                    yaw_deviation_deg = abs(self._angle_diff(self.current_yaw_deg, base_angle_deg))
+                    self.get_logger().debug(f"Finish conditions met, but yaw deviation {yaw_deviation_deg:.1f}deg is > 45deg. Not finishing.",
+                                            throttle_duration_sec=1.0)
+
+        return False
+
+    def _has_passed_obstacle(self, msg: LaserScan, base_angle_deg: float, is_checking_from_outer_wall: bool) -> bool:
+        """
+        Checks if the robot has finished passing an obstacle. This is a pure check function.
 
         Args:
-            base_angle_deg: The reference angle to compare against.
-            tolerance_deg: The maximum allowed deviation in degrees.
+            is_checking_from_outer_wall: True if we are on the outer wall, checking the inner side.
 
         Returns:
-            bool: True if the yaw is within the tolerance, False otherwise.
+            True if the obstacle has been passed, False otherwise.
         """
-        # Calculate the absolute deviation from the base angle
-        yaw_deviation_deg = abs(self._angle_diff(self.current_yaw_deg, base_angle_deg))
+        # Determine which wall to measure based on the current driving lane
+        if is_checking_from_outer_wall:
+            # We are on the OUTER wall, check the distance to the INNER wall.
+            check_wall_offset_deg = 90.0 if self.direction == 'ccw' else -90.0
+        else: # Checking from inner wall
+            # We are on the INNER wall, check the distance to the OUTER wall.
+            check_wall_offset_deg = -90.0 if self.direction == 'ccw' else 90.0
+        
+        check_wall_angle = self._angle_normalize(base_angle_deg + check_wall_offset_deg)
+        check_wall_dist = self.get_distance_at_world_angle(msg, check_wall_angle)
 
-        # Return True if the deviation is less than the tolerance
-        return yaw_deviation_deg < tolerance_deg
+        pass_thresh_m = self.avoid_inner_pass_thresh_m
+        # Apply special threshold for the start area
+        if self.wall_segment_index == 0 and is_checking_from_outer_wall:
+            pass_thresh_m -= 0.2
+
+        # --- Passing Detection Logic ---
+        # First, check if we have started passing the obstacle yet.
+        if not self.is_passing_obstacle:
+            current_wall_dist = self.get_distance_at_world_angle(msg, self._angle_normalize(check_wall_angle + 180.0))
+            is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 45.0)
+            sum_side_dist = (check_wall_dist or 0) + (current_wall_dist or 0)
+            
+            if is_oriented_correctly and not math.isnan(sum_side_dist) and sum_side_dist < 0.7:
+                self.get_logger().warn(">>> Passing obstacle now (during alignment)...")
+                self.is_passing_obstacle = True
+            return False # We have either just started passing or not started yet.
+
+        # --- Completion Check Logic ---
+        # If we are already in the "passing" state, check if we're done.
+        if not math.isnan(check_wall_dist) and check_wall_dist > pass_thresh_m:
+            return True # We are clear of the obstacle.
+        
+        return False # Still passing.
+
+    def _update_turn_permission_counter(self, msg: LaserScan, base_angle_deg: float):
+        """
+        Updates a counter based on stable wall detection to determine when it's safe
+        to detect a new corner.
+        """
+        # If a turn is already permitted, no need to count.
+        if self.can_start_new_turn:
+            return
+
+        # Define inner and outer wall angles
+        if self.direction == 'ccw':
+            inner_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+            outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+        else: # cw
+            inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+            outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+
+        inner_wall_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
+        outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+        
+        # Condition: Both walls are visible and the path is not too wide (i.e., not in a corner).
+        if not math.isnan(inner_wall_dist) and not math.isnan(outer_wall_dist) and \
+        (inner_wall_dist + outer_wall_dist) < 1.2:
+            self.stable_alignment_counter += 1
+        else:
+            pass
+
+        # If the counter reaches a threshold, permit the next turn.
+        # The threshold (e.g., 50) means about 1 second of stable alignment at 50Hz.
+        if self.stable_alignment_counter > 50: 
+            self.can_start_new_turn = True
+            self.stable_alignment_counter = 0 # Reset after enabling
+            self.get_logger().warn("Stable alignment detected. New turn detection is ENABLED.")
 
     def _get_path_type_for_segment(self, segment_index: int, default_path: str = 'outer') -> str:
         """
@@ -3170,222 +2987,125 @@ class ObstacleNavigatorNode(Node):
             self.get_logger().error(f"Invalid or missing avoidance_path_plan. Defaulting to '{default_path}'.")
             return default_path
 
-    def _get_effective_detection_threshold(self, scan_msg: LaserScan):
-        """Calculates the dynamic detection threshold based on the distance to the obstacle."""
-        base_detection_distance_m = 1.2
+    def _check_course_and_get_direction(self, msg: LaserScan) -> tuple[bool, str]:
+        """
+        Checks left and right wall distances to determine course direction.
         
-        if self.last_avoidance_path_was_outer:
-            course_width_m = 2.0
-            if self.direction == 'ccw':
-                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
-            else: # cw
-                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
-            
-            outer_wall_dist = self.get_distance_at_world_angle(scan_msg, outer_wall_angle)
+        Returns:
+            A tuple containing:
+            - bool: True if the course direction was found, False otherwise.
+            - str: The determined direction ('cw', 'ccw', or an empty string).
+        """
+        left_wall_angle = self._angle_normalize(0.0 + 90.0)
+        right_wall_angle = self._angle_normalize(0.0 - 90.0)
 
-            if not math.isnan(outer_wall_dist) and 0.1 < outer_wall_dist < course_width_m:
-                effective_distance_outer = max(0.1, course_width_m - outer_wall_dist)
-                distance_ratio_sq = (base_detection_distance_m / effective_distance_outer) ** 2
-                threshold = self.planning_detection_threshold * distance_ratio_sq
-                threshold = max(200, min(threshold, self.planning_detection_threshold * 5.0))
-                self.get_logger().debug(f"Dynamic threshold calculated: {threshold:.1f}")
-                return threshold
+        left_dist = self.get_distance_at_world_angle(msg, left_wall_angle)
+        right_dist = self.get_distance_at_world_angle(msg, right_wall_angle)
+        
+        self.get_logger().debug(
+            f"Checking distances -> Left: {left_dist:.2f}m, Right: {right_dist:.2f}m",
+            throttle_duration_sec=0.5
+        )
+
+        if not math.isnan(left_dist) and left_dist < 3.0 and left_dist > self.course_detection_threshold_m:
+            # MODIFIED: Set the node's direction parameter immediately
+            self.direction = "ccw"
+            if not self.initial_path_is_left or self.initial_position_is_near:
+                self.last_avoidance_path_was_outer = True
             else:
-                self.get_logger().warn("Could not get valid outer wall distance. Using fallback multiplier.")
-                return self.planning_detection_threshold * self.planning_detection_threshold_outer_path_multiplier
-        else:
-            self.get_logger().info(f"Last path was INNER. Using standard threshold: {self.planning_detection_threshold:.1f}")
-            return self.planning_detection_threshold
+                self.last_avoidance_path_was_outer = False
+            
+            self.get_logger().warn(f"Left side is open (dist: {left_dist:.2f}m). Course is CCW.")
+            return True, "ccw"
+        
+        if not math.isnan(right_dist) and right_dist < 3.0 and right_dist > self.course_detection_threshold_m:
+            # MODIFIED: Set the node's direction parameter immediately
+            self.direction = "cw"
+            if self.initial_path_is_left or self.initial_position_is_near:
+                self.last_avoidance_path_was_outer = True
+            else:
+                self.last_avoidance_path_was_outer = False
+            
+            self.get_logger().warn(f"Right side is open (dist: {right_dist:.2f}m). Course is CW.")
+            return True, "cw"
+            
+        return False, ""
 
-    def _calculate_base_angle(self):
-        """Calculates the ideal angle of the current wall segment based on direction."""
+    def _update_avoidance_plan_based_on_vision(self, final_pattern: str):
+        """
+        Determines the next avoidance path based on the final decided pattern
+        from the majority vote.
+        """
+        # Map obstacle configuration to path type based on driving direction
         if self.direction == 'ccw':
-            return self.wall_segment_index * 90.0
-        else: # cw
-            return self.wall_segment_index * -90.0
+            path_mapping = {
+                'red_only': 'outer',
+                'green_only': 'inner',
+                'red_to_green': 'outer_to_inner',
+                'green_to_red': 'inner_to_outer',
+                'none': 'outer' # Failsafe: if no obstacle is detected, take the wider outer path
+            }
+        else:  # cw
+            path_mapping = {
+                'red_only': 'inner',
+                'green_only': 'outer',
+                'red_to_green': 'inner_to_outer',
+                'green_to_red': 'outer_to_inner',
+                'none': 'outer' # Failsafe: if no obstacle is detected, take the wider outer path
+            }
+        
+        next_avoidance_path = path_mapping.get(final_pattern, 'outer')
+        next_segment_index = (self.wall_segment_index + 1) % len(self.avoidance_path_plan)
+        
+        # Update the path plan
+        self.avoidance_path_plan[next_segment_index] = next_avoidance_path
+        self.get_logger().info(f"Path plan for segment {next_segment_index} set to: '{next_avoidance_path}'")
 
-    def _calculate_color_area(self, hsv_image, lower_bound, upper_bound, points=None):
+        # --- This part correctly handles the "lane change" requirement ---
+        if next_avoidance_path in ['outer_to_inner', 'inner_to_outer']:
+            if not self.entrance_obstacle_plan[next_segment_index]:
+                self.get_logger().warn(
+                    f"Path is a lane change ('{next_avoidance_path}'). "
+                    f"Forcing entrance_obstacle_plan to True for a safer turn."
+                )
+                self.entrance_obstacle_plan[next_segment_index] = True
+
+    def _prepare_for_turning(self, base_angle_deg):
         """
-        Creates a binary mask for a specific color within a given region.
+        Calculates and sets up the necessary variables for a turn,
+        but does not transition the state itself.
+        """
+        self.approach_base_yaw_deg = base_angle_deg
+        
+        # This logic is no longer needed as the turn is simpler
+
+        self.get_logger().info("--- Preparing for simplified turn ---")
+        self.get_logger().info(f"  Base Angle for Turn: {base_angle_deg:.2f} deg")
+        self.get_logger().info("-------------------------------------")
+
+        self.inner_wall_far_counter = 0
+        self.can_start_new_turn = False
+        self.stable_alignment_counter = 0
+        self.state = State.TURNING
+        self.turning_sub_state = TurningSubState.POSITIONING_REVERSE
+        self.publish_twist_with_gain(0.0, 0.0)
+
+    def _complete_avoidance_phase(self, next_sub_state: StraightSubState, path_was_outer: bool):
+        """
+        A generic helper function to finalize an avoidance phase (e.g., pass_through)
+        and transition to the next state. It centralizes the resetting of state variables.
 
         Args:
-            hsv_image: The input image in HSV color space.
-            lower_bound: The lower bound of the color range.
-            upper_bound: The upper bound of the color range.
-            points (optional): A list of 4 points for a quadrilateral ROI.
-
-        Returns:
-            A binary mask (cv2 image) of the detected color.
+            next_sub_state: The StraightSubState to transition into.
+            path_was_outer: A boolean indicating if the completed path was on the outer side.
         """
-        color_mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
-
-        if points is not None:
-            region_mask = np.zeros(hsv_image.shape[:2], dtype=np.uint8)
-            roi_corners = np.array([points], dtype=np.int32)
-            cv2.fillPoly(region_mask, roi_corners, 255)
-            final_mask = cv2.bitwise_and(color_mask, region_mask)
-        else:
-            final_mask = color_mask
-            
-        return final_mask
-
-    def _reshape_roi_points(self, flat_points: list[int]) -> list[list[int]]:
-        """Converts a flat list of coordinates [x1,y1,x2,y2,...] to a list of points [[x1,y1],[x2,y2],...]."""
-        if len(flat_points) != 8:
-            self.get_logger().error(f"Invalid ROI definition. Expected 8 values, got {len(flat_points)}. Using empty ROI.")
-            return []
-        return [
-            [flat_points[0], flat_points[1]],
-            [flat_points[2], flat_points[3]],
-            [flat_points[4], flat_points[5]],
-            [flat_points[6], flat_points[7]],
-        ]
-
-    def _save_annotated_image(self, base_name: str, turn_count: int, frame_bgr, masks, rois, sample_num: int = 1):
-        """
-        Saves annotated debug images for color detection, organizing planning
-        images into corner-specific subfolders.
-        """
-        if not self.save_debug_images:
-            return
-
-        try:
-            # --- Determine the save path dynamically ---
-            save_path = self.debug_image_path
-            # For planning images, create and use a corner-specific subfolder
-            if base_name == 'planning_detection' and turn_count > 0:
-                corner_folder_name = f"corner{turn_count}"
-                save_path = os.path.join(self.debug_image_path, corner_folder_name)
-                # Create the directory if it doesn't exist; exist_ok=True prevents errors
-                os.makedirs(save_path, exist_ok=True)
-
-            # Create a unique filename suffix
-            filename_suffix = f"turn{turn_count}_sample{sample_num}"
-            
-            # Annotated ROI Image
-            annotated_frame = frame_bgr.copy()
-            if rois:
-                for roi_name, roi_points in rois.items():
-                    if roi_points: # Check if points list is not empty
-                        cv2.polylines(annotated_frame, [np.array(roi_points, dtype=np.int32)], True, (255, 255, 0), 2)
-            
-            filename_annotated = os.path.join(save_path, f"{base_name}_{filename_suffix}_annotated.jpg")
-            cv2.imwrite(filename_annotated, annotated_frame)
-
-            # Combined Color Mask Image
-            red_mask = masks.get('RED', np.zeros(frame_bgr.shape[:2], dtype=np.uint8))
-            green_mask = masks.get('GREEN', np.zeros(frame_bgr.shape[:2], dtype=np.uint8))
-            
-            combined_mask_viz = np.zeros_like(frame_bgr)
-            combined_mask_viz[np.where(green_mask == 255)] = (0, 255, 0) # BGR for Green
-            combined_mask_viz[np.where(red_mask == 255)] = (0, 0, 255) # BGR for Red
-
-            if rois:
-                for roi_name, roi_points in rois.items():
-                    cv2.polylines(combined_mask_viz, [np.array(roi_points, dtype=np.int32)], True, (255, 255, 0), 2)
-
-            filename_mask = os.path.join(save_path, f"{base_name}_{filename_suffix}_masks.jpg")
-            cv2.imwrite(filename_mask, combined_mask_viz)
-
-            # Log only the first saved image to avoid flooding the console
-            if sample_num == 1:
-                self.get_logger().info(f"Saved debug images for {base_name} turn {turn_count} to: {save_path}")
-
-        except Exception as e:
-            self.get_logger().error(f"Failed to save debug image: {e}")
-
-    def _mirror_roi_points(self, roi_points: list[list[int]]) -> list[list[int]]:
-        """
-        Mirrors the ROI horizontally based on the image width.
-        Args:
-            roi_points: A list of [x, y] coordinates for the ROI vertices.
-        Returns:
-            A new list of mirrored [x, y] coordinates.
-        """
-        mirrored_points = []
-        for point in roi_points:
-            mirrored_x = self.image_width - point[0]
-            mirrored_points.append([mirrored_x, point[1]])
+        self.is_passing_obstacle = False
+        self.last_avoidance_path_was_outer = path_was_outer
+        self.straight_sub_state = next_sub_state
         
-        # The order of vertices might be clockwise after mirroring, which is usually fine for fillPoly.
-        # If winding order matters for other functions, it might need to be reversed.
-        # For simple drawing and masking, this is sufficient.
-        return mirrored_points
+        self.publish_twist_with_gain(0.0, 0.0)
 
-    def publish_twist_with_gain(self, linear_x, angular_z):
-        """
-        Calculates the final velocity command, applies gain, rate limiting, and publishes the Twist message.
-        """
-        # --- Throttling Logic (no changes here) ---
-        current_time = self.get_clock().now()
-        duration_since_last_pub = (current_time - self.last_cmd_pub_time).nanoseconds / 1e6
-
-        if duration_since_last_pub < self.cmd_pub_interval_ms:
-            return
-        
-        self.last_cmd_pub_time = current_time
-
-        # --- Gain Application ---
-        state_specific_gain = self._get_state_specific_gain()
-        target_linear = linear_x * self.gain * state_specific_gain
-        target_angular = angular_z * self.gain * state_specific_gain
-        
-        # --- NEW: Rate Limiter Logic ---
-        # Calculate time delta (dt) based on the control loop rate (50Hz)
-        dt = 1.0 / 50.0
-
-        # Limit the change in linear velocity
-        max_delta_linear = self.max_linear_acceleration * dt
-        final_linear_x = np.clip(
-            target_linear,
-            self.last_published_linear - max_delta_linear,
-            self.last_published_linear + max_delta_linear
-        )
-
-        # Limit the change in angular velocity
-        max_delta_angular = self.max_angular_acceleration_rad * dt
-        final_angular_z = np.clip(
-            target_angular,
-            self.last_published_angular - max_delta_angular,
-            self.last_published_angular + max_delta_angular
-        )
-        # --- END OF NEW ---
-
-        # --- Publish and Store Last Values ---
-        twist_msg = Twist()
-        twist_msg.linear.x = final_linear_x
-        twist_msg.angular.z = final_angular_z
-        self.publisher_.publish(twist_msg)
-        
-        self.last_published_linear = final_linear_x
-        self.last_published_angular = final_angular_z
-
-    def _get_state_specific_gain(self) -> float:
-        """
-        Returns a gain modifier based on the current state of the robot.
-        This allows for fine-tuning speeds in specific situations (e.g., slowing down during a reverse turn).
-        
-        Returns:
-            float: A multiplier for the base gain. Defaults to 1.0.
-        """
-        # --- Default value ---
-        state_specific_gain = 1.0
-
-        # --- State-specific adjustments ---
-        if self.state == State.STRAIGHT:
-            if self.straight_sub_state == StraightSubState.ALIGN_WITH_INNER_WALL:
-                state_specific_gain = self.gain_straight_align_inner_wall
-            elif  self.straight_sub_state == StraightSubState.ALIGN_WITH_OUTER_WALL:
-                state_specific_gain = self.gain_straight_align_outer_wall
-            elif self.straight_sub_state == StraightSubState.AVOID_OUTER_TURN_IN:
-                state_specific_gain = self.gain_straight_outer_turn_in
-
-        # Add more conditions here if needed in the future
-        # elif self.state == State.STRAIGHT and self.straight_sub_state == ... :
-        #     state_specific_gain = self.gain_some_other_state
-        
-        return state_specific_gain
-
+    # --- Sensor Data Helpers ---
     def get_distance_at_world_angle(self, scan_data, world_angle_deg):
         """
         Gets the LiDAR distance at a specific world angle, corrected by the IMU yaw.
@@ -3455,7 +3175,38 @@ class ObstacleNavigatorNode(Node):
             current_angle_rad += scan_data.angle_increment
         if angle_at_min_dist_deg is not None: return {'distance': min_dist, 'angle': angle_at_min_dist_deg}
         return None
-    
+
+    def _correct_mirrored_scan(self, msg: LaserScan) -> LaserScan:
+        """
+        Corrects a mirrored (clockwise) LaserScan message by reversing its data arrays.
+        This function creates a new message and does not modify the original.
+        """
+        corrected_msg = LaserScan()
+        # Copy all header and metadata fields
+        corrected_msg.header = msg.header
+        corrected_msg.angle_min = msg.angle_min
+        corrected_msg.angle_max = msg.angle_max
+        corrected_msg.angle_increment = msg.angle_increment
+        corrected_msg.time_increment = msg.time_increment
+        corrected_msg.scan_time = msg.scan_time
+        corrected_msg.range_min = msg.range_min
+        corrected_msg.range_max = msg.range_max
+        
+        # Reverse the main data arrays
+        corrected_msg.ranges = list(reversed(msg.ranges))
+        if msg.intensities:
+            corrected_msg.intensities = list(reversed(msg.intensities))
+            
+        return corrected_msg
+
+    # --- Geometry & Math Helpers ---
+    def _calculate_base_angle(self):
+        """Calculates the ideal angle of the current wall segment based on direction."""
+        if self.direction == 'ccw':
+            return self.wall_segment_index * 90.0
+        else: # cw
+            return self.wall_segment_index * -90.0
+
     def _angle_normalize(self, angle_deg):
         """Normalize an angle to the range [-180, 180)."""
         while angle_deg >= 180.0: angle_deg -= 360.0
@@ -3468,6 +3219,77 @@ class ObstacleNavigatorNode(Node):
         while diff <= -180.0: diff += 360.0
         while diff > 180.0: diff -= 360.0
         return diff
+
+    def _check_yaw_alignment(self, base_angle_deg: float, tolerance_deg: float) -> bool:
+        """
+        Checks if the current yaw is within a tolerance of a base angle.
+
+        Args:
+            base_angle_deg: The reference angle to compare against.
+            tolerance_deg: The maximum allowed deviation in degrees.
+
+        Returns:
+            bool: True if the yaw is within the tolerance, False otherwise.
+        """
+        # Calculate the absolute deviation from the base angle
+        yaw_deviation_deg = abs(self._angle_diff(self.current_yaw_deg, base_angle_deg))
+
+        # Return True if the deviation is less than the tolerance
+        return yaw_deviation_deg < tolerance_deg
+
+    # --- Misc Helpers ---
+    def _get_state_specific_gain(self) -> float:
+        """
+        Returns a gain modifier based on the current state of the robot.
+        This allows for fine-tuning speeds in specific situations (e.g., slowing down during a reverse turn).
+        
+        Returns:
+            float: A multiplier for the base gain. Defaults to 1.0.
+        """
+        # --- Default value ---
+        state_specific_gain = 1.0
+
+        # --- State-specific adjustments ---
+        if self.state == State.STRAIGHT:
+            if self.straight_sub_state == StraightSubState.ALIGN_WITH_INNER_WALL:
+                state_specific_gain = self.gain_straight_align_inner_wall
+            elif  self.straight_sub_state == StraightSubState.ALIGN_WITH_OUTER_WALL:
+                state_specific_gain = self.gain_straight_align_outer_wall
+            elif self.straight_sub_state == StraightSubState.AVOID_OUTER_TURN_IN:
+                state_specific_gain = self.gain_straight_outer_turn_in
+
+        # Add more conditions here if needed in the future
+        # elif self.state == State.STRAIGHT and self.straight_sub_state == ... :
+        #     state_specific_gain = self.gain_some_other_state
+        
+        return state_specific_gain
+
+    def _get_effective_detection_threshold(self, scan_msg: LaserScan):
+        """Calculates the dynamic detection threshold based on the distance to the obstacle."""
+        base_detection_distance_m = 1.2
+        
+        if self.last_avoidance_path_was_outer:
+            course_width_m = 2.0
+            if self.direction == 'ccw':
+                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
+            else: # cw
+                outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
+            
+            outer_wall_dist = self.get_distance_at_world_angle(scan_msg, outer_wall_angle)
+
+            if not math.isnan(outer_wall_dist) and 0.1 < outer_wall_dist < course_width_m:
+                effective_distance_outer = max(0.1, course_width_m - outer_wall_dist)
+                distance_ratio_sq = (base_detection_distance_m / effective_distance_outer) ** 2
+                threshold = self.planning_detection_threshold * distance_ratio_sq
+                threshold = max(200, min(threshold, self.planning_detection_threshold * 5.0))
+                self.get_logger().debug(f"Dynamic threshold calculated: {threshold:.1f}")
+                return threshold
+            else:
+                self.get_logger().warn("Could not get valid outer wall distance. Using fallback multiplier.")
+                return self.planning_detection_threshold * self.planning_detection_threshold_outer_path_multiplier
+        else:
+            self.get_logger().info(f"Last path was INNER. Using standard threshold: {self.planning_detection_threshold:.1f}")
+            return self.planning_detection_threshold
 
 def main(args=None):
     rclpy.init(args=args)
