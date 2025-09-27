@@ -84,10 +84,11 @@ class ObstacleNavigatorNode(Node):
         self.start_time = self.get_clock().now()
         # Only publish commands at a maximum rate of ~30Hz (33ms interval)
         # to avoid flooding the serial port of the controller.
-        self.cmd_pub_interval_ms = 33 
-        self.declare_parameter('log_level', 'DEBUG') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
+        self.cmd_pub_interval_ms = 33
+
+        self.declare_parameter('log_level_str', 'DEBUG') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
         # Load log_level immediately to affect subsequent logs
-        log_level_str = self.get_parameter('log_level').get_parameter_value().string_value
+        log_level_str = self.get_parameter('log_level_str').get_parameter_value().string_value
         log_level_map = {
             'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
             'INFO': rclpy.logging.LoggingSeverity.INFO,
@@ -114,117 +115,119 @@ class ObstacleNavigatorNode(Node):
 
         # Strategy and planning variables
         self.unparking_strategy = UnparkingStrategy.UNDEFINED
-        self.declare_parameter('avoidance_path_plan', ['', '', '', ''])
-        self.declare_parameter('entrance_obstacle_plan', [False, False, False, False])
+        self.avoidance_path_plan = ['', '', '', '']
+        self.entrance_obstacle_plan = [False, False, False, False]
 
 
         # 3. TUNING PARAMETERS (by category)
         # ==================================
         # --- General & Debug ---
-        self.declare_parameter('start_from_parking', False) 
-        self.declare_parameter('correct_mirrored_scan', True)
-        self.declare_parameter('save_debug_images', True)
-        self.declare_parameter('debug_image_path', '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images', )
+        self.start_from_parking = False
+        self.correct_mirrored_scan = True
+        self.save_debug_images = True
+        self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images'
         self.max_valid_range_m = 3.0
         self.max_turns = 12
         
         # --- Driving & Speed Control ---
-        self.declare_parameter('forward_speed', 0.2)
-        self.declare_parameter('max_steer', 1.5)
+        self.forward_speed = 0.2
+        self.max_steer = 1.5
         self.declare_parameter('gain', 2.0)
         self.gain_straight_align_outer_wall = 1.0
         self.gain_straight_align_inner_wall = 1.0
         self.gain_straight_outer_turn_in = 1.0
-        self.declare_parameter('direction', 'cw') # Note: This will be overwritten by PREPARATION state
+        self.direction = 'cw' # Note: This will be overwritten by PREPARATION state
         # --- Rate Limiter (Smoother) Parameters & Variables ---
-        self.declare_parameter('max_linear_acceleration', 3000.0) # m/s^2 past:30
-        self.declare_parameter('max_angular_acceleration_rad', 7000.0) # rad/s^2 past:70
+        self.max_linear_acceleration = 3000.0 # m/s^2 past:30
+        self.max_angular_acceleration_rad = 7000.0 # rad/s^2 past:70
 
         # --- Unparking Sequence ---
-        self.declare_parameter('unparking_speed', 0.05) 
-        self.declare_parameter('unparking_initial_turn_deg', 55.0)
-        self.declare_parameter('unparking_exit_straight_dist_m', 0.33)
+        self.unparking_speed = 0.05
+        self.unparking_initial_turn_deg = 55.0
+        self.unparking_exit_straight_dist_m = 0.33
 
         # --- Camera & Vision ---
-        self.declare_parameter('pan_servo_id', 1, )
-        self.declare_parameter('tilt_servo_id', 2, )
-        self.declare_parameter('initial_pan_position', 1850)
-        self.declare_parameter('camera_move_duration_sec', 0.2)
-        self.declare_parameter('enable_dynamic_tilt', True)
-        self.declare_parameter('tilt_center_position', 1500)
-        self.declare_parameter('tilt_max_position', 2500)
-        self.declare_parameter('tilt_min_position', 500)
-        self.declare_parameter('tilt_position_cw', 530)
-        self.declare_parameter('tilt_position_ccw', 2500)
-        self.declare_parameter('tilt_update_interval_ms', 100) # Update tilt every 100ms (10Hz)
-        self.declare_parameter('image_width', 640)
+        self.pan_servo_id = 1
+        self.tilt_servo_id = 2
+        self.initial_pan_position = 1850
+        self.camera_move_duration = 0.2
+        self.enable_dynamic_tilt = True
+        self.tilt_center_position = 1500
+        self.tilt_max_position = 2500
+        self.tilt_min_position = 500
+        self.tilt_position_cw = 530
+        self.tilt_position_ccw = 2500
+        self.tilt_update_interval_ms = 100 # Update tilt every 100ms (10Hz)
+        self.image_width = 640
         # Color Thresholds
-        self.declare_parameter('red_lower1', [0, 100, 80])
-        self.declare_parameter('red_upper1', [3, 255, 243])
-        self.declare_parameter('red_lower2', [174, 100, 80])
-        self.declare_parameter('red_upper2', [179, 255, 243])
-        self.declare_parameter('green_lower', [55, 100, 67])
-        self.declare_parameter('green_upper', [80, 255, 240])
-        self.declare_parameter('roi_planning_ccw_inner_flat', [225, 30, 0, 480, 640, 480, 480, 30])
-        self.declare_parameter('roi_planning_ccw_inner_start_area_flat', [225, 30, 0, 480, 560, 480, 320, 30])
-        self.declare_parameter('roi_planning_ccw_outer_flat', [220, 15, 100, 260, 525, 260, 440, 15])
-        self.declare_parameter('roi_planning_ccw_outer_start_area_flat', [220, 15, 100, 260, 425, 260, 300, 15])
-        self.declare_parameter('roi_planning_cw_inner_flat', [160, 30, 0, 480, 640, 480, 400, 30])
-        self.declare_parameter('roi_planning_cw_inner_start_area_flat', [320, 30, 80, 480, 640, 480, 400, 30])
-        self.declare_parameter('roi_planning_cw_outer_flat', [160, 15, 120, 260, 545, 260, 380, 15])
-        self.declare_parameter('roi_planning_cw_outer_start_area_flat', [280, 15, 150, 260, 545, 260, 380, 15])
-
+        self.red_lower1 = [0, 100, 80]
+        self.red_upper1 = [3, 255, 243]
+        self.red_lower2 = [174, 100, 80]
+        self.red_upper2 = [179, 255, 243]
+        self.green_lower = [55, 100, 67]
+        self.green_upper = [80, 255, 240]
+        """
+        self.roi_planning_ccw_inner_flat = [225, 30, 0, 480, 640, 480, 480, 30]
+        self.roi_planning_ccw_inner_start_area_flat = [225, 30, 0, 480, 560, 480, 320, 30]
+        self.roi_planning_ccw_outer_flat = [220, 15, 100, 260, 525, 260, 440, 15]
+        self.roi_planning_ccw_outer_start_area_flat = [220, 15, 100, 260, 425, 260, 300, 15]
+        self.roi_planning_cw_inner_flat = [160, 30, 0, 480, 640, 480, 400, 30]
+        self.roi_planning_cw_inner_start_area_flat = [320, 30, 80, 480, 640, 480, 400, 30]
+        self.roi_planning_cw_outer_flat = [160, 15, 120, 260, 545, 260, 380, 15]
+        self.roi_planning_cw_outer_start_area_flat = [280, 15, 150, 260, 545, 260, 380, 15]
+        """
+        
         # --- Alignment (PID) ---
-        self.declare_parameter('align_kp_angle', 0.04)
-        self.declare_parameter('align_kp_dist', 7.5)
-        self.declare_parameter('align_target_outer_dist_m', 0.2)
-        self.declare_parameter('align_target_outer_dist_start_area_m', 0.39)
-        self.declare_parameter('align_target_inner_dist_m', 0.2)
-        self.declare_parameter('align_dist_tolerance_m', 0.005)
+        self.align_kp_angle = 0.04
+        self.align_kp_dist = 7.5
+        self.align_target_outer_dist_m = 0.2
+        self.align_target_outer_dist_start_area_m = 0.39
+        self.align_target_inner_dist_m = 0.2
+        self.align_dist_tolerance_m = 0.005
 
         # --- Turning ---
         self.pre_scanning_reverse_target_dist_m = 0.7
-        self.declare_parameter('turn_forward_speed', 0.15)
-        self.declare_parameter('turn_speed', 0.15)
-        self.declare_parameter('turn_start_dist_outer_m', 0.33)
-        self.declare_parameter('turn_start_dist_outer_start_area_m', 0.57)
-        self.declare_parameter('turn_start_dist_inner_m', 1.0)
-        self.declare_parameter('turn_completion_yaw_threshold_deg', 15.0)
+        self.turn_forward_speed = 0.15
+        self.turn_speed = 0.15
+        self.turn_start_dist_outer_m = 0.33
+        self.turn_start_dist_outer_start_area_m = 0.57
+        self.turn_start_dist_inner_m = 1.0
+        self.turn_completion_yaw_threshold_deg = 15.0
         self.inner_wall_disappear_threshold = 1.3
         self.inner_wall_disappear_count = 3
 
         # --- Avoidance ---
-        self.declare_parameter('avoid_speed', 0.2)
-        self.declare_parameter('avoid_kp_angle', 0.03) # P-gain for yaw control
-        self.declare_parameter('avoid_kp_dist', 1.5)  # P-gain for distance control
-        self.declare_parameter('avoid_turn_in_kp_angle', 0.04)
-        self.declare_parameter('avoid_outer_approach_angle_deg', 40.0)
-        self.declare_parameter('avoid_outer_approach_target_dist_m', 0.23)
-        self.declare_parameter('avoid_outer_approach_target_dist_start_area_m', 0.45)
-        self.declare_parameter('avoid_inner_approach_angle_deg', 40.0)
-        self.declare_parameter('avoid_inner_approach_target_dist_m', 0.25)
-        self.declare_parameter('avoid_inner_pass_thresh_m', 0.6)
+        self.avoid_speed = 0.2
+        self.avoid_kp_angle = 0.03 # P-gain for yaw control
+        self.avoid_kp_dist = 1.5  # P-gain for distance control
+        self.avoid_turn_in_kp_angle = 0.04
+        self.avoid_outer_approach_angle_deg = 40.0
+        self.avoid_outer_approach_target_dist_m = 0.23
+        self.avoid_outer_approach_target_dist_start_area_m = 0.45
+        self.avoid_inner_approach_angle_deg = 40.0
+        self.avoid_inner_approach_target_dist_m = 0.25
+        self.avoid_inner_pass_thresh_m = 0.6
 
         # --- Parking ---
-        self.declare_parameter('parking_approach_ccw_dist_min_m', 0.6)
-        self.declare_parameter('parking_approach_ccw_dist_max_m', 0.7)
-        self.declare_parameter('parking_approach_cw_overshoot_dist_m', 1.0)
-        self.declare_parameter('parking_approach_cw_final_dist_min_m', 1.15)
-        self.declare_parameter('parking_approach_cw_final_dist_max_m', 1.25)
-        self.declare_parameter('parking_reverse_in_target_angle_deg', 50.0)
-        self.declare_parameter('parking_reverse_in_yaw_tolerance_deg', 2.0)
+        self.parking_approach_ccw_dist_min_m = 0.6
+        self.parking_approach_ccw_dist_max_m = 0.7
+        self.parking_approach_cw_overshoot_dist_m = 1.0
+        self.parking_approach_cw_final_dist_min_m = 1.15
+        self.parking_approach_cw_final_dist_max_m = 1.25
+        self.parking_reverse_in_target_angle_deg = 50.0
+        self.parking_reverse_in_yaw_tolerance_deg = 2.0
 
         # --- Legacy Determine Course ---
-        self.declare_parameter('course_detection_threshold_m', 1.5)
-        self.declare_parameter('course_detection_slow_speed', 0.1)
-        self.declare_parameter('course_detection_speed', 0.17)
-        self.declare_parameter('roi_left', [150, 50, 90, 430])
-        self.declare_parameter('roi_right', [290, 50, 90, 430])
-        self.declare_parameter('detection_pixel_threshold', 500)
-        self.declare_parameter('detection_samples', 5) # Number of frames to sample for majority vote
-        self.declare_parameter('initial_approach_target_dist_inner_ccw_m', 0.3)
-        self.declare_parameter('initial_approach_target_dist_inner_cw_m', 0.25)
-        self.declare_parameter('initial_approach_target_dist_outer_m', 0.6)
+        self.course_detection_threshold_m = 1.5
+        self.course_detection_slow_speed = 0.1
+        self.course_detection_speed = 0.17
+        self.roi_left = [150, 50, 90, 430]
+        self.roi_right = [290, 50, 90, 430]
+        self.detection_pixel_threshold = 500
+        self.detection_samples = 5 # Number of frames to sample for majority vote
+        self.initial_approach_target_dist_inner_ccw_m = 0.3
+        self.initial_approach_target_dist_inner_cw_m = 0.25
+        self.initial_approach_target_dist_outer_m = 0.6
         self.initial_approach_target_dist_inner_m = 0.275
 
         # 4. INTERNAL STATE VARIABLES
@@ -275,8 +278,8 @@ class ObstacleNavigatorNode(Node):
 
         # Planning state variables
         self.planning_initiated = False
-        self.declare_parameter('planning_detection_threshold', 570)
-        self.declare_parameter('planning_detection_threshold_outer_path_multiplier', 0.7)
+        self.planning_detection_threshold = 570
+        self.planning_detection_threshold_outer_path_multiplier = 0.7
         self.post_planning_reverse_target_dist_m = 0.7 
         self.planning_scan_roi_flat = [200, 0, 120, 480, 440, 480, 360, 0] # [x, y, width, height]
         self.planning_scan_interval = 2
@@ -300,6 +303,7 @@ class ObstacleNavigatorNode(Node):
         # 6. SYSTEM INITIALIZATION CALLS
         # ==============================
         self._load_parameters() # Load all declared parameters into self.xxx variables
+        self._initialize_variables()
 
         # Set initial state AFTER loading parameters
         if self.start_from_parking:
@@ -332,111 +336,22 @@ class ObstacleNavigatorNode(Node):
         self.get_logger().info(f'Course Detector Node started. Initial state: {self.state.name}')
 
     def _load_parameters(self):
-        """Loads all ROS2 parameters into class variables."""
-        self.unparking_exit_straight_dist_m = self.get_parameter('unparking_exit_straight_dist_m').get_parameter_value().double_value
-        self.unparking_speed = self.get_parameter('unparking_speed').get_parameter_value().double_value
-        self.unparking_initial_turn_deg = self.get_parameter('unparking_initial_turn_deg').get_parameter_value().double_value
-
-        self.start_from_parking = self.get_parameter('start_from_parking').get_parameter_value().bool_value
-        self.correct_mirrored_scan = self.get_parameter('correct_mirrored_scan').get_parameter_value().bool_value
-
-        self.pan_servo_id = self.get_parameter('pan_servo_id').get_parameter_value().integer_value
-        self.tilt_servo_id = self.get_parameter('tilt_servo_id').get_parameter_value().integer_value
-        self.initial_pan_position = self.get_parameter('initial_pan_position').get_parameter_value().integer_value
-        self.camera_move_duration = self.get_parameter('camera_move_duration_sec').get_parameter_value().double_value
-        self.planning_detection_threshold = self.get_parameter('planning_detection_threshold').get_parameter_value().integer_value 
-        self.planning_detection_threshold_outer_path_multiplier = self.get_parameter('planning_detection_threshold_outer_path_multiplier').get_parameter_value().double_value
-
-
-        self.tilt_position_cw = self.get_parameter('tilt_position_cw').get_parameter_value().integer_value
-        self.tilt_position_ccw = self.get_parameter('tilt_position_ccw').get_parameter_value().integer_value
-
-        self.enable_dynamic_tilt = self.get_parameter('enable_dynamic_tilt').get_parameter_value().bool_value
-        self.tilt_center_position = self.get_parameter('tilt_center_position').get_parameter_value().integer_value
-        self.tilt_max_position = self.get_parameter('tilt_max_position').get_parameter_value().integer_value
-        self.tilt_min_position = self.get_parameter('tilt_min_position').get_parameter_value().integer_value
-        self.tilt_update_interval_ms = self.get_parameter('tilt_update_interval_ms').get_parameter_value().integer_value
-
-        self.image_width = self.get_parameter('image_width').get_parameter_value().integer_value
-
-        self.roi_planning_ccw_inner_flat = self.get_parameter('roi_planning_ccw_inner_flat').get_parameter_value().integer_array_value
-        self.roi_planning_ccw_inner_start_area_flat = self.get_parameter('roi_planning_ccw_inner_start_area_flat').get_parameter_value().integer_array_value
-        self.roi_planning_ccw_outer_flat = self.get_parameter('roi_planning_ccw_outer_flat').get_parameter_value().integer_array_value
-        self.roi_planning_ccw_outer_start_area_flat = self.get_parameter('roi_planning_ccw_outer_start_area_flat').get_parameter_value().integer_array_value
-        self.roi_planning_cw_inner_flat = self.get_parameter('roi_planning_cw_inner_flat').get_parameter_value().integer_array_value
-        self.roi_planning_cw_inner_start_area_flat = self.get_parameter('roi_planning_cw_inner_start_area_flat').get_parameter_value().integer_array_value
-        self.roi_planning_cw_outer_flat = self.get_parameter('roi_planning_cw_outer_flat').get_parameter_value().integer_array_value
-        self.roi_planning_cw_outer_start_area_flat = self.get_parameter('roi_planning_cw_outer_start_area_flat').get_parameter_value().integer_array_value
-
-        self.course_detection_threshold_m = self.get_parameter('course_detection_threshold_m').get_parameter_value().double_value
-        self.course_detection_speed = self.get_parameter('course_detection_speed').get_parameter_value().double_value
-        self.course_detection_slow_speed = self.get_parameter('course_detection_slow_speed').get_parameter_value().double_value
-        self.initial_approach_target_dist_inner_ccw_m = self.get_parameter('initial_approach_target_dist_inner_ccw_m').get_parameter_value().double_value
-        self.initial_approach_target_dist_inner_cw_m = self.get_parameter('initial_approach_target_dist_inner_cw_m').get_parameter_value().double_value
-        self.initial_approach_target_dist_outer_m = self.get_parameter('initial_approach_target_dist_outer_m').get_parameter_value().double_value
-
-        self.red_lower1 = np.array(self.get_parameter('red_lower1').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.red_upper1 = np.array(self.get_parameter('red_upper1').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.red_lower2 = np.array(self.get_parameter('red_lower2').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.red_upper2 = np.array(self.get_parameter('red_upper2').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.green_lower = np.array(self.get_parameter('green_lower').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.green_upper = np.array(self.get_parameter('green_upper').get_parameter_value().integer_array_value, dtype=np.uint8)
-        self.roi_left = self.get_parameter('roi_left').get_parameter_value().integer_array_value
-        self.roi_right = self.get_parameter('roi_right').get_parameter_value().integer_array_value
-        self.detection_threshold = self.get_parameter('detection_pixel_threshold').get_parameter_value().integer_value
-        self.detection_samples = self.get_parameter('detection_samples').get_parameter_value().integer_value
-
-        self.turn_forward_speed = self.get_parameter('turn_forward_speed').get_parameter_value().double_value
-        self.turn_speed = self.get_parameter('turn_speed').get_parameter_value().double_value
-        self.turn_start_dist_outer_m = self.get_parameter('turn_start_dist_outer_m').get_parameter_value().double_value
-        self.turn_start_dist_outer_start_area_m = self.get_parameter('turn_start_dist_outer_start_area_m').get_parameter_value().double_value
-        self.turn_start_dist_inner_m = self.get_parameter('turn_start_dist_inner_m').get_parameter_value().double_value
-        self.turn_completion_yaw_threshold_deg = self.get_parameter('turn_completion_yaw_threshold_deg').get_parameter_value().double_value
-
-        # Driving
-        self.forward_speed = self.get_parameter('forward_speed').get_parameter_value().double_value
-        self.max_steer = self.get_parameter('max_steer').get_parameter_value().double_value
         self.gain = self.get_parameter('gain').get_parameter_value().double_value
-        self.direction = self.get_parameter('direction').get_parameter_value().string_value
 
-        # NEW: Load avoidance parameters
-        self.avoid_kp_angle = self.get_parameter('avoid_kp_angle').get_parameter_value().double_value
-        self.avoid_kp_dist = self.get_parameter('avoid_kp_dist').get_parameter_value().double_value
-        self.avoid_speed = self.get_parameter('avoid_speed').get_parameter_value().double_value
-        self.avoid_inner_pass_thresh_m = self.get_parameter('avoid_inner_pass_thresh_m').get_parameter_value().double_value
+    def _initialize_variables(self):
+        """
+        Performs post-processing on variables after they are defined.
+        e.g., converting lists to numpy arrays for OpenCV.
+        """
+        # Convert color threshold lists to numpy arrays
+        self.red_lower1 = np.array(self.red_lower1, dtype=np.uint8)
+        self.red_upper1 = np.array(self.red_upper1, dtype=np.uint8)
+        self.red_lower2 = np.array(self.red_lower2, dtype=np.uint8)
+        self.red_upper2 = np.array(self.red_upper2, dtype=np.uint8)
+        self.green_lower = np.array(self.green_lower, dtype=np.uint8)
+        self.green_upper = np.array(self.green_upper, dtype=np.uint8)
 
-        self.avoid_turn_in_kp_angle = self.get_parameter('avoid_turn_in_kp_angle').get_parameter_value().double_value
-
-        self.avoid_approach_angle_deg = self.get_parameter('avoid_outer_approach_angle_deg').get_parameter_value().double_value
-        self.avoid_approach_target_dist_m = self.get_parameter('avoid_outer_approach_target_dist_m').get_parameter_value().double_value
-        self.avoid_outer_approach_target_dist_start_area_m = self.get_parameter('avoid_outer_approach_target_dist_start_area_m').get_parameter_value().double_value
-
-        self.avoid_inner_approach_angle_deg = self.get_parameter('avoid_inner_approach_angle_deg').get_parameter_value().double_value
-        self.avoid_inner_approach_target_dist_m = self.get_parameter('avoid_inner_approach_target_dist_m').get_parameter_value().double_value
-
-        self.align_target_inner_dist_m = self.get_parameter('align_target_inner_dist_m').get_parameter_value().double_value
-        self.align_dist_tolerance_m = self.get_parameter('align_dist_tolerance_m').get_parameter_value().double_value
-        self.align_kp_angle = self.get_parameter('align_kp_angle').get_parameter_value().double_value
-        self.align_kp_dist = self.get_parameter('align_kp_dist').get_parameter_value().double_value
-        self.align_target_outer_dist_m = self.get_parameter('align_target_outer_dist_m').get_parameter_value().double_value
-        self.align_target_outer_dist_start_area_m = self.get_parameter('align_target_outer_dist_start_area_m').get_parameter_value().double_value
-
-        self.avoidance_path_plan = self.get_parameter('avoidance_path_plan').get_parameter_value().string_array_value
-        self.entrance_obstacle_plan = self.get_parameter('entrance_obstacle_plan').get_parameter_value().bool_array_value
-
-        self.parking_approach_ccw_dist_min_m = self.get_parameter('parking_approach_ccw_dist_min_m').get_parameter_value().double_value
-        self.parking_approach_ccw_dist_max_m = self.get_parameter('parking_approach_ccw_dist_max_m').get_parameter_value().double_value
-        self.parking_approach_cw_overshoot_dist_m = self.get_parameter('parking_approach_cw_overshoot_dist_m').get_parameter_value().double_value
-        self.parking_approach_cw_final_dist_min_m = self.get_parameter('parking_approach_cw_final_dist_min_m').get_parameter_value().double_value
-        self.parking_approach_cw_final_dist_max_m = self.get_parameter('parking_approach_cw_final_dist_max_m').get_parameter_value().double_value
-        self.parking_reverse_in_target_angle_deg = self.get_parameter('parking_reverse_in_target_angle_deg').get_parameter_value().double_value
-        self.parking_reverse_in_yaw_tolerance_deg = self.get_parameter('parking_reverse_in_yaw_tolerance_deg').get_parameter_value().double_value
-
-        self.save_debug_images = self.get_parameter('save_debug_images').get_parameter_value().bool_value
-        self.debug_image_path = self.get_parameter('debug_image_path').get_parameter_value().string_value
-
-        self.max_linear_acceleration = self.get_parameter('max_linear_acceleration').get_parameter_value().double_value
-        self.max_angular_acceleration_rad = self.get_parameter('max_angular_acceleration_rad').get_parameter_value().double_value
+        self.get_logger().info("Internal variables initialized (e.g., numpy conversions).")
 
     def _initialize_debug_directory(self):
         """
@@ -1029,10 +944,10 @@ class ObstacleNavigatorNode(Node):
         right_areas = detection_data['areas']['right']
         
         # --- MODIFIED: Store detailed detection results ---
-        is_red_left = left_areas['RED'] > self.detection_threshold
-        is_red_right = right_areas['RED'] > self.detection_threshold
-        is_green_left = left_areas['GREEN'] > self.detection_threshold
-        is_green_right = right_areas['GREEN'] > self.detection_threshold
+        is_red_left = left_areas['RED'] > self.detection_pixel_threshold
+        is_red_right = right_areas['RED'] > self.detection_pixel_threshold
+        is_green_left = left_areas['GREEN'] > self.detection_pixel_threshold
+        is_green_right = right_areas['GREEN'] > self.detection_pixel_threshold
 
         result_data = {'color': 'NONE', 'left': False, 'right': False}
         if is_red_left or is_red_right:
@@ -1387,11 +1302,11 @@ class ObstacleNavigatorNode(Node):
 
         # Define target yaw and wall measurement angles
         if self.direction == 'ccw':
-            target_yaw_deg = self._angle_normalize(base_angle_deg - self.avoid_approach_angle_deg)
+            target_yaw_deg = self._angle_normalize(base_angle_deg - self.avoid_outer_approach_angle_deg)
             outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
             inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg + 90.0)
         else: # cw
-            target_yaw_deg = self._angle_normalize(base_angle_deg + self.avoid_approach_angle_deg)
+            target_yaw_deg = self._angle_normalize(base_angle_deg + self.avoid_outer_approach_angle_deg)
             outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
             inner_wall_angle_for_pass_check = self._angle_normalize(base_angle_deg - 90.0)
 
@@ -1433,7 +1348,7 @@ class ObstacleNavigatorNode(Node):
         if self.wall_segment_index == 0:
             approach_target_dist = self.avoid_outer_approach_target_dist_start_area_m
         else:
-            approach_target_dist = self.avoid_approach_target_dist_m
+            approach_target_dist = self.avoid_outer_approach_target_dist_m
 
         is_distance_met = not math.isnan(outer_wall_dist) and outer_wall_dist > 0.0 and outer_wall_dist <= approach_target_dist
 
