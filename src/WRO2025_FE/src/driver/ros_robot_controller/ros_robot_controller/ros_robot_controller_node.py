@@ -64,7 +64,7 @@ class RosRobotController(Node):
         self.clock = self.get_clock()
 
         # threading.Thread(target=self.pub_callback, daemon=True).start()
-        timer_period = 0.02  # 50Hz
+        timer_period = 0.05  # 0Hz
         self.pub_timer = self.create_timer(timer_period, self.pub_callback)
 
         self.create_service(Trigger, '~/init_finish', self.get_node_state)
@@ -105,16 +105,30 @@ class RosRobotController(Node):
         return response
 
     def pub_callback(self):
-        # The while loop and time.sleep are removed as this is now a timer callback.
-        # The self.running flag is also no longer needed.
+        # The goal is to hold the lock for the shortest time possible.
         if getattr(self, 'enable_reception', False):
-            # Protect all read operations on the shared 'self.board' object
+            # Read all data from the board in a single locked operation if possible.
+            # Assuming the SDK does not support batch reads, we read one by one.
+            # The key is that the lock is released after this block.
             with self.board.access_lock:
-                self.pub_button_data(self.button_pub)
-                self.pub_joy_data(self.joy_pub)
-                # self.pub_imu_data(self.imu_pub)
-                self.pub_sbus_data(self.sbus_pub)
-                self.pub_battery_data(self.battery_pub)
+                button_data = self.board.get_button()
+                joy_data = self.board.get_gamepad()
+                sbus_data = self.board.get_sbus()
+                battery_data = self.board.get_battery()
+
+            # Process and publish data outside of the lock.
+            # This ensures that publishing (which might block) does not hold up the lock.
+            if button_data is not None:
+                self.pub_button_data(self.button_pub, button_data)
+            
+            if joy_data is not None:
+                self.pub_joy_data(self.joy_pub, joy_data)
+
+            if sbus_data is not None:
+                self.pub_sbus_data(self.sbus_pub, sbus_data)
+            
+            if battery_data is not None:
+                self.pub_battery_data(self.battery_pub, battery_data)
 
     def enable_reception(self, msg):
         self.get_logger().info('\033[1;32m%s\033[0m' % ('enable_reception ' + str(msg.data)))
@@ -275,15 +289,15 @@ class RosRobotController(Node):
         response.success = True
         return response
 
-    def pub_battery_data(self, pub):
-        data = self.board.get_battery()
+    def pub_battery_data(self, pub, data):
+        # 'data' is now passed as an argument
         if data is not None:
             msg = UInt16()
             msg.data = data
             pub.publish(msg)
 
-    def pub_button_data(self, pub):
-        data = self.board.get_button()
+    def pub_button_data(self, pub, data):
+        # 'data' is now passed as an argument
         if data is not None:
             key_id, key_event = data
             state_map = {
@@ -306,23 +320,23 @@ class RosRobotController(Node):
             else:
                 self.get_logger().error(f"Unhandled button event: {key_event}")
 
-    def pub_joy_data(self, pub):
-        data = self.board.get_gamepad()
+    def pub_joy_data(self, pub, data):
+        # 'data' is now passed as an argument
         if data is not None:
             msg = Joy()
             msg.axes = data[0]
             msg.buttons = data[1]
-            msg.header.stamp = self.clock.now().to_msg()
+            msg.header.stamp = self.get_clock().now().to_msg()
             pub.publish(msg)
 
-    def pub_sbus_data(self, pub):
-        data = self.board.get_sbus()
+    def pub_sbus_data(self, pub, data):
+        # 'data' is now passed as an argument
         if data is not None:
             msg = Sbus()
             msg.channel = data
-            msg.header.stamp = self.clock.now().to_msg()
+            msg.header.stamp = self.get_clock().now().to_msg()
             pub.publish(msg)
-
+    """
     def pub_imu_data(self, pub):
         data = self.board.get_imu()
         if data is not None:
@@ -354,7 +368,7 @@ class RosRobotController(Node):
                                                  0.0, 0.0004, 0.0,
                                                  0.0, 0.0, 0.004]
             pub.publish(msg)
-
+    """
 def main():
     rclpy.init() 
     node = RosRobotController('ros_robot_controller')
