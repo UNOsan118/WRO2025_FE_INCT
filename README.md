@@ -327,6 +327,33 @@ def get_turn_strategy(state, plan):
             return {"approach_dist": 0.85, "turn_angle": 70.0}
 ```
 
+### 7.5. Source Code with Detailed Comments
+
+All the logic and strategies described above are implemented in a single, well-organized ROS 2 node: `obstacle_navigator_node.py`. We have placed a strong emphasis on code readability and maintainability, adhering to modern software development practices.
+
+The complete, fully commented source code is available for review in our repository. The comments within the code provide a line-by-line explanation of:
+*   The **purpose** of each function and state.
+*   The **logic** behind critical calculations.
+*   The **intent** of important parameters and thresholds.
+
+This detailed documentation within the code itself ensures that our work can be understood, verified, and reproduced by the judges and the wider robotics community.
+
+> [!IMPORTANT]
+> **You can view the complete source code here:**
+> **[src/obstacle_navigator_node.py](./src/chassis_v2_maneuver/chassis_v2_maneuver/obstacle_navigator_node.py)**
+
+### 7.6. Future Improvements
+
+While we are proud of our current system, the engineering process is one of continuous improvement. Based on our testing and development experience, we have identified several key areas for future enhancement. This demonstrates our commitment to pushing the boundaries of what our robot can achieve.
+
+| Area for Improvement | Current Status & Limitations | Proposed Future Enhancement |
+| :--- | :--- | :--- |
+| **State Machine Robustness** | Our state machine is currently implemented with a series of `if/elif` statements. While effective, it can become complex to manage as more states are added. | Transition to a formal state machine library (like `SMACH` for ROS 2). This would provide greater robustness, clearer state transition definitions, and better visualization tools. |
+| **Localization Accuracy** | We currently rely on a turn counter and corner detection for localization. This can be prone to errors if a corner is missed or misidentified. | Implement a more advanced localization algorithm, such as an **Extended Kalman Filter (EKF)**, to fuse data from the IMU, wheel encoders, and LiDAR. This would provide a much more accurate and reliable estimate of the robot's position on the course at all times. |
+| **Parameter Tuning** | Our many control parameters (e.g., PID gains, turning speeds) are currently tuned manually through extensive trial and error. This process is time-consuming and may not yield the absolute optimal values. | Develop a simulation environment (e.g., in Gazebo) to automate the tuning process. Using optimization algorithms or machine learning (Reinforcement Learning), we could automatically discover the best set of parameters for maximum speed and stability. |
+
+These planned improvements show that our current design is not an endpoint, but a solid foundation upon which even more advanced and intelligent behaviors can be built.
+
 ---
 
 ## 8. 3D Models & Custom Parts
