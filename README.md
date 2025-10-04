@@ -146,7 +146,9 @@ The following diagram illustrates the flow of data between these nodes.
 
 **Node and Topic Communication Diagram:**
 
-![ROS 2 Node Communication Diagram](./schemes/ros2_node_diagram.png)
+<p align="center">
+    <img src="schemes\ros2_node_diagram.png" alt="Unparking Strategies" width="500">
+</p>
 
 ### 7.3. Dynamic Strategy Selection
 
@@ -170,9 +172,69 @@ A key feature of our robot is its ability to dynamically select the optimal stra
 | **Counter-Clockwise**| Far | `STANDARD_EXIT_TO_OUTER_LANE` | A standard turn onto the wider outer lane. |
 | **Counter-Clockwise**| Close | `AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW`| A reverse maneuver to create space before turning onto the inner lane. |
 
+<p align="center">
+    <img src="schemes\Unparking_Strategies.jpg" alt="Unparking Strategies" width="500">
+</p>
+
 This intelligent selection process ensures a safe and efficient exit from the parking area, regardless of the initial conditions.
 
-#### 7.3.2. Turning Strategy (8 Patterns)
+#### 7.3.2. Obstacle Planning Strategy: Proactive Corner Scanning
+
+**The Challenge:**
+Simply reacting to obstacles as they appear during high-speed driving is inefficient and risky. It takes too long to detect and process obstacles in real-time, leading to abrupt stops and suboptimal paths.
+
+**Our Solution:**
+Instead of reacting, we adopted a **proactive planning strategy**. Before entering a straight segment, the robot stops at the corner, scans the entire upcoming segment for obstacles, and decides on a complete path plan in advance. This "scan-then-drive" approach has a powerful advantage: the obstacle layout is determined only on the first lap, and this plan is reused on subsequent laps, allowing for much faster, smoother, and more confident driving.
+
+This planning phase consists of three key steps:
+
+1.  **Pre-Scan Positioning:**
+    On the first lap, upon detecting a corner, the robot doesn't immediately turn. Instead, it precisely positions itself at a safe, optimal vantage point. Using its IMU for orientation correction, it aims its camera directly down the upcoming straight segment, ensuring a clear and stable view for the scan.
+
+2.  **"Move-and-Scan" with Max-Blob Detection:**
+    After positioning, the robot creeps forward very slowly while its camera continuously scans the segment. For each frame, it detects red and green obstacle "blobs" and calculates their area. To guard against sensor noise or fleeting changes in lighting, we don't rely on a single image. Instead, the final decision is based on the **largest blob area detected across the entire scan period**. This max-blob approach makes our detection system extremely robust. During this phase, the robot also specifically determines if an obstacle is blocking the entrance to the segment.
+
+<p align="center">
+  <img src="schemes/planning_scan_camera_view.png" alt="Camera view during planning scan" width="400">
+  <img src="schemes/planning_scan_detection_result.png" alt="Blob detection result" width="400">
+  <br>
+  <em>Left: The raw camera view during a proactive scan. Right: The processed result, where only the detected red and green blobs are isolated for area calculation.</em>
+</p>
+
+The data from this scan is then analyzed to make a final decision. The image below shows the actual log output from our robot's analysis process. Over a scan of 36 frames, it found the largest green blob (area: 2122.0) to be significantly larger than the largest red blob and the detection threshold, leading to the final decision of a `'green_to_red'` obstacle pattern.
+
+<p align="center">
+  <img src="schemes\planning_analysis_log.png" alt="Log output of planning analysis" width="400">
+  <br>
+  <em>The actual log output, showing the data-driven decision process.</em>
+</p>
+
+3.  **Path Plan Generation (4 Patterns):**
+    The result of the scan (e.g., "red only," "green-to-red") is combined with the current driving direction (CW/CCW) to select one of four possible avoidance plans for the next segment: `outer-only`, `inner-only`, `outer-to-inner`, or `inner-to-outer`. This decision is stored in our `avoidance_path_plan` array. This array acts as a complete "blueprint" for the course, enabling the robot to navigate smoothly on the second and third laps by simply referencing the plan without needing to scan again.
+
+#### 7.3.3. Straight Strategy: PID Control and Obstacle Avoidance
+
+**The Challenge:** The "straight" segments of the course are the most critical sections, as this is where obstacles are physically present. The robot must perform two core tasks in tandem: maintaining a precise, stable trajectory along a wall, while simultaneously executing smooth maneuvers to bypass these obstacles.
+
+**Our Solution:** The `STRAIGHT` state is our answer to this challenge. Its logic is composed of three primary actions that work together to achieve fast and safe navigation.
+
+1.  **Wall Approach (The "Turn-In" Maneuver):**
+    This is the first and most crucial phase of obstacle avoidance. Instead of attempting to swerve around an obstacle, the robot executes a deliberate **"Turn-In"** maneuver (`AVOID_*_TURN_IN` sub-state). It purposefully steers towards the opposite wall at a sharp, predefined angle. This action proactively creates the necessary space to bypass the upcoming obstacle safely and predictably.
+
+2.  **PID Wall-Following (Align and Pass):**
+    This is the core of our stable driving logic. Whether driving normally or passing an obstacle, the robot uses a robust **PID (Proportional-Integral-Derivative) controller**. This system continuously fuses data from the **IMU** (for heading) and **LiDAR** (for distance) to make constant, minute steering corrections. This allows the robot to maintain a precise distance from its reference wall, ensuring a perfectly straight and stable trajectory. During an avoidance maneuver, this same logic is used to align with the *opposite* wall and glide past the obstacle.
+
+<p align="center">
+  <img src="schemes/pid_wall_following_principle.jpg" alt="PID Wall-Following Principle" width="600">
+  <br>
+  <em><b>For the case shown in this image,</b> the PID controller calculates two opposing commands. The <b>LiDAR</b>, detecting the robot is too far, generates a <em>Distance Error</em> commanding a <b>turn to the left</b>. Simultaneously, the <b>IMU</b>, detecting the inward angle, generates a <em>Heading Error</em> commanding a <b>turn to the right</b>. The final steering output is a weighted sum of these values, resulting in a smooth correction back to the target path.</em>
+</p>
+
+3.  **Lane Change for Complex Scenarios:**
+    For the most challenging course layouts, our robot employs advanced lane change logic. **If both a red and a green obstacle exist within the same straight segment, the robot will execute a full lane change maneuver after clearing the first obstacle to position itself for the second.** This corresponds to our pre-planned strategies like `outer_to_inner` and ensures the robot can fluidly navigate even the most complex obstacle combinations without stopping.
+
+
+#### 7.3.4. Turning Strategy (8 Patterns)
 
 **The Challenge:** Simply making a 90-degree turn at every corner is inefficient. The optimal turning maneuver (e.g., approach distance, turn angle) depends on the robot's current path, its planned path for the *next* segment, and any obstacles present at the corner's entrance.
 
@@ -184,7 +246,12 @@ This intelligent selection process ensures a safe and efficient exit from the pa
 
 Based on these factors, the robot adjusts its behavior, allowing for tighter, faster turns when the path is clear, and safer, wider turns when navigating complex transitions or obstacles. This logic is the core of our robot's lap-time performance and reliability.
 
-*(A detailed table of the 8 patterns could be added here later if needed, but this conceptual explanation is a strong start.)*
+<p align="center">
+    <img src="schemes\Turning_Strategies.jpg" alt="Unparking Strategies" width="500">
+</p>
+<p align="center">
+    <img src="schemes\if_entrance_is_clear.jpg" alt="Unparking Strategies" width="600">
+</p>
 
 ### 7.4. Key Algorithms & Engineering Decisions
 
@@ -272,6 +339,10 @@ def is_safe_for_lane_change(scan_data, state):
 
 This function uses the robot's real-time orientation from the **IMU** to continuously calculate the *exact LiDAR angle needed to hit the wall perpendicularly*, regardless of the robot's own orientation. By dynamically selecting the perfect laser beam at every moment, we transformed a "fatal flaw" of the LiDAR into a reliable navigation tool.
 
+<p align="center">
+    <img src="schemes\IMU-Corrected_LiDAR_Sensing.jpg" alt="Unparking Strategies" width="500">
+</p>
+
 ```python
 # --- Pseudo Code for IMU + LiDAR Sensor Fusion ---
 def get_distance_at_world_angle(world_angle_deg, current_yaw_deg, scan_data):
@@ -296,36 +367,7 @@ def get_distance_at_world_angle(world_angle_deg, current_yaw_deg, scan_data):
     return distance
 ```
 
-#### 7.4.4. Dynamic Turning Strategy (8 Patterns): Optimizing for Speed and Safety
 
-**The Need for Optimization:** Initially, we used a single, safe turning method for all corners. While reliable, it was slow. We quickly realized that to be competitive, the robot needed to be aggressive on simple corners but cautious on complex ones.
-
-**Final Solution:** This led to our 8-pattern dynamic turning system. For example, an `Outer-to-Outer` turn can be executed at high speed. However, an `Inner-to-Inner` turn, especially with a detected entrance obstacle, requires a much slower, more precise maneuver. By optimizing the path for each specific context, we achieved a significant reduction in lap times while simultaneously increasing the stability and safety of the robot.
-
-```python
-# --- Pseudo Code for Dynamic Turning Strategy ---
-def get_turn_strategy(state, plan):
-    """Selects the optimal turning parameters based on context."""
-
-    # Look ahead: What is the plan for the segment *after* this turn?
-    next_path_type = plan.for_next_segment()
-
-    # The logic depends on where we are coming from and where we are going.
-    if state.last_path_was_outer:
-        if "outer" in next_path_type:
-            # Outer --> Outer: A fast, wide turn is safe and efficient.
-            return {"approach_dist": 0.6, "turn_angle": 30.0}
-        else: # Going to inner
-            # Outer --> Inner: A sharp, tight turn is needed. Approach closer.
-            return {"approach_dist": 0.8, "turn_angle": 70.0}
-    else: # Last path was inner
-        if "outer" in next_path_type:
-            # Inner --> Outer: A very early and sharp turn to cross the lane.
-            return {"approach_dist": 0.3, "turn_angle": 70.0}
-        else: # Going to inner
-            # Inner --> Inner: The most cautious turn to stay tight against the inner wall.
-            return {"approach_dist": 0.85, "turn_angle": 70.0}
-```
 
 ### 7.5. Source Code with Detailed Comments
 
