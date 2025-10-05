@@ -76,17 +76,73 @@ A high-level introduction to our robot's design philosophy and key features.
 
 ## 5. Mobility Management
 
-This section covers our robot's mechanical design and movement capabilities.
+This section details our robot's mechanical framework, its propulsion system, and the mechanisms for directional control. Our design philosophy emphasizes precision, stability, and agile control on the competition field.
 
 ### 5.1. Chassis Design
-*   (Explanation of why the MentorPi A1 was chosen, any modifications made, and the rationale behind the overall structure.)
-*   (Include 3D model renders from the `models` directory.)
 
-### 5.2. Drive System
-*   (Details about the motors, wheels, and power transmission. Explain the selection process based on torque, speed, and efficiency requirements.)
+Our robot's development began with the **Hiwonder MentorPi A1** as a base platform, which we selected for its robust initial structure. However, through extensive testing and iteration, our design has evolved into a **unique, custom chassis** that, while inspired by the original, is now tailored specifically to our strategic needs.
 
-### 5.3. Steering System
-*   (Description of the steering mechanism, servo selection, and any custom parts designed to improve precision and durability.)
+### 5.2. Drive Mechanism: Single Motor with Differential Gearbox
+
+**Development Story:**
+The original base vehicle utilized a two-motor drive system for the rear wheels. However, we identified that this configuration could be interpreted as an electronic "differential," which is not permitted under the competition rules. To ensure full compliance while maintaining high performance, we engineered a significant modification: a **single-motor drive system** that transmits power through a mechanical **differential gearbox**.
+
+*   **Role of the Differential Gearbox:** This crucial mechanical component distributes power from the single motor to both rear wheels. It allows the wheels to rotate at different speeds during a turn, which is essential for smooth and stable cornering and works in perfect harmony with our steering system.
+*   **Motor and Encoder:** The heart of our propulsion is a **DC geared motor with an integrated Hall-effect encoder**. This encoder outputs A/B phase pulse signals, which our system decodes to precisely determine the motor's direction and rotational speed. This high-resolution feedback is the foundation of our accurate PID speed control.
+
+<p align="center">
+  <img src="./v-photos/motor_and_differential.jpg" alt="Motor and Differential Gearbox Assembly" width="500">
+  <br>
+  <em>Our custom single-motor and differential gearbox assembly.</em>
+</p>
+
+<!-- You can add the motor spec table here if you want -->
+
+### 5.3. Steering Mechanism: Modified Ackermann Geometry
+
+To maximize our robot's agility, we modified the stock **Ackermann steering mechanism** provided by the base vehicle. Our primary goals were to **increase the maximum steering angle** and improve overall turning precision.
+
+*   **Principle:** The Ackermann geometry is designed so that during a turn, the inner front wheel pivots at a sharper angle than the outer wheel. This ensures that the normal lines of all four wheels intersect at a single Instantaneous Center of Rotation (ICR), minimizing tire slippage.
+*   **Effect:** By adhering to this principle while modifying the linkage for a greater steering range, we have achieved exceptionally smooth and predictable cornering, especially in tight turns. This allows for more energy-efficient and faster navigation through the course.
+
+<p align="center">
+  <img src="./schemes/ackermann_principle.png" alt="Principle of Ackermann Steering Geometry" width="500">
+  <br>
+  <em>The kinematic principle of Ackermann geometry, ensuring minimal tire slippage.</em>
+</p>
+
+
+### 5.4. Optimization via Custom 3D-Printed Parts
+
+To fully unleash the potential of our base vehicle and physically support our navigation strategy, we designed and 3D-printed several custom mounts using CAD software. These parts are not mere accessories; they are the result of careful engineering decisions aimed at maximizing sensor data quality and overall performance.
+
+*   **LiDAR Mount:**
+
+    **Objective:** 
+    
+    To achieve accurate wall detection while minimizing physical interference.
+
+    **Design:** 
+    
+    We engineered a multi-purpose mount with two key features. First, it positions the LiDAR at an optimal low height and slightly forward, ensuring its lasers are perfectly aligned with the course walls for the highest quality data. Second, the mount supports the LiDAR from above, allowing it to be **installed in an inverted position**. This orientation reduces the risk of the mount itself colliding with obstacles. This inverted mounting concept was **inspired by the design of last year's Future Engineers world champion team**, demonstrating our commitment to learning from the best.
+
+*   **Camera Tower:**
+
+    **Objective:**
+    
+    To ensure a clear, unobstructed view of all obstacles.
+
+    **Design:**
+    
+    We developed a tall tower structure that elevates the camera, providing a top-down, "bird's-eye" perspective of the obstacles. This prevents the robot's own chassis from blocking the camera's line of sight, which is crucial for the reliable object recognition performed in our `PLAN_NEXT_AVOIDANCE` phase.
+
+These custom modifications form the critical physical foundation that enables our software to perform at its peak. All 3D models for these parts, including our custom chassis and gearbox components, are available in the [`models`](models) directory.
+
+<p align="center">
+  <img src="./v-photos/3d_printed_parts_on_robot.jpg" alt="Custom 3D-Printed Mounts" width="600">
+  <br>
+  <em>Our custom-designed LiDAR mount and camera tower, engineered for optimal sensor performance.</em>
+</p>
 
 ---
 
