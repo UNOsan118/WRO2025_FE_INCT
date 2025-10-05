@@ -260,13 +260,46 @@ Our robot's reliability is not the result of a single piece of code, but the evo
 
 #### 7.4.1. State Definitions (Enums)
 
-The foundation of our HSM is explicitly defined in the code using Python's `Enum` class. This approach provides a highly readable and robust way to manage the robot's state.
+The foundation of our HSM is explicitly defined in the code using Python's `Enum` class. This approach provides a highly readable and robust way to manage the robot's state, as summarized in the table below.
 
-| Class Name | Role & Implementation |
+| Class Name | Role in the State Machine |
 | :--- | :--- |
-| **`State` (Main States)** | This Enum defines the highest-level phases of the robot's mission. Each member represents a major operational mode, such as preparing for the run, driving straight, or turning a corner.<br><br><b>Code Snippet:</b><pre><code>class State(Enum):<br>    PREPARATION = auto()<br>    UNPARKING = auto()<br>    STRAIGHT = auto()<br>    TURNING = auto()<br>    PARKING = auto()<br>    FINISHED = auto()</code></pre> |
-| **Sub-State Enums**<br>(e.g., `StraightSubState`) | For each complex Main State, we define a corresponding Sub-State Enum. These break down the main task into a sequence of smaller, manageable actions. For example, the `STRAIGHT` state is composed of sub-states for wall-following, planning, and executing avoidance maneuvers.<br><br><b>Code Snippet:</b><pre><code>class StraightSubState(Enum):<br>    ALIGN_WITH_OUTER_WALL = auto()<br>    PLAN_NEXT_AVOIDANCE = auto()<br>    AVOID_OUTER_TURN_IN = auto()</code></pre> |
-| **`UnparkingStrategy`** | Distinct from a state, this Enum defines the *strategic plan* selected during the `PREPARATION` phase. Based on the initial scan, the robot commits to one of these strategies, which dictates the entire unparking sequence.<br><br><b>Code Snippet:</b><pre><code>class UnparkingStrategy(Enum):<br>    STANDARD_EXIT_TO_OUTER_LANE = auto()<br>    AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW = auto()</code></pre> |
+| **`State` (Main States)** | Defines the highest-level phases of the robot's mission, such as `STRAIGHT` or `TURNING`. It represents the robot's major operational mode. |
+| **Sub-State Enums**<br>(e.g., `StraightSubState`) | For each complex Main State, a corresponding Sub-State Enum breaks down the task into a sequence of smaller, manageable actions like `PLAN_NEXT_AVOIDANCE`. |
+| **`UnparkingStrategy`** | Distinct from a state, this Enum defines the *strategic plan* selected during `PREPARATION`. It dictates which multi-step unparking sequence the robot will execute. |
+
+**Code Snippets:**
+
+The following code snippets from `obstacle_navigator_node.py` show how these concepts are implemented.
+
+*Main States:*
+```python
+class State(Enum):
+    PREPARATION = auto()
+    UNPARKING = auto()
+    STRAIGHT = auto()
+    TURNING = auto()
+    PARKING = auto()
+    FINISHED = auto()
+```
+Example of Sub-States (for the STRAIGHT state):
+```python
+class StraightSubState(Enum):
+    ALIGN_WITH_OUTER_WALL = auto()
+    ALIGN_WITH_INNER_WALL = auto()
+    PLAN_NEXT_AVOIDANCE = auto()
+    PRE_SCANNING_REVERSE = auto()
+    AVOID_OUTER_TURN_IN = auto()
+    AVOID_INNER_TURN_IN = auto()
+```
+
+Example of a Strategy Definition:
+```python
+class UnparkingStrategy(Enum):
+    STANDARD_EXIT_TO_OUTER_LANE = auto()
+    AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW = auto()
+    UNDEFINED = auto()
+```
 
 This clear and explicit state definition is the key to our robot's reliable and predictable behavior.
 
@@ -383,7 +416,7 @@ This group of functions manages the sequence of safely exiting the parking area 
 
 This is the most complex state, responsible for wall-following, planning for the next segment, and executing all obstacle avoidance maneuvers.
 
-| Sub-State | Handler Function | Functionality (1-2 lines) |
+| Sub-State | Handler Function | Functionality |
 | :--- | :--- | :--- |
 | **`ALIGN_WITH_OUTER_WALL`** <br> **`ALIGN_WITH_INNER_WALL`** | `_handle_straight_sub_align_with_outer_wall()` <br> `_handle_straight_sub_align_with_inner_wall()` | The default driving mode. Uses the PID controller to maintain a precise distance from the designated (outer or inner) wall. |
 | **`PLAN_NEXT_AVOIDANCE`** | `_handle_straight_sub_plan_next_avoidance()` | Executes the "Move-and-Scan" routine at a corner to detect obstacles and generate the `avoidance_path_plan`. (1st lap only) |
