@@ -253,87 +253,171 @@ Based on these factors, the robot adjusts its behavior, allowing for tighter, fa
     <img src="schemes\if_entrance_is_clear.jpg" alt="Unparking Strategies" width="600">
 </p>
 
+
 ### 7.4. Key Algorithms & Engineering Decisions
 
 Our robot's reliability is not the result of a single piece of code, but the evolution of several key algorithms born from trial and error. This section details the engineering decisions behind our most critical navigation functions.
 
-#### 7.4.1. Corner Detection: From Fragile Vision to Robust LiDAR Logic
+#### 7.4.1. State Definitions (Enums)
 
-**Initial Idea & Failure:** Our first attempt at corner detection used the camera to find colored lines on the course floor. However, this proved unreliable. The lines were often obscured by obstacles, and varying lighting conditions caused frequent misdetections.
+The foundation of our HSM is explicitly defined in the code using Python's `Enum` class. This approach provides a highly readable and robust way to manage the robot's state.
 
-**Evolution to LiDAR & The "Double-Detection" Problem:** We then pivoted to a LiDAR-based approach: a corner is detected when the inner wall is no longer visible. While this worked reasonably well, it introduced a new, critical bug: when turning a corner from the outer lane, the robot would sometimes detect the *same corner twice*, causing it to fail.
+| Class Name | Role & Implementation |
+| :--- | :--- |
+| **`State` (Main States)** | This Enum defines the highest-level phases of the robot's mission. Each member represents a major operational mode, such as preparing for the run, driving straight, or turning a corner.<br><br><b>Code Snippet:</b><pre><code>class State(Enum):<br>    PREPARATION = auto()<br>    UNPARKING = auto()<br>    STRAIGHT = auto()<br>    TURNING = auto()<br>    PARKING = auto()<br>    FINISHED = auto()</code></pre> |
+| **Sub-State Enums**<br>(e.g., `StraightSubState`) | For each complex Main State, we define a corresponding Sub-State Enum. These break down the main task into a sequence of smaller, manageable actions. For example, the `STRAIGHT` state is composed of sub-states for wall-following, planning, and executing avoidance maneuvers.<br><br><b>Code Snippet:</b><pre><code>class StraightSubState(Enum):<br>    ALIGN_WITH_OUTER_WALL = auto()<br>    PLAN_NEXT_AVOIDANCE = auto()<br>    AVOID_OUTER_TURN_IN = auto()</code></pre> |
+| **`UnparkingStrategy`** | Distinct from a state, this Enum defines the *strategic plan* selected during the `PREPARATION` phase. Based on the initial scan, the robot commits to one of these strategies, which dictates the entire unparking sequence.<br><br><b>Code Snippet:</b><pre><code>class UnparkingStrategy(Enum):<br>    STANDARD_EXIT_TO_OUTER_LANE = auto()<br>    AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW = auto()</code></pre> |
 
-**Final Solution:** To solve this, we implemented a counter mechanism. A corner is only confirmed when the inner wall has been out of sight for a *sustained number of consecutive scans*. This simple addition eliminated the double-detection bug and made our cornering logic exceptionally robust.
+This clear and explicit state definition is the key to our robot's reliable and predictable behavior.
 
-Here is the simplified logic in pseudo code:
+#### 7.4.2. Initialization & Parameters (`__init__`)
+
+The constructor of our `ObstacleNavigatorNode` (`__init__` function) is called once when the node launches. It is responsible for preparing all the necessary components and settings for the robot to operate.
+
+The primary roles of the `__init__` function are as follows:
+
+*   **Initializing State Variables:**
+    It defines the initial state of the system, such as setting the starting state of our state machine to `PREPARATION`.
+
+    ```python
+    # Set the initial state for the state machine
+    self.state = State.PREPARATION
+    self.preparation_sub_state = PreparationSubState.WAITING_FOR_CONTROLLER
+    ```
+
+*   **Centralizing Tuning Parameters:**
+    All tunable parameters that define the robot's behavior—such as driving speed, PID gains, and turning distances—are defined here. This centralizes all tuning work in one location, making the system highly maintainable.
+
+    ```python
+    # --- Driving & Speed Control ---
+    self.forward_speed = 0.2
+    # --- Alignment (PID) ---
+    self.align_kp_dist = 7.5
+    ```
+
+*   **Setting up ROS 2 Communications:**
+    It configures all the necessary ROS 2 communication channels, including Subscribers to receive sensor data and Publishers to send commands to the motors.
+
+    ```python
+    # Subscriber for LiDAR data
+    self.scan_subscriber = self.create_subscription(
+        LaserScan, '/scan', self.scan_callback, qos_profile_lidar)
+    ```
+
+*   **Starting the Main Control Loop:**
+    Finally, it starts a 50Hz timer that repeatedly calls our main logic function, `control_loop_callback()`, effectively kicking off the autonomous control process.
+
+    ```python
+    # Create a timer to call the main control loop at 50Hz
+    self.control_loop_timer = self.create_timer(
+        1.0 / 50.0, self.control_loop_callback)
+    ```
+
+#### 7.4.3. Main Control Loop & State Dispatch
+
+The `control_loop_callback()` function, triggered at 50Hz by the timer set in `__init__`, is the "heartbeat" of our autonomous system. With every call, the robot perceives its environment and decides its next action.
+
+##### 7.4.3.1. Role as a Central Dispatcher
+
+The design of this function is intentionally simple. Its sole responsibility is to act as a **central dispatcher**, delegating the actual work to specialized handler functions based on the robot's current state.
+
+The process is straightforward:
+1.  **Check the current main state** stored in the `self.state` variable (e.g., `State.STRAIGHT`).
+2.  **Call the corresponding handler** using an `if/elif` structure (e.g., `_handle_state_straight()`).
 
 ```python
-def check_for_corner(scan_data, state):
-    """Detects a corner using a counter for robustness."""
-    
-    # Get distances to the inner wall (where corners appear) and the front wall.
-    inner_dist = get_distance_to_inner_wall(scan_data)
-    front_dist = get_distance_to_front_wall(scan_data)
-
-    # A corner might be ahead if the inner wall vanishes AND we are approaching a front wall.
-    is_corner_imminent = (inner_dist > INNER_WALL_DISAPPEAR_THRESHOLD and
-                          front_dist < FRONT_WALL_APPROACH_THRESHOLD)
-
-    if is_corner_imminent:
-        # If the condition is met, increment the confirmation counter.
-        state.corner_detection_counter += 1
-    else:
-        # Otherwise, reset it immediately.
-        state.corner_detection_counter = 0
-
-    # Only confirm the corner if the condition has been true for a sustained period.
-    # This prevents false positives from sensor noise or temporary occlusions.
-    if state.corner_detection_counter >= CORNER_CONFIRMATION_COUNT:
-        return "CORNER_DETECTED"
-    
-    return "NO_CORNER"
+# The core of the main loop: a simple, clean state dispatcher.
+def control_loop_callback(self):
+    # ...
+    if self.state == State.PREPARATION: 
+        self._handle_state_preparation(msg) 
+    elif self.state == State.UNPARKING:
+        self._handle_state_unparking(msg) 
+    elif self.state == State.STRAIGHT:
+        self._handle_state_straight(msg)
+    # ... and so on for all other main states
 ```
 
-#### 7.4.2. Lane Change Safety: From Reactive to Predictive
+##### 7.4.3.2. Hierarchical Delegation
 
-**Initial Idea & Failure:** Originally, a lane change was triggered *after* the robot thought it had passed an obstacle. We attempted to detect this by monitoring the side LiDAR data for a `NORMAL -> NARROW -> NORMAL` distance pattern. However, this reactive approach was highly inaccurate, especially with small 5cm obstacles. The robot often missed the transition or reacted too late.
-
-**Final Solution:** The unreliable reactive method was completely replaced by our current `_is_safe_for_lane_change()` function. Instead of trying to detect the *moment* of passing, we now predictively check if the upcoming space is **stable and wide enough for a sustained period**. This shift from a reactive to a predictive model drastically improved the safety and reliability of our lane change maneuvers.
+This delegation process is hierarchical. Each main state handler, such as _handle_state_straight(), further dispatches the task to a sub-state handler based on the current sub-state (e.g., StraightSubState.AVOID_OUTER_TURN_IN).
 
 ```python
-# --- Pseudo Code for Safe Lane Change ---
-def is_safe_for_lane_change(scan_data, state):
-    """Predictively checks if the upcoming path is stable enough for a lane change."""
-    
-    # Get distances to all relevant walls.
-    inner_dist = get_distance_to_inner_wall(scan_data)
-    outer_dist = get_distance_to_outer_wall(scan_data)
-    front_dist = get_distance_to_front_wall(scan_data)
-    
-    # Check for two conditions:
-    # 1. Is the course width normal (not in a corner or wide-open area)?
-    is_width_normal = (NORMAL_COURSE_WIDTH_MIN < inner_dist + outer_dist < NORMAL_COURSE_WIDTH_MAX)
-    # 2. Is the path ahead clear of any immediate obstacles?
-    is_front_clear = front_dist > MIN_FRONT_CLEARANCE_FOR_LANE_CHANGE
-    
-    if is_width_normal and is_front_clear:
-        # If the path is stable and clear, increment the stability counter.
-        state.lane_change_stability_counter += 1
-    else:
-        # If conditions are not met, the path is unstable. Reset the counter.
-        state.lane_change_stability_counter = 0
-        
-    # A lane change is only permitted if the path has been confirmed as stable
-    # for a certain number of consecutive checks.
-    if state.lane_change_stability_counter >= STABILITY_CONFIRMATION_COUNT:
-        return True # It's safe to change lanes.
-        
-    return False # It's not safe yet.
+# Inside a main state handler, it dispatches again to a sub-state handler.
+def _handle_state_straight(self, msg):
+    if self.straight_sub_state == StraightSubState.ALIGN_WITH_OUTER_WALL:
+        self._handle_straight_sub_align_with_outer_wall(msg)
+    elif self.straight_sub_state == StraightSubState.AVOID_OUTER_TURN_IN:
+        self._handle_straight_sub_avoid_outer_turn_in(msg)
+    # ... and so on for all other sub-states
 ```
 
-#### 7.4.3. Sensor Fusion: Overcoming the "Black Wall Problem" with IMU
+This elegant structure of hierarchical delegation is the engine that drives our state machine. It keeps the main loop clean and allows the complex logic for each state to be neatly organized in its own dedicated function. The actual transitions between states (e.g., from STRAIGHT to TURNING) are managed within these handler functions based on sensor-driven conditions.
 
-**The Challenge:** Our biggest initial hurdle was frequent loss of LiDAR data. A simple approach of reading distances at fixed angles (e.g., -90°, 0°, 90°) failed constantly. This was due to two compounding factors: the black walls of the course absorb light, and LiDAR signals weaken significantly when not hitting a surface perpendicularly.
+
+#### 7.4.4. Sub-State Handler Functions: Implementing the Behavior
+
+The logic for each sub-state is implemented in its own dedicated handler function, following a clear `_handle_*_sub_*()` naming convention. This modular approach makes the system easy to read, debug, and maintain. The roles of the primary handler functions are summarized below.
+
+##### System Startup (`PREPARATION` State)
+
+This initial state is responsible for all startup checks and initial setup before the robot begins its main tasks.
+
+| Sub-State | Handler Function | Functionality |
+| :--- | :--- | :--- |
+| **`WAITING_FOR_CONTROLLER`**| `_handle_preparation_sub_waiting_for_controller()` | Waits for the low-level motor controller to become ready before proceeding. |
+| **`INITIALIZING_CAMERA`** | `_handle_preparation_sub_initializing_camera()` | Moves the camera servos to their default starting positions. |
+| **`DETERMINE_DIRECTION`** | `_handle_preparation_sub_determine_direction()` | Determines the course direction (CW/CCW) by analyzing LiDAR data from the parking spot. |
+
+##### Unparking (`UNPARKING` State)
+
+This group of functions manages the sequence of safely exiting the parking area and entering the main course.
+
+| Sub-State | Handler Function | Functionality |
+| :--- | :--- | :--- |
+| **`PRE_UNPARKING_DETECTION`** | `_handle_unparking_sub_pre_unparking_detection()` | Scans the exit for obstacles and selects one of the four `UnparkingStrategy` patterns. |
+| **`INITIAL_TURN`** | `_handle_unparking_sub_initial_turn()` | Executes the initial turn to enter the course, based on the selected strategy. |
+| **`AVOIDANCE_REVERSE`** | `_handle_unparking_sub_avoidance_reverse()` | (CCW Close-Obstacle Strategy) Reverses to create space before making the turn. |
+
+##### Straight Driving and Planning (`STRAIGHT` State)
+
+This is the most complex state, responsible for wall-following, planning for the next segment, and executing all obstacle avoidance maneuvers.
+
+| Sub-State | Handler Function | Functionality (1-2 lines) |
+| :--- | :--- | :--- |
+| **`ALIGN_WITH_OUTER_WALL`** <br> **`ALIGN_WITH_INNER_WALL`** | `_handle_straight_sub_align_with_outer_wall()` <br> `_handle_straight_sub_align_with_inner_wall()` | The default driving mode. Uses the PID controller to maintain a precise distance from the designated (outer or inner) wall. |
+| **`PLAN_NEXT_AVOIDANCE`** | `_handle_straight_sub_plan_next_avoidance()` | Executes the "Move-and-Scan" routine at a corner to detect obstacles and generate the `avoidance_path_plan`. (1st lap only) |
+| **`AVOID_OUTER_TURN_IN`** <br> **`AVOID_INNER_TURN_IN`** | `_handle_straight_sub_avoid_outer_turn_in()` <br> `_handle_straight_sub_avoid_inner_turn_in()` | Initiates an avoidance maneuver by steering sharply towards the opposite wall (inner or outer) to create space. |
+| **`PRE_SCANNING_REVERSE`** | `_handle_straight_sub_pre_scanning_reverse()` | Reverses the robot to a safe distance before starting the `PLAN_NEXT_AVOIDANCE` scan. |
+
+##### Cornering (`TURNING` State)
+
+This state executes a precise, multi-step maneuver to navigate the 90-degree corners of the course.
+
+| Sub-State | Handler Function | Functionality |
+| :--- | :--- | :--- |
+| **`POSITIONING_REVERSE`** | `_handle_turning_sub_positioning_reverse()` | Reverses the robot to a standardized starting position to ensure consistent turns. |
+| **`APPROACH_CORNER`** | `_handle_turning_sub_approach_corner()` | Moves forward towards the corner until it reaches the optimal distance to begin the pivot turn. |
+| **`EXECUTE_PIVOT_TURN`** | `_handle_turning_sub_execute_pivot_turn()` | Executes a high-agility, fixed-angle pivot turn to change the robot's heading by approximately 90 degrees. |
+| **`FINALIZE_TURN`** | `_handle_turning_sub_finalize_turn()` | Updates the turn counter and transitions the main state back to `STRAIGHT`. |
+
+##### Parking (`PARKING` State)
+
+This final set of maneuvers is responsible for bringing the robot to a safe and accurate stop in the designated parking area.
+
+| Sub-State | Handler Function | Functionality |
+| :--- | :--- | :--- |
+| **`PRE_PARKING_ADJUST`** | `_handle_parking_sub_pre_parking_adjust()` | Precisely approaches the final pre-parking position, using an overshoot-and-reverse technique for CW to improve accuracy. |
+| **`REVERSE_INTO_SPACE`** | `_handle_parking_sub_reverse_into_space()` | Executes the final reverse turn into the parking space until the target angle is reached. |
+
+##### Mission End (`FINISHED` State)
+The `FINISHED` state is the simplest of all. Its handler, `_handle_state_finished()`, has only one job: to publish a zero-velocity command, bringing the robot to a complete and safe stop. It also calculates and logs the total run time.
+
+*(Note: Some legacy states like `DETERMINE_COURSE` have been omitted for clarity as they are not used in the primary parking-start mode.)*
+
+### 7.4.5. Core Algorithms: The Intelligence Behind the Action
+
+Beyond the state machine structure, the robot's intelligent behavior is driven by a few core algorithms. These functions are called repeatedly from the various sub-state handlers to perform complex tasks like stable navigation and reliable sensing.
 
 **The "Aha!" Moment & Solution:** Through experimentation, we discovered that even the black walls provide reliable readings if, and only if, the laser hits them at a **perfect 90-degree angle**. This led to the development of our core sensor fusion function, `get_distance_at_world_angle()`.
 
