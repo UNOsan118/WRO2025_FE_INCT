@@ -1,7 +1,7 @@
 # WRO 2025 Future Engineers: Team Ishikawa KOSEN <img src="https://upload.wikimedia.org/wikipedia/en/9/9e/Flag_of_Japan.svg" alt="Flag of Japan" width="30"/>
 
 <!-- A captivating main image of your robot -->
-![Main Robot Image](./v-photos/main_view.jpg)
+![Main Robot Image](v-photos/main_view.jpg)
 
 <!-- Social media badges (optional but nice) -->
 [![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/your-channel-link)
@@ -21,7 +21,7 @@ This is the official repository for **Team Ishikawa KOSEN**, representing Japan 
 *   ... (add more members and their primary roles)
 
 > [!NOTE]
-> For more team pictures, including our journey, please visit the [`t-photos`](./t-photos) directory.
+> For more team pictures, including our journey, please visit the [`t-photos`](t-photos) directory.
 
 ---
 
@@ -70,7 +70,7 @@ A high-level introduction to our robot's design philosophy and key features.
 | `(image)` | `(image)` | `(image)` |
 
 > [!NOTE]
-> For more detailed photos, including close-ups of specific mechanisms, please see the [`v-photos`](./v-photos) directory.
+> For more detailed photos, including close-ups of specific mechanisms, please see the [`v-photos`](v-photos) directory.
 
 ---
 
@@ -91,12 +91,21 @@ The original base vehicle utilized a two-motor drive system for the rear wheels.
 *   **Motor and Encoder:** The heart of our propulsion is a **DC geared motor with an integrated Hall-effect encoder**. This encoder outputs A/B phase pulse signals, which our system decodes to precisely determine the motor's direction and rotational speed. This high-resolution feedback is the foundation of our accurate PID speed control.
 
 <p align="center">
-  <img src="./v-photos/motor_and_differential.jpg" alt="Motor and Differential Gearbox Assembly" width="500">
+  <img src="v-photos/motor_and_differential.jpg" alt="Motor and Differential Gearbox Assembly" width="500">
   <br>
   <em>Our custom single-motor and differential gearbox assembly.</em>
 </p>
 
-<!-- You can add the motor spec table here if you want -->
+**Motor Selection Rationale:**
+We selected this specific motor for three key reasons:
+1.  **Integrated Encoder:** The built-in high-resolution encoder provides the precise feedback necessary for advanced PID speed control, eliminating the need for external sensors.
+2.  **High Torque:** The 1:20 gear ratio provides sufficient torque to ensure powerful acceleration and stable performance, even on slight inclines.
+3.  **Compact Form Factor:** Its compact size was ideal for our custom-designed, single-motor chassis, allowing for a clean and efficient mechanical layout.
+
+**Motor Specifications:**
+<p align="center">
+  <img src="schemes/drive_motor_specs.png" alt="Drive Motor Specifications" width="300">
+</p>
 
 ### 5.3. Steering Mechanism: Modified Ackermann Geometry
 
@@ -105,11 +114,53 @@ To maximize our robot's agility, we modified the stock **Ackermann steering mech
 *   **Principle:** The Ackermann geometry is designed so that during a turn, the inner front wheel pivots at a sharper angle than the outer wheel. This ensures that the normal lines of all four wheels intersect at a single Instantaneous Center of Rotation (ICR), minimizing tire slippage.
 *   **Effect:** By adhering to this principle while modifying the linkage for a greater steering range, we have achieved exceptionally smooth and predictable cornering, especially in tight turns. This allows for more energy-efficient and faster navigation through the course.
 
+The steering is actuated by a **Hiwonder LFD-01 Anti-blocking Servo**.
+
+**Servo Selection Rationale:**
+Our choice of this servo was deliberate, focusing on reliability and power.
+1.  **High Torque & Metal Gears:** To handle the stresses of rapid, precise steering adjustments at speed, we needed a servo with high torque and durable metal gears. This prevents gear stripping, a common failure point with standard servos.
+2.  **Anti-Blocking Feature:** This servo includes a built-in protection circuit that prevents damage if the steering mechanism becomes stalled or blocked, significantly increasing the robot's overall robustness during long runs.
+
+#### Kinematic Model
+
+To mathematically model our robot's motion and ensure pure rolling without lateral slip, we applied the following kinematic principles based on the Ackermann model.
+
 <p align="center">
-  <img src="./schemes/ackermann_principle.png" alt="Principle of Ackermann Steering Geometry" width="500">
-  <br>
-  <em>The kinematic principle of Ackermann geometry, ensuring minimal tire slippage.</em>
+  <img src="schemes/ackermann_kinematics.png" alt="Ackermann Kinematic Model" width="300">
 </p>
+
+**Key Parameters:**
+*   **θ:** Front wheel steering angle (rad).
+*   **V:** Linear velocity of the vehicle (m/s), with V<sub>L</sub> and V<sub>R</sub> being the left and right rear wheel velocities.
+*   **D:** Track width of the vehicle (m).
+*   **H:** Wheelbase of the vehicle (m).
+*   **R:** Turning radius of the vehicle (m), with R<sub>L</sub> and R<sub>R</sub> being the radii for the left and right wheels.
+*   **ω:** Angular velocity of the vehicle (rad/s).
+
+**Core Formulas:**
+
+1.  **Angular Velocity Consistency:** The angular velocity is consistent across the vehicle.
+    $$
+    \omega = \frac{V}{R} = \frac{V_L}{R_L} = \frac{V_R}{R_R}
+    $$
+
+2.  **Relationship between Steering Angle and Turning Radius:** The turning radius is geometrically related to the steering angle and wheelbase.
+    $$
+    \tan(\theta) = \frac{H}{R} \quad \implies \quad R_L = R - \frac{D}{2}, \quad R_R = R + \frac{D}{2}
+    $$
+
+3.  **Individual Wheel Velocities:** By knowing the wheelbase, track width, vehicle speed, and servo steering angle, we can calculate the required velocity for each rear wheel. This difference in speed is physically realized by our differential gearbox.
+    *   **Left Wheel Velocity (V<sub>L</sub>):**
+        $$
+        V_L = \frac{V}{R} R_L = V \times \left(1 - \frac{D \times \tan(\theta)}{2H}\right)
+        $$
+
+    *   **Right Wheel Velocity (V<sub>R</sub>):**
+        $$
+        V_R = \frac{V}{R} R_R = V \times \left(1 + \frac{D \times \tan(\theta)}{2H}\right)
+        $$
+
+This mathematical model is fundamental to how our `ros_robot_controller` translates high-level velocity commands into precise, differential wheel speeds, enabling accurate path following.
 
 
 ### 5.4. Optimization via Custom 3D-Printed Parts
@@ -136,10 +187,10 @@ To fully unleash the potential of our base vehicle and physically support our na
     
     We developed a tall tower structure that elevates the camera, providing a top-down, "bird's-eye" perspective of the obstacles. This prevents the robot's own chassis from blocking the camera's line of sight, which is crucial for the reliable object recognition performed in our `PLAN_NEXT_AVOIDANCE` phase.
 
-These custom modifications form the critical physical foundation that enables our software to perform at its peak. All 3D models for these parts, including our custom chassis and gearbox components, are available in the [`models`](models) directory.
+These custom modifications form the critical physical foundation that enables our software to perform at its peak. All 3D models for these parts, including our custom chassis and gearbox components, are available in the [`models`](models) directory. To facilitate the reproduction of our design, we have also provided **detailed blueprints and assembly diagrams** for these custom parts in the [`models\blueprints`](models/blueprints) directory.
 
 <p align="center">
-  <img src="./v-photos/3d_printed_parts_on_robot.jpg" alt="Custom 3D-Printed Mounts" width="600">
+  <img src="v-photos/3d_printed_parts_on_robot.jpg" alt="Custom 3D-Printed Mounts" width="600">
   <br>
   <em>Our custom-designed LiDAR mount and camera tower, engineered for optimal sensor performance.</em>
 </p>
@@ -555,7 +606,7 @@ This detailed documentation within the code itself ensures that our work can be 
 
 > [!IMPORTANT]
 > **You can view the complete source code here:**
-> **[src/obstacle_navigator_node.py](./src/chassis_v2_maneuver/chassis_v2_maneuver/obstacle_navigator_node.py)**
+> **[src/obstacle_navigator_node.py](src\WRO2025_FE\src\international_final\international_final\obstacle_navigator_node.py)**
 
 ### 7.6. Future Improvements
 
