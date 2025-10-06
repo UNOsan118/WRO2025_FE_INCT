@@ -1,7 +1,7 @@
 # WRO 2025 Future Engineers: Team Ishikawa KOSEN <img src="https://upload.wikimedia.org/wikipedia/en/9/9e/Flag_of_Japan.svg" alt="Flag of Japan" width="30"/>
 
 <!-- A captivating main image of your robot -->
-![Main Robot Image](./v-photos/main_view.jpg)
+![Main Robot Image](v-photos/main_view.jpg)
 
 <!-- Social media badges (optional but nice) -->
 [![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/your-channel-link)
@@ -21,7 +21,7 @@ This is the official repository for **Team Ishikawa KOSEN**, representing Japan 
 *   ... (add more members and their primary roles)
 
 > [!NOTE]
-> For more team pictures, including our journey, please visit the [`t-photos`](./t-photos) directory.
+> For more team pictures, including our journey, please visit the [`t-photos`](t-photos) directory.
 
 ---
 
@@ -70,23 +70,130 @@ A high-level introduction to our robot's design philosophy and key features.
 | `(image)` | `(image)` | `(image)` |
 
 > [!NOTE]
-> For more detailed photos, including close-ups of specific mechanisms, please see the [`v-photos`](./v-photos) directory.
+> For more detailed photos, including close-ups of specific mechanisms, please see the [`v-photos`](v-photos) directory.
 
 ---
 
 ## 5. Mobility Management
 
-This section covers our robot's mechanical design and movement capabilities.
+This section details our robot's mechanical framework, its propulsion system, and the mechanisms for directional control. Our design philosophy emphasizes precision, stability, and agile control on the competition field.
 
 ### 5.1. Chassis Design
-*   (Explanation of why the MentorPi A1 was chosen, any modifications made, and the rationale behind the overall structure.)
-*   (Include 3D model renders from the `models` directory.)
 
-### 5.2. Drive System
-*   (Details about the motors, wheels, and power transmission. Explain the selection process based on torque, speed, and efficiency requirements.)
+Our robot's development began with the **Hiwonder MentorPi A1** as a base platform, which we selected for its robust initial structure. However, through extensive testing and iteration, our design has evolved into a **unique, custom chassis** that, while inspired by the original, is now tailored specifically to our strategic needs.
 
-### 5.3. Steering System
-*   (Description of the steering mechanism, servo selection, and any custom parts designed to improve precision and durability.)
+### 5.2. Drive Mechanism: Single Motor with Differential Gearbox
+
+**Development Story:**
+The original base vehicle utilized a two-motor drive system for the rear wheels. However, we identified that this configuration could be interpreted as an electronic "differential," which is not permitted under the competition rules. To ensure full compliance while maintaining high performance, we engineered a significant modification: a **single-motor drive system** that transmits power through a mechanical **differential gearbox**.
+
+*   **Role of the Differential Gearbox:** This crucial mechanical component distributes power from the single motor to both rear wheels. It allows the wheels to rotate at different speeds during a turn, which is essential for smooth and stable cornering and works in perfect harmony with our steering system.
+*   **Motor and Encoder:** The heart of our propulsion is a **DC geared motor with an integrated Hall-effect encoder**. This encoder outputs A/B phase pulse signals, which our system decodes to precisely determine the motor's direction and rotational speed. This high-resolution feedback is the foundation of our accurate PID speed control.
+
+<p align="center">
+  <img src="v-photos/motor_and_differential.jpg" alt="Motor and Differential Gearbox Assembly" width="500">
+  <br>
+  <em>Our custom single-motor and differential gearbox assembly.</em>
+</p>
+
+**Motor Selection Rationale:**
+We selected this specific motor for three key reasons:
+1.  **Integrated Encoder:** The built-in high-resolution encoder provides the precise feedback necessary for advanced PID speed control, eliminating the need for external sensors.
+2.  **High Torque:** The 1:20 gear ratio provides sufficient torque to ensure powerful acceleration and stable performance, even on slight inclines.
+3.  **Compact Form Factor:** Its compact size was ideal for our custom-designed, single-motor chassis, allowing for a clean and efficient mechanical layout.
+
+**Motor Specifications:**
+<p align="center">
+  <img src="schemes/drive_motor_specs.png" alt="Drive Motor Specifications" width="300">
+</p>
+
+### 5.3. Steering Mechanism: Modified Ackermann Geometry
+
+To maximize our robot's agility, we modified the stock **Ackermann steering mechanism** provided by the base vehicle. Our primary goals were to **increase the maximum steering angle** and improve overall turning precision.
+
+*   **Principle:** The Ackermann geometry is designed so that during a turn, the inner front wheel pivots at a sharper angle than the outer wheel. This ensures that the normal lines of all four wheels intersect at a single Instantaneous Center of Rotation (ICR), minimizing tire slippage.
+*   **Effect:** By adhering to this principle while modifying the linkage for a greater steering range, we have achieved exceptionally smooth and predictable cornering, especially in tight turns. This allows for more energy-efficient and faster navigation through the course.
+
+The steering is actuated by a **Hiwonder LFD-01 Anti-blocking Servo**.
+
+**Servo Selection Rationale:**
+Our choice of this servo was deliberate, focusing on reliability and power.
+1.  **High Torque & Metal Gears:** To handle the stresses of rapid, precise steering adjustments at speed, we needed a servo with high torque and durable metal gears. This prevents gear stripping, a common failure point with standard servos.
+2.  **Anti-Blocking Feature:** This servo includes a built-in protection circuit that prevents damage if the steering mechanism becomes stalled or blocked, significantly increasing the robot's overall robustness during long runs.
+
+#### Kinematic Model
+
+To mathematically model our robot's motion and ensure pure rolling without lateral slip, we applied the following kinematic principles based on the Ackermann model.
+
+<p align="center">
+  <img src="schemes/ackermann_kinematics.png" alt="Ackermann Kinematic Model" width="300">
+</p>
+
+**Key Parameters:**
+*   **θ:** Front wheel steering angle (rad).
+*   **V:** Linear velocity of the vehicle (m/s), with V<sub>L</sub> and V<sub>R</sub> being the left and right rear wheel velocities.
+*   **D:** Track width of the vehicle (m).
+*   **H:** Wheelbase of the vehicle (m).
+*   **R:** Turning radius of the vehicle (m), with R<sub>L</sub> and R<sub>R</sub> being the radii for the left and right wheels.
+*   **ω:** Angular velocity of the vehicle (rad/s).
+
+**Core Formulas:**
+
+1.  **Angular Velocity Consistency:** The angular velocity is consistent across the vehicle.
+    $$
+    \omega = \frac{V}{R} = \frac{V_L}{R_L} = \frac{V_R}{R_R}
+    $$
+
+2.  **Relationship between Steering Angle and Turning Radius:** The turning radius is geometrically related to the steering angle and wheelbase.
+    $$
+    \tan(\theta) = \frac{H}{R} \quad \implies \quad R_L = R - \frac{D}{2}, \quad R_R = R + \frac{D}{2}
+    $$
+
+3.  **Individual Wheel Velocities:** By knowing the wheelbase, track width, vehicle speed, and servo steering angle, we can calculate the required velocity for each rear wheel. This difference in speed is physically realized by our differential gearbox.
+    *   **Left Wheel Velocity (V<sub>L</sub>):**
+        $$
+        V_L = \frac{V}{R} R_L = V \times \left(1 - \frac{D \times \tan(\theta)}{2H}\right)
+        $$
+
+    *   **Right Wheel Velocity (V<sub>R</sub>):**
+        $$
+        V_R = \frac{V}{R} R_R = V \times \left(1 + \frac{D \times \tan(\theta)}{2H}\right)
+        $$
+
+This mathematical model is fundamental to how our `ros_robot_controller` translates high-level velocity commands into precise, differential wheel speeds, enabling accurate path following.
+
+
+### 5.4. Optimization via Custom 3D-Printed Parts
+
+To fully unleash the potential of our base vehicle and physically support our navigation strategy, we designed and 3D-printed several custom mounts using CAD software. These parts are not mere accessories; they are the result of careful engineering decisions aimed at maximizing sensor data quality and overall performance.
+
+*   **LiDAR Mount:**
+
+    **Objective:** 
+    
+    To achieve accurate wall detection while minimizing physical interference.
+
+    **Design:** 
+    
+    We engineered a multi-purpose mount with two key features. First, it positions the LiDAR at an optimal low height and slightly forward, ensuring its lasers are perfectly aligned with the course walls for the highest quality data. Second, the mount supports the LiDAR from above, allowing it to be **installed in an inverted position**. This orientation reduces the risk of the mount itself colliding with obstacles. This inverted mounting concept was **inspired by the design of last year's Future Engineers world champion team**, demonstrating our commitment to learning from the best.
+
+*   **Camera Tower:**
+
+    **Objective:**
+    
+    To ensure a clear, unobstructed view of all obstacles.
+
+    **Design:**
+    
+    We developed a tall tower structure that elevates the camera, providing a top-down, "bird's-eye" perspective of the obstacles. This prevents the robot's own chassis from blocking the camera's line of sight, which is crucial for the reliable object recognition performed in our `PLAN_NEXT_AVOIDANCE` phase.
+
+These custom modifications form the critical physical foundation that enables our software to perform at its peak. All 3D models for these parts, including our custom chassis and gearbox components, are available in the [`models`](models) directory. To facilitate the reproduction of our design, we have also provided **detailed blueprints and assembly diagrams** for these custom parts in the [`models\blueprints`](models/blueprints) directory.
+
+<p align="center">
+  <img src="v-photos/3d_printed_parts_on_robot.jpg" alt="Custom 3D-Printed Mounts" width="600">
+  <br>
+  <em>Our custom-designed LiDAR mount and camera tower, engineered for optimal sensor performance.</em>
+</p>
 
 ---
 
@@ -253,87 +360,204 @@ Based on these factors, the robot adjusts its behavior, allowing for tighter, fa
     <img src="schemes\if_entrance_is_clear.jpg" alt="Unparking Strategies" width="600">
 </p>
 
+
 ### 7.4. Key Algorithms & Engineering Decisions
 
 Our robot's reliability is not the result of a single piece of code, but the evolution of several key algorithms born from trial and error. This section details the engineering decisions behind our most critical navigation functions.
 
-#### 7.4.1. Corner Detection: From Fragile Vision to Robust LiDAR Logic
+#### 7.4.1. State Definitions (Enums)
 
-**Initial Idea & Failure:** Our first attempt at corner detection used the camera to find colored lines on the course floor. However, this proved unreliable. The lines were often obscured by obstacles, and varying lighting conditions caused frequent misdetections.
+The foundation of our HSM is explicitly defined in the code using Python's `Enum` class. This approach provides a highly readable and robust way to manage the robot's state, as summarized in the table below.
 
-**Evolution to LiDAR & The "Double-Detection" Problem:** We then pivoted to a LiDAR-based approach: a corner is detected when the inner wall is no longer visible. While this worked reasonably well, it introduced a new, critical bug: when turning a corner from the outer lane, the robot would sometimes detect the *same corner twice*, causing it to fail.
+| Class Name | Role in the State Machine |
+| :--- | :--- |
+| **`State` (Main States)** | Defines the highest-level phases of the robot's mission, such as `STRAIGHT` or `TURNING`. It represents the robot's major operational mode. |
+| **Sub-State Enums**<br>(e.g., `StraightSubState`) | For each complex Main State, a corresponding Sub-State Enum breaks down the task into a sequence of smaller, manageable actions like `PLAN_NEXT_AVOIDANCE`. |
+| **`UnparkingStrategy`** | Distinct from a state, this Enum defines the *strategic plan* selected during `PREPARATION`. It dictates which multi-step unparking sequence the robot will execute. |
 
-**Final Solution:** To solve this, we implemented a counter mechanism. A corner is only confirmed when the inner wall has been out of sight for a *sustained number of consecutive scans*. This simple addition eliminated the double-detection bug and made our cornering logic exceptionally robust.
+**Code Snippets:**
 
-Here is the simplified logic in pseudo code:
+The following code snippets from `obstacle_navigator_node.py` show how these concepts are implemented.
 
+*Main States:*
 ```python
-def check_for_corner(scan_data, state):
-    """Detects a corner using a counter for robustness."""
-    
-    # Get distances to the inner wall (where corners appear) and the front wall.
-    inner_dist = get_distance_to_inner_wall(scan_data)
-    front_dist = get_distance_to_front_wall(scan_data)
-
-    # A corner might be ahead if the inner wall vanishes AND we are approaching a front wall.
-    is_corner_imminent = (inner_dist > INNER_WALL_DISAPPEAR_THRESHOLD and
-                          front_dist < FRONT_WALL_APPROACH_THRESHOLD)
-
-    if is_corner_imminent:
-        # If the condition is met, increment the confirmation counter.
-        state.corner_detection_counter += 1
-    else:
-        # Otherwise, reset it immediately.
-        state.corner_detection_counter = 0
-
-    # Only confirm the corner if the condition has been true for a sustained period.
-    # This prevents false positives from sensor noise or temporary occlusions.
-    if state.corner_detection_counter >= CORNER_CONFIRMATION_COUNT:
-        return "CORNER_DETECTED"
-    
-    return "NO_CORNER"
+class State(Enum):
+    PREPARATION = auto()
+    UNPARKING = auto()
+    STRAIGHT = auto()
+    TURNING = auto()
+    PARKING = auto()
+    FINISHED = auto()
+```
+Example of Sub-States (for the STRAIGHT state):
+```python
+class StraightSubState(Enum):
+    ALIGN_WITH_OUTER_WALL = auto()
+    ALIGN_WITH_INNER_WALL = auto()
+    PLAN_NEXT_AVOIDANCE = auto()
+    PRE_SCANNING_REVERSE = auto()
+    AVOID_OUTER_TURN_IN = auto()
+    AVOID_INNER_TURN_IN = auto()
 ```
 
-#### 7.4.2. Lane Change Safety: From Reactive to Predictive
-
-**Initial Idea & Failure:** Originally, a lane change was triggered *after* the robot thought it had passed an obstacle. We attempted to detect this by monitoring the side LiDAR data for a `NORMAL -> NARROW -> NORMAL` distance pattern. However, this reactive approach was highly inaccurate, especially with small 5cm obstacles. The robot often missed the transition or reacted too late.
-
-**Final Solution:** The unreliable reactive method was completely replaced by our current `_is_safe_for_lane_change()` function. Instead of trying to detect the *moment* of passing, we now predictively check if the upcoming space is **stable and wide enough for a sustained period**. This shift from a reactive to a predictive model drastically improved the safety and reliability of our lane change maneuvers.
-
+Example of a Strategy Definition:
 ```python
-# --- Pseudo Code for Safe Lane Change ---
-def is_safe_for_lane_change(scan_data, state):
-    """Predictively checks if the upcoming path is stable enough for a lane change."""
-    
-    # Get distances to all relevant walls.
-    inner_dist = get_distance_to_inner_wall(scan_data)
-    outer_dist = get_distance_to_outer_wall(scan_data)
-    front_dist = get_distance_to_front_wall(scan_data)
-    
-    # Check for two conditions:
-    # 1. Is the course width normal (not in a corner or wide-open area)?
-    is_width_normal = (NORMAL_COURSE_WIDTH_MIN < inner_dist + outer_dist < NORMAL_COURSE_WIDTH_MAX)
-    # 2. Is the path ahead clear of any immediate obstacles?
-    is_front_clear = front_dist > MIN_FRONT_CLEARANCE_FOR_LANE_CHANGE
-    
-    if is_width_normal and is_front_clear:
-        # If the path is stable and clear, increment the stability counter.
-        state.lane_change_stability_counter += 1
-    else:
-        # If conditions are not met, the path is unstable. Reset the counter.
-        state.lane_change_stability_counter = 0
-        
-    # A lane change is only permitted if the path has been confirmed as stable
-    # for a certain number of consecutive checks.
-    if state.lane_change_stability_counter >= STABILITY_CONFIRMATION_COUNT:
-        return True # It's safe to change lanes.
-        
-    return False # It's not safe yet.
+class UnparkingStrategy(Enum):
+    STANDARD_EXIT_TO_OUTER_LANE = auto()
+    AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW = auto()
+    UNDEFINED = auto()
 ```
 
-#### 7.4.3. Sensor Fusion: Overcoming the "Black Wall Problem" with IMU
+This clear and explicit state definition is the key to our robot's reliable and predictable behavior.
 
-**The Challenge:** Our biggest initial hurdle was frequent loss of LiDAR data. A simple approach of reading distances at fixed angles (e.g., -90°, 0°, 90°) failed constantly. This was due to two compounding factors: the black walls of the course absorb light, and LiDAR signals weaken significantly when not hitting a surface perpendicularly.
+#### 7.4.2. Initialization & Parameters (`__init__`)
+
+The constructor of our `ObstacleNavigatorNode` (`__init__` function) is called once when the node launches. It is responsible for preparing all the necessary components and settings for the robot to operate.
+
+The primary roles of the `__init__` function are as follows:
+
+*   **Initializing State Variables:**
+    It defines the initial state of the system, such as setting the starting state of our state machine to `PREPARATION`.
+
+    ```python
+    # Set the initial state for the state machine
+    self.state = State.PREPARATION
+    self.preparation_sub_state = PreparationSubState.WAITING_FOR_CONTROLLER
+    ```
+
+*   **Centralizing Tuning Parameters:**
+    All tunable parameters that define the robot's behavior—such as driving speed, PID gains, and turning distances—are defined here. This centralizes all tuning work in one location, making the system highly maintainable.
+
+    ```python
+    # --- Driving & Speed Control ---
+    self.forward_speed = 0.2
+    # --- Alignment (PID) ---
+    self.align_kp_dist = 7.5
+    ```
+
+*   **Setting up ROS 2 Communications:**
+    It configures all the necessary ROS 2 communication channels, including Subscribers to receive sensor data and Publishers to send commands to the motors.
+
+    ```python
+    # Subscriber for LiDAR data
+    self.scan_subscriber = self.create_subscription(
+        LaserScan, '/scan', self.scan_callback, qos_profile_lidar)
+    ```
+
+*   **Starting the Main Control Loop:**
+    Finally, it starts a 50Hz timer that repeatedly calls our main logic function, `control_loop_callback()`, effectively kicking off the autonomous control process.
+
+    ```python
+    # Create a timer to call the main control loop at 50Hz
+    self.control_loop_timer = self.create_timer(
+        1.0 / 50.0, self.control_loop_callback)
+    ```
+
+#### 7.4.3. Main Control Loop & State Dispatch
+
+The `control_loop_callback()` function, triggered at 50Hz by the timer set in `__init__`, is the "heartbeat" of our autonomous system. With every call, the robot perceives its environment and decides its next action.
+
+##### 7.4.3.1. Role as a Central Dispatcher
+
+The design of this function is intentionally simple. Its sole responsibility is to act as a **central dispatcher**, delegating the actual work to specialized handler functions based on the robot's current state.
+
+The process is straightforward:
+1.  **Check the current main state** stored in the `self.state` variable (e.g., `State.STRAIGHT`).
+2.  **Call the corresponding handler** using an `if/elif` structure (e.g., `_handle_state_straight()`).
+
+```python
+# The core of the main loop: a simple, clean state dispatcher.
+def control_loop_callback(self):
+    # ...
+    if self.state == State.PREPARATION: 
+        self._handle_state_preparation(msg) 
+    elif self.state == State.UNPARKING:
+        self._handle_state_unparking(msg) 
+    elif self.state == State.STRAIGHT:
+        self._handle_state_straight(msg)
+    # ... and so on for all other main states
+```
+
+##### 7.4.3.2. Hierarchical Delegation
+
+This delegation process is hierarchical. Each main state handler, such as _handle_state_straight(), further dispatches the task to a sub-state handler based on the current sub-state (e.g., StraightSubState.AVOID_OUTER_TURN_IN).
+
+```python
+# Inside a main state handler, it dispatches again to a sub-state handler.
+def _handle_state_straight(self, msg):
+    if self.straight_sub_state == StraightSubState.ALIGN_WITH_OUTER_WALL:
+        self._handle_straight_sub_align_with_outer_wall(msg)
+    elif self.straight_sub_state == StraightSubState.AVOID_OUTER_TURN_IN:
+        self._handle_straight_sub_avoid_outer_turn_in(msg)
+    # ... and so on for all other sub-states
+```
+
+This elegant structure of hierarchical delegation is the engine that drives our state machine. It keeps the main loop clean and allows the complex logic for each state to be neatly organized in its own dedicated function. The actual transitions between states (e.g., from STRAIGHT to TURNING) are managed within these handler functions based on sensor-driven conditions.
+
+
+#### 7.4.4. Sub-State Handler Functions: Implementing the Behavior
+
+The logic for each sub-state is implemented in its own dedicated handler function, following a clear `_handle_*_sub_*()` naming convention. This modular approach makes the system easy to read, debug, and maintain. The roles of the primary handler functions are summarized below.
+
+##### System Startup (`PREPARATION` State)
+
+This initial state is responsible for all startup checks and initial setup before the robot begins its main tasks.
+
+| Sub-State | Handler Function | Functionality |
+| :--- | :--- | :--- |
+| **`WAITING_FOR_CONTROLLER`**| `_handle_preparation_sub_waiting_for_controller()` | Waits for the low-level motor controller to become ready before proceeding. |
+| **`INITIALIZING_CAMERA`** | `_handle_preparation_sub_initializing_camera()` | Moves the camera servos to their default starting positions. |
+| **`DETERMINE_DIRECTION`** | `_handle_preparation_sub_determine_direction()` | Determines the course direction (CW/CCW) by analyzing LiDAR data from the parking spot. |
+
+##### Unparking (`UNPARKING` State)
+
+This group of functions manages the sequence of safely exiting the parking area and entering the main course.
+
+| Sub-State | Handler Function | Functionality |
+| :--- | :--- | :--- |
+| **`PRE_UNPARKING_DETECTION`** | `_handle_unparking_sub_pre_unparking_detection()` | Scans the exit for obstacles and selects one of the four `UnparkingStrategy` patterns. |
+| **`INITIAL_TURN`** | `_handle_unparking_sub_initial_turn()` | Executes the initial turn to enter the course, based on the selected strategy. |
+| **`AVOIDANCE_REVERSE`** | `_handle_unparking_sub_avoidance_reverse()` | (CCW Close-Obstacle Strategy) Reverses to create space before making the turn. |
+
+##### Straight Driving and Planning (`STRAIGHT` State)
+
+This is the most complex state, responsible for wall-following, planning for the next segment, and executing all obstacle avoidance maneuvers.
+
+| Sub-State | Handler Function | Functionality |
+| :--- | :--- | :--- |
+| **`ALIGN_WITH_OUTER_WALL`** <br> **`ALIGN_WITH_INNER_WALL`** | `_handle_straight_sub_align_with_outer_wall()` <br> `_handle_straight_sub_align_with_inner_wall()` | The default driving mode. Uses the PID controller to maintain a precise distance from the designated (outer or inner) wall. |
+| **`PLAN_NEXT_AVOIDANCE`** | `_handle_straight_sub_plan_next_avoidance()` | Executes the "Move-and-Scan" routine at a corner to detect obstacles and generate the `avoidance_path_plan`. (1st lap only) |
+| **`AVOID_OUTER_TURN_IN`** <br> **`AVOID_INNER_TURN_IN`** | `_handle_straight_sub_avoid_outer_turn_in()` <br> `_handle_straight_sub_avoid_inner_turn_in()` | Initiates an avoidance maneuver by steering sharply towards the opposite wall (inner or outer) to create space. |
+| **`PRE_SCANNING_REVERSE`** | `_handle_straight_sub_pre_scanning_reverse()` | Reverses the robot to a safe distance before starting the `PLAN_NEXT_AVOIDANCE` scan. |
+
+##### Cornering (`TURNING` State)
+
+This state executes a precise, multi-step maneuver to navigate the 90-degree corners of the course.
+
+| Sub-State | Handler Function | Functionality |
+| :--- | :--- | :--- |
+| **`POSITIONING_REVERSE`** | `_handle_turning_sub_positioning_reverse()` | Reverses the robot to a standardized starting position to ensure consistent turns. |
+| **`APPROACH_CORNER`** | `_handle_turning_sub_approach_corner()` | Moves forward towards the corner until it reaches the optimal distance to begin the pivot turn. |
+| **`EXECUTE_PIVOT_TURN`** | `_handle_turning_sub_execute_pivot_turn()` | Executes a high-agility, fixed-angle pivot turn to change the robot's heading by approximately 90 degrees. |
+| **`FINALIZE_TURN`** | `_handle_turning_sub_finalize_turn()` | Updates the turn counter and transitions the main state back to `STRAIGHT`. |
+
+##### Parking (`PARKING` State)
+
+This final set of maneuvers is responsible for bringing the robot to a safe and accurate stop in the designated parking area.
+
+| Sub-State | Handler Function | Functionality |
+| :--- | :--- | :--- |
+| **`PRE_PARKING_ADJUST`** | `_handle_parking_sub_pre_parking_adjust()` | Precisely approaches the final pre-parking position, using an overshoot-and-reverse technique for CW to improve accuracy. |
+| **`REVERSE_INTO_SPACE`** | `_handle_parking_sub_reverse_into_space()` | Executes the final reverse turn into the parking space until the target angle is reached. |
+
+##### Mission End (`FINISHED` State)
+The `FINISHED` state is the simplest of all. Its handler, `_handle_state_finished()`, has only one job: to publish a zero-velocity command, bringing the robot to a complete and safe stop. It also calculates and logs the total run time.
+
+*(Note: Some legacy states like `DETERMINE_COURSE` have been omitted for clarity as they are not used in the primary parking-start mode.)*
+
+### 7.4.5. Core Algorithms: The Intelligence Behind the Action
+
+Beyond the state machine structure, the robot's intelligent behavior is driven by a few core algorithms. These functions are called repeatedly from the various sub-state handlers to perform complex tasks like stable navigation and reliable sensing.
 
 **The "Aha!" Moment & Solution:** Through experimentation, we discovered that even the black walls provide reliable readings if, and only if, the laser hits them at a **perfect 90-degree angle**. This led to the development of our core sensor fusion function, `get_distance_at_world_angle()`.
 
