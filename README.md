@@ -104,7 +104,9 @@ We selected this specific motor for three key reasons:
 
 **Motor Specifications:**
 <p align="center">
+  <img src="schemes/drive_motor.png" alt="Blob detection result" width="300">
   <img src="schemes/drive_motor_specs.png" alt="Drive Motor Specifications" width="300">
+  <em>Image and specifications sourced from <a href="https://www.hiwonder.com/products/hall-encoder-dc-geared-motor?variant=40451123675223">Hiwonder's official product page</a>.</em>
 </p>
 
 ### 5.3. Steering Mechanism: Modified Ackermann Geometry
@@ -120,6 +122,13 @@ The steering is actuated by a **Hiwonder LFD-01 Anti-blocking Servo**.
 Our choice of this servo was deliberate, focusing on reliability and power.
 1.  **High Torque & Metal Gears:** To handle the stresses of rapid, precise steering adjustments at speed, we needed a servo with high torque and durable metal gears. This prevents gear stripping, a common failure point with standard servos.
 2.  **Anti-Blocking Feature:** This servo includes a built-in protection circuit that prevents damage if the steering mechanism becomes stalled or blocked, significantly increasing the robot's overall robustness during long runs.
+
+**Motor Specifications:**
+<p align="center">
+  <img src="schemes/steering_motor_specs.png" alt="Steering Motor Specifications" width="300"><br>
+<em>Image and specifications sourced from <a href="https://www.hiwonder.com/products/ackermann-steering-chassis?variant=40382428348503">Hiwonder's official product page</a>.</em>
+</p>
+
 
 #### Kinematic Model
 
