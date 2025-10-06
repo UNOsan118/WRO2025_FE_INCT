@@ -208,16 +208,127 @@ These custom modifications form the critical physical foundation that enables ou
 
 ## 6. Power and Sense Management
 
-This section details the electrical systems and the sensors that allow our robot to perceive its environment.
+This section details the robot's "lifeline," its power system, and its "senses," the suite of sensors that enables it to perceive the environment. A stable power supply and accurate environmental awareness are the most critical physical foundations for our autonomous navigation strategy.
 
-### 6.1. Circuit Diagram
-*   (Embed a clear and professional circuit diagram from the `schemes` directory.)
-*   (Provide a brief explanation of the power distribution, connections between the Raspberry Pi, motor controller, and sensors.)
+### 6.1. Power System
+
+**The Challenge:**
+An autonomous robot must reliably power a powerful computational core (SBC), multiple sensors, and high-torque motors simultaneously. A significant challenge is the voltage drop that occurs during motor acceleration, which can lead to critical failures like SBC reboots or sensor errors.
+
+**Our Solution:**
+To overcome this, we have built a robust power system by combining reliable, high-performance components.
+
+**1. Battery Selection:**
+Our primary power source is a **7.4V 2200mAh 10C LiPo Battery**.
+
+*   **Selection Rationale:**
+    *   **Sufficient Capacity:** The 2200mAh capacity ensures stable performance throughout the entire duration of a competition run.
+    *   **High Discharge Rate:** A high C-rate of `10C` allows the battery to comfortably handle the large peak currents demanded by the motors during acceleration, minimizing voltage drops.
+    *   **Integrated BMS:** The battery includes a built-in Battery Management System (BMS) that protects against over-charge, over-discharge, over-current, and short circuits, significantly enhancing safety during testing and competition.
+
+<p align="center">
+  <img src="v-photos/lipo_battery.png" alt="7.4V 2200mAh LiPo Battery" width="400">
+</p>
+
+**2. Power Distribution and Stabilization:**
+Power from the battery is distributed to our main components—the **Raspberry Pi, motors, and LiDAR**—via the **Hiwonder RRC Lite Controller**.
+
+*   **Role:** This controller acts as an intelligent hub, providing stable, regulated power to these power-hungry components.
+*   **Key Advantage:** A critical feature of this controller is its support for the **Power Delivery (PD) protocol**, enabling it to supply a stable **5V/5A** current to the Raspberry Pi 5. This powerful supply capability isolates the Raspberry Pi from voltage sags caused by motor operation, eliminating the risk of unexpected shutdowns or system instability. This forms the bedrock of our robot's high reliability.
+
+<p align="center">
+  <img src="v-photos/rrc_lite_controller.png" alt="RRC Lite Controller" width="300">
+</p>
 
 ### 6.2. Sensor Suite
-*   **YDLIDAR X2L:** Explain its role in wall detection, corner detection, and localization.
-*   **RGB Camera:** Describe how it's used for obstacle color detection and strategic planning.
-*   **IMU & Encoders:** Detail their contribution to precise odometry and heading control.
+
+Our robot fuses data from multiple sensors, each with a distinct role, to build a comprehensive and accurate understanding of its environment. All sensor data is aggregated in real-time by our main `ObstacleNavigatorNode` via ROS 2 topics to inform its navigation decisions.
+
+#### STL-19P D500 LiDAR
+
+<p align="center">
+    <img src="schemes/lidar_photo.png" alt="STL-19P D500 LiDAR" width="200">
+    <img src="schemes/lidar_specs.png" alt="LiDAR Specifications" width="450">
+    <em><br>Image and specifications sourced from the <a href="https://www.hiwonder.com/products/ld19-d300-lidar?_pos=1&_sid=6968f314c&_ss=r">official product page</a>.</em>
+</p>
+
+
+**Role:** This is our primary sensor for environmental mapping. It provides 360-degree distance information, which is fundamental for wall detection, corner detection, and initial obstacle localization.
+
+*   **Selection Rationale:** We chose this model for its high-speed, 360-degree scanning capability and its excellent ROS 2 driver support, which facilitated easy integration. Its TOF (Time of Flight) technology also ensures stable and reliable measurements.
+*   **Software Integration:** Data from the `/scan` topic is fused with IMU data in our `get_distance_at_world_angle()` function. This corrected data serves as the core input for our `_execute_pid_alignment()` (wall-following) and `_check_for_corner()` (corner detection) algorithms.
+
+*Code Snippet: Subscribing to LiDAR Data*
+```python
+# This code in __init__ starts listening to the /scan topic.
+# The scan_callback function is called every time new data arrives.
+self.scan_subscriber = self.create_subscription(
+    LaserScan, 
+    '/scan', 
+    self.scan_callback, 
+    qos_profile_lidar
+)
+```
+
+#### 2DOF Monocular Camera
+
+<p align="center">
+    <img src="schemes/camera_photo.png" alt="2DOF Monocular Camera" width="200">
+    <img src="schemes/camera_specs.png" alt="Camera Specifications" width="350">
+    <em><br>Image and specifications sourced from the <a href="https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247">official product page</a>.</em>
+</p>
+
+**Role:** Our vision sensor, used exclusively for identifying the **color** of obstacles.
+
+*   **Selection Rationale:** The 170° wide-angle lens is a key feature, allowing the robot to capture a broad view of the upcoming segment during its corner scans. Its USB interface and ROS 2 compatible driver ensure seamless integration with the Raspberry Pi.
+*   **Software Integration:** Image frames from the `/ascamera/...` topic are processed during the `PLAN_NEXT_AVOIDANCE` phase. Using OpenCV, we detect red and green blobs and compare their areas to determine the `avoidance_path_plan` for the next segment.
+
+*Code Snippet: Subscribing to Camera Data*
+```python
+# This code in __init__ subscribes to the camera's image topic.
+# The image_callback function processes the incoming video frames.
+self.image_sub = self.create_subscription(
+    Image, 
+    '/ascamera/camera_publisher/rgb0/image', 
+    self.image_callback, 
+    qos_profile_img
+)
+```
+
+#### IMU (BNO055)
+
+<p align="center">
+    <img src="schemes\imu_photo.png" alt="BNO055 IMU" width="200">
+    <img src="schemes/imu_specs.png" alt="Camera Specifications" width="250">
+    <em><br>Image and specifications sourced from the <a href="https://akizukidenshi.com/catalog/g/g116996/">official product page</a>.</em>
+</p>
+
+**Role:** This Inertial Measurement Unit measures the robot's orientation (yaw angle), acting as a crucial component that dramatically enhances navigation precision.
+
+*   **Selection Rationale:** Although the RRC Lite Controller has an onboard IMU, we opted for the external BNO055 for its superior accuracy and stability. Its internal 9-axis sensor fusion algorithms provide a reliable, low-drift heading estimate.
+*   **Software Integration:** The yaw data from the `/imu/yaw` topic is **essential for correcting the LiDAR data** in our `get_distance_at_world_angle()` function. This is how we overcome the "Black Wall Problem," ensuring accurate wall distance measurements regardless of the robot's orientation.
+
+*Code Snippet: Subscribing to IMU Data*
+```python
+# This code in __init__ subscribes to the IMU's yaw topic.
+# The yaw_callback function updates the robot's current heading.
+self.yaw_subscriber = self.create_subscription(
+    Float64, 
+    '/imu/yaw', 
+    self.yaw_callback, 
+    10
+)
+```
+
+### 6.3. Wiring Diagram
+
+The following diagram illustrates the complete electrical connections between our core components, including the Raspberry Pi, RRC Lite Controller, battery, and all sensors. This centralized wiring, managed by the RRC Lite Controller, simplifies the overall structure and enhances reliability by minimizing potential points of failure.
+
+<p align="center">
+  <img src="schemes/wiring_diagram.png" alt="Robot Wiring Diagram" width="800">
+</p>
+
+A detailed list of all the components shown in this diagram is available in [**Section 3: Bill of Materials (BOM)**](#3-bill-of-materials-bom).
 
 ---
 
