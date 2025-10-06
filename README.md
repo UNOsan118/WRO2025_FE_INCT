@@ -369,20 +369,52 @@ def get_distance_at_world_angle(world_angle_deg, current_yaw_deg, scan_data):
 
 
 
-### 7.5. Source Code with Detailed Comments
+### 7.5. Source Code: A Modular ROS 2 Ecosystem
 
-All the logic and strategies described above are implemented in a single, well-organized ROS 2 node: `obstacle_navigator_node.py`. We have placed a strong emphasis on code readability and maintainability, adhering to modern software development practices.
+Our software is not a single script, but a complete, modular robotics application built on the **ROS 2 framework**. The entire system is organized into a collection of specialized ROS 2 packages, each with a distinct responsibility. This "separation of concerns" is a key principle of modern software engineering, making our system robust, maintainable, and easy to extend.
 
-The complete, fully commented source code is available for review in our repository. The comments within the code provide a line-by-line explanation of:
-*   The **purpose** of each function and state.
-*   The **logic** behind critical calculations.
-*   The **intent** of important parameters and thresholds.
+The directory tree below shows the high-level structure of our ROS 2 workspace, which is composed of our core logic packages and the necessary hardware drivers.
 
-This detailed documentation within the code itself ensures that our work can be understood, verified, and reproduced by the judges and the wider robotics community.
+```
+src
+├─ driver/ # Low-level hardware drivers for the motor controller
+├─ imu/ # Node for the external IMU sensor
+├─ international_final/ # Core logic for the main obstacle challenge
+├─ japan_final/ # Logic adapted for the Japan Final (if different)
+└─ peripherals/ # Launch files and configurations for camera, etc.
+```
 
-> [!IMPORTANT]
-> **You can view the complete source code here:**
-> **[src/obstacle_navigator_node.py](./src/chassis_v2_maneuver/chassis_v2_maneuver/obstacle_navigator_node.py)**
+#### 7.5.1. The Brain: Core Navigation Logic
+
+The central intelligence of our robot resides in the `international_final` package. This is where sensor data is processed, decisions are made via our state machine, and commands are issued. We have developed two primary navigator nodes for the different challenges.
+
+*   **`obstacle_navigator_node.py` (Obstacle Challenge)**
+    This is the heart of our system. It contains the full implementation of our Hierarchical State Machine, dynamic strategy selection, PID control, and all the algorithms described in the previous sections. The code is extensively commented to explain the purpose of each function and the logic behind our engineering decisions.
+    > **[View Source Code: obstacle_navigator_node.py](src\WRO2025_FE\src\international_final\international_final\obstacle_navigator_node.py)**
+
+*   **`open_navigator_node.py` (Open Challenge)**
+    This is a simplified version of the navigator for the challenge without obstacles. It focuses purely on high-speed, stable wall-following and cornering.
+    > **[View Source Code: open_navigator_node.py](src\WRO2025_FE\src\international_final\international_final\open_navigator_node.py)**
+
+#### 7.5.2. Supporting Packages: Drivers and Interfaces
+
+The "Brain" cannot function alone. It relies on a suite of supporting packages that act as the bridge to the physical hardware.
+
+| Package Name | Role & Purpose |
+| :--- | :--- |
+| `ros_robot_controller` | This driver package interfaces directly with the Hiwonder motor controller board (STM32). It subscribes to `/controller/cmd_vel` and other command topics, translating high-level ROS commands into low-level motor and servo signals. |
+| `ros_robot_controller_msgs`| Defines the **custom message and service types** (e.g., `SetPWMServoState`) that we created for communication between our logic node and the controller. This is crucial for controlling peripherals like the camera's pan-tilt servos. |
+| `imu` | This package contains the node responsible for reading data from our external BNO055 IMU sensor and publishing the critical yaw (heading) data to the `/imu/yaw` topic. |
+| `peripherals` | A utility package that contains the main **launch files** for starting the entire system, as well as configurations for hardware like the camera. |
+
+#### 7.5.3. How to Run: Launch Files
+
+To meet the goal of reproducibility, the entire system can be started with a single command using ROS 2 launch files. These files are the designated entry points that correctly start all the necessary nodes (drivers, logic, etc.) with the correct parameters.
+
+Our main launch file, which brings the entire robot to life, can be found here:
+> **[View Main Launch File: startup_manager.launch.py](src\WRO2025_FE\src\international_final\launch\startup_manager.launch.py)**
+
+This modular and well-documented structure ensures that our work can be understood, verified, and reproduced by the judges.
 
 ### 7.6. Future Improvements
 
