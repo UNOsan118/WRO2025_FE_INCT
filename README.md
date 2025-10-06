@@ -13,15 +13,35 @@ This is the official repository for **Team Ishikawa KOSEN**, representing Japan 
 
 ## 1. Team Members & Roles
 
-<!-- A formal picture of the team -->
-![Team Photo](t-photos/team_formal.jpg)
+## 1.1 Team Introduction
 
-*   **[Member 1 Name]:** Lead Programmer & Strategist
-*   **[Member 2 Name]:** Mechanical Designer & Systems Integrator
-*   ... (add more members and their primary roles)
+We are Team Ishikawa KOSEN, the representatives of Japan for the WRO 2025 Future Engineers category. After winning the highly competitive national competition, we are deeply honored to have the opportunity to compete on the world's highest stage. Our team consists of two students and one coach from Ishikawa National College of Technology (KOSEN), a unique educational institution that fuses deep theory with practical craftsmanship, known as "Monozukuri." It is in this environment that we have continuously honed our skills. We are determined to win first place in this international competition!
 
-> [!NOTE]
-> For more team pictures, including our journey, please visit the [`t-photos`](t-photos) directory.
+<p align="center">
+  <img src="t-photos\team_members_photo.png" alt="Team members photo" width="500">
+  <br>
+</p>
+
+*   **Shinichi Uno :** Lead Programmer & Strategist
+
+<p align="center">
+  <img src="t-photos\Shinichi Uno_photo.png" alt="Team members photo" width="500">
+  <br>
+</p>
+
+*   **Kosei Takano :** Mechanical Designer & Systems Integrator
+
+<p align="center">
+  <img src="t-photos\Kosei Takano.png" alt="Team members photo" width="500">
+  <br>
+</p>
+
+*   **Makoto Koshino :** Mechanical Designer & Systems Integrator
+
+<p align="center">
+  <img src="t-photos\Makoto Koshino.png" alt="Team members photo" width="500">
+  <br>
+</p>
 
 ---
 
