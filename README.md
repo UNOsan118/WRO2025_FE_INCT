@@ -61,21 +61,38 @@ A brief guide to navigating our project repository.
 
 ## 3. Bill of Materials (BOM)
 
-A complete list of all electrical and mechanical components used in our robot.
+The table below lists all the major electrical and mechanical components used to build our robot. Each component was carefully selected to meet our performance and reliability requirements. Direct links to product pages or datasheets are provided to ensure the reproducibility of our design.
 
-| Component | Image | Quantity | Link/Datasheet |
+| Component | Image | Quantity | Link / Datasheet |
 | :--- | :---: | :---: | :--- |
-| **Control Unit** | | | |
-| Hiwonder MentorPi A1 | `(image here)` | 1 | [Product Page](link) |
-| Raspberry Pi 4B | `(image here)` | 1 | [Product Page](link) |
+| **Controller & Interface** | | | |
+| Raspberry Pi 5 | <img src="assets/bom_rpi5.png" width="150"> | 1 | [Official Page](https://www.raspberrypi.com/products/raspberry-pi-5/) |
+| RRC Lite Controller | <img src="assets/bom_rrc_lite.png" width="150"> | 1 | [Official Page](https://www.hiwonder.com/products/rrc-lite) <br> *(Part of [MentorPi A1 kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247))*|
+| Control Board for LiDAR | <img src="assets\bom_lidar_control_board.png" width="150"> | 1 | *(Part of [MentorPi A1 kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247) and [LiDAR kit](https://www.hiwonder.com/products/ld19-d300-lidar?_pos=1&_sid=6968f314c&_ss=r) )*|
 | **Sensors** | | | |
-| YDLIDAR X2L | `(image here)` | 1 | [Datasheet](link) |
-| RGB Camera | `(image here)` | 1 | [Product Page](link) |
-| **Actuators** | | | |
-| DC Motors (w/ Encoders) | `(image here)` | 2 | [Product Page](link) |
-| Steering Servo | `(image here)` | 1 | [Product Page](link) |
-| Pan/Tilt Servos | `(image here)` | 2 | [Product Page](link) |
-| ... (add all other components) | | | |
+| STL-19P D500 LiDAR | <img src="assets/bom_lidar.png" width="150"> | 1 | [Product Page](https://www.hiwonder.com/products/ld19-d300-lidar?_pos=1&_sid=6968f314c&_ss=r) <br> *(Part of [MentorPi A1 kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247))*|
+| 2DOF Monocular Camera | <img src="assets/bom_camera.png" width="150"> | 1 | [Product Page](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247) <br> *(Part of [MentorPi A1 kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247))*|
+| BNO055 IMU | <img src="assets/bom_imu.png" width="150"> | 1 | [Product Page](https://akizukidenshi.com/catalog/g/g116996/) |
+| **Propulsion & Steering System** | | | |
+| DC Geared Motor w/ Encoder| <img src="assets/bom_drive_motor.png" width="150">| 1 | [Product Page](https://www.hiwonder.com/products/hall-encoder-dc-geared-motor?variant=40451123675223) <br> *(Part of [MentorPi A1 kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247))*|
+| Hiwonder LFD-01 Servo| <img src="assets/bom_servo.png" width="150"> | 1 | [Product Page](https://www.aliexpress.com/i/3256805777087496.html?gatewayAdapt=jpn2glo4itemAdapt) <br> *(Part of [MentorPi A1 kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247))*|
+| **Power System** | | | |
+| 7.4V 2200mAh LiPo Battery| <img src="assets/bom_battery.png" width="150"> | 1 | *(Part of [MentorPi A1 kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247))* |
+| **Mechanical Components** | | | |
+| Differential Gears | <img src="assets/bom_differential_gears.png" width="150"> | 1 | [Product Page](https://www.aliexpress.com/i/3256803487389220.html?gatewayAdapt=4itemAdapt) |
+| Wheels & Tires | <img src="assets/bom_wheel.png" width="150"> | 4 | *[Product Page](https://www.hiwonder.com/products/mecanum-omnidirectional-wheel-metal-coupling-motor-ros-robot-universal-wheel-smart-car-tire?_pos=3&_sid=f4084b157&_ss=r&variant=40446400659543) <br> (Part of [MentorPi A1 kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247))* |
+| **Custom 3D-Printed Parts** | | | |
+| Base Mounting Plate | <img src="assets/bom_bottom-plate.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/bottom-plate.SLDPRT) / [Blueprint](models/blueprints/bottom-plate.pdf) |
+| LiDAR Mount (Mid Frame) | <img src="assets/bom_LiDAR-mid.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/LiDAR-mid.SLDPRT) / [Blueprint](models/blueprints/LiDAR-mid.pdf) |
+| LiDAR Mount (Upper Frame)| <img src="assets/bom_LiDAR-upper.png" width="150">| 1 | [3D Model](models/3D_CAD_data/LiDAR-upper.SLDPRT) / [Blueprint](models/blueprints/LiDAR-upper.pdf) |
+| Camera Tower (Side Frames)| <img src="assets/bom_cam-side-short.png" width="150">| 2 | [3D Model](models/3D_CAD_data/cam-side-short.SLDPRT) / [Blueprint](models/blueprints/cam-side-short.pdf) |
+| Camera Mount (Upper) | <img src="assets/bom_cam-upper.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/cam-upper.SLDPRT) / [Blueprint](models/blueprints/cam-upper.pdf) |
+| Differential Gearbox | <img src="assets/bom_gearbox.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/gearbox.SLDPRT) / [Blueprint](models/blueprints/gearbox.pdf) |
+| Bevel Gear | <img src="assets/bom_Bevel_Gear.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/Bevel_Gear.SLDPRT) / [Blueprint](models/blueprints/Bevel_Gear.pdf) |
+| Wheel Hub | <img src="assets/bom_hub.png" width="150"> | 2 | [3D Model](models/3D_CAD_data/hub.SLDPRT) / [Blueprint](models/blueprints/hub.pdf) |
+| Wheel Sleeve | <img src="assets/bom_sleeve.png" width="150"> | 2 | [3D Model](models/3D_CAD_data/sleeve.SLDPRT) / [Blueprint](models/blueprints/sleeve.pdf) |
+
+*(Note: This list covers the main components. A complete list including smaller parts like wires, screws, and bearings is omitted for brevity.)*
 
 ---
 
@@ -111,7 +128,7 @@ The original base vehicle utilized a two-motor drive system for the rear wheels.
 *   **Motor and Encoder:** The heart of our propulsion is a **DC geared motor with an integrated Hall-effect encoder**. This encoder outputs A/B phase pulse signals, which our system decodes to precisely determine the motor's direction and rotational speed. This high-resolution feedback is the foundation of our accurate PID speed control.
 
 <p align="center">
-  <img src="v-photos/motor_and_differential.jpg" alt="Motor and Differential Gearbox Assembly" width="500">
+  <img src="assets/motor_and_differential.jpg" alt="Motor and Differential Gearbox Assembly" width="500">
   <br>
   <em>Our custom single-motor and differential gearbox assembly.</em>
 </p>
@@ -125,7 +142,7 @@ We selected this specific motor for three key reasons:
 **Motor Specifications:**
 <p align="center">
   <img src="schemes/drive_motor.png" alt="Blob detection result" width="300">
-  <img src="schemes/drive_motor_specs.png" alt="Drive Motor Specifications" width="300">
+  <img src="assets/drive_motor_specs.png" alt="Drive Motor Specifications" width="300"><br>
   <em>Image and specifications sourced from <a href="https://www.hiwonder.com/products/hall-encoder-dc-geared-motor?variant=40451123675223">Hiwonder's official product page</a>.</em>
 </p>
 
@@ -145,7 +162,7 @@ Our choice of this servo was deliberate, focusing on reliability and power.
 
 **Motor Specifications:**
 <p align="center">
-  <img src="schemes/steering_motor_specs.png" alt="Steering Motor Specifications" width="300"><br>
+  <img src="assets/steering_motor_specs.png" alt="Steering Motor Specifications" width="300"><br>
 <em>Image and specifications sourced from <a href="https://www.hiwonder.com/products/ackermann-steering-chassis?variant=40382428348503">Hiwonder's official product page</a>.</em>
 </p>
 
@@ -219,7 +236,7 @@ To fully unleash the potential of our base vehicle and physically support our na
 These custom modifications form the critical physical foundation that enables our software to perform at its peak. All 3D models for these parts, including our custom chassis and gearbox components, are available in the [`models`](models) directory. To facilitate the reproduction of our design, we have also provided **detailed blueprints and assembly diagrams** for these custom parts in the [`models\blueprints`](models/blueprints) directory.
 
 <p align="center">
-  <img src="v-photos/3d_printed_parts_on_robot.jpg" alt="Custom 3D-Printed Mounts" width="600">
+  <img src="assets/3d_printed_parts_on_robot.jpg" alt="Custom 3D-Printed Mounts" width="600">
   <br>
   <em>Our custom-designed LiDAR mount and camera tower, engineered for optimal sensor performance.</em>
 </p>
@@ -228,16 +245,127 @@ These custom modifications form the critical physical foundation that enables ou
 
 ## 6. Power and Sense Management
 
-This section details the electrical systems and the sensors that allow our robot to perceive its environment.
+This section details the robot's "lifeline," its power system, and its "senses," the suite of sensors that enables it to perceive the environment. A stable power supply and accurate environmental awareness are the most critical physical foundations for our autonomous navigation strategy.
 
-### 6.1. Circuit Diagram
-*   (Embed a clear and professional circuit diagram from the `schemes` directory.)
-*   (Provide a brief explanation of the power distribution, connections between the Raspberry Pi, motor controller, and sensors.)
+### 6.1. Power System
+
+**The Challenge:**
+An autonomous robot must reliably power a powerful computational core (SBC), multiple sensors, and high-torque motors simultaneously. A significant challenge is the voltage drop that occurs during motor acceleration, which can lead to critical failures like SBC reboots or sensor errors.
+
+**Our Solution:**
+To overcome this, we have built a robust power system by combining reliable, high-performance components.
+
+**1. Battery Selection:**
+Our primary power source is a **7.4V 2200mAh 10C LiPo Battery**.
+
+*   **Selection Rationale:**
+    *   **Sufficient Capacity:** The 2200mAh capacity ensures stable performance throughout the entire duration of a competition run.
+    *   **High Discharge Rate:** A high C-rate of `10C` allows the battery to comfortably handle the large peak currents demanded by the motors during acceleration, minimizing voltage drops.
+    *   **Integrated BMS:** The battery includes a built-in Battery Management System (BMS) that protects against over-charge, over-discharge, over-current, and short circuits, significantly enhancing safety during testing and competition.
+
+<p align="center">
+  <img src="assets/lipo_battery.png" alt="7.4V 2200mAh LiPo Battery" width="400">
+</p>
+
+**2. Power Distribution and Stabilization:**
+Power from the battery is distributed to our main components—the **Raspberry Pi, motors, and LiDAR**—via the **Hiwonder RRC Lite Controller**.
+
+*   **Role:** This controller acts as an intelligent hub, providing stable, regulated power to these power-hungry components.
+*   **Key Advantage:** A critical feature of this controller is its support for the **Power Delivery (PD) protocol**, enabling it to supply a stable **5V/5A** current to the Raspberry Pi 5. This powerful supply capability isolates the Raspberry Pi from voltage sags caused by motor operation, eliminating the risk of unexpected shutdowns or system instability. This forms the bedrock of our robot's high reliability.
+
+<p align="center">
+  <img src="assets/rrc_lite_controller.png" alt="RRC Lite Controller" width="300">
+</p>
 
 ### 6.2. Sensor Suite
-*   **YDLIDAR X2L:** Explain its role in wall detection, corner detection, and localization.
-*   **RGB Camera:** Describe how it's used for obstacle color detection and strategic planning.
-*   **IMU & Encoders:** Detail their contribution to precise odometry and heading control.
+
+Our robot fuses data from multiple sensors, each with a distinct role, to build a comprehensive and accurate understanding of its environment. All sensor data is aggregated in real-time by our main `ObstacleNavigatorNode` via ROS 2 topics to inform its navigation decisions.
+
+#### STL-19P D500 LiDAR
+
+<p align="center">
+    <img src="assets/lidar_photo.png" alt="STL-19P D500 LiDAR" width="200">
+    <img src="assets/lidar_specs.png" alt="LiDAR Specifications" width="450">
+    <em><br>Image and specifications sourced from the <a href="https://www.hiwonder.com/products/ld19-d300-lidar?_pos=1&_sid=6968f314c&_ss=r">official product page</a>.</em>
+</p>
+
+
+**Role:** This is our primary sensor for environmental mapping. It provides 360-degree distance information, which is fundamental for wall detection, corner detection, and initial obstacle localization.
+
+*   **Selection Rationale:** We chose this model for its high-speed, 360-degree scanning capability and its excellent ROS 2 driver support, which facilitated easy integration. Its TOF (Time of Flight) technology also ensures stable and reliable measurements.
+*   **Software Integration:** Data from the `/scan` topic is fused with IMU data in our `get_distance_at_world_angle()` function. This corrected data serves as the core input for our `_execute_pid_alignment()` (wall-following) and `_check_for_corner()` (corner detection) algorithms.
+
+*Code Snippet: Subscribing to LiDAR Data*
+```python
+# This code in __init__ starts listening to the /scan topic.
+# The scan_callback function is called every time new data arrives.
+self.scan_subscriber = self.create_subscription(
+    LaserScan, 
+    '/scan', 
+    self.scan_callback, 
+    qos_profile_lidar
+)
+```
+
+#### 2DOF Monocular Camera
+
+<p align="center">
+    <img src="assets/camera_photo.png" alt="2DOF Monocular Camera" width="200">
+    <img src="assets/camera_specs.png" alt="Camera Specifications" width="350">
+    <em><br>Image and specifications sourced from the <a href="https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247">official product page</a>.</em>
+</p>
+
+**Role:** Our vision sensor, used exclusively for identifying the **color** of obstacles.
+
+*   **Selection Rationale:** The 170° wide-angle lens is a key feature, allowing the robot to capture a broad view of the upcoming segment during its corner scans. Its USB interface and ROS 2 compatible driver ensure seamless integration with the Raspberry Pi.
+*   **Software Integration:** Image frames from the `/ascamera/...` topic are processed during the `PLAN_NEXT_AVOIDANCE` phase. Using OpenCV, we detect red and green blobs and compare their areas to determine the `avoidance_path_plan` for the next segment.
+
+*Code Snippet: Subscribing to Camera Data*
+```python
+# This code in __init__ subscribes to the camera's image topic.
+# The image_callback function processes the incoming video frames.
+self.image_sub = self.create_subscription(
+    Image, 
+    '/ascamera/camera_publisher/rgb0/image', 
+    self.image_callback, 
+    qos_profile_img
+)
+```
+
+#### IMU (BNO055)
+
+<p align="center">
+    <img src="assets/imu_photo.png" alt="BNO055 IMU" width="200">
+    <img src="assets/imu_specs.png" alt="Camera Specifications" width="250">
+    <em><br>Image and specifications sourced from the <a href="https://akizukidenshi.com/catalog/g/g116996/">official product page</a>.</em>
+</p>
+
+**Role:** This Inertial Measurement Unit measures the robot's orientation (yaw angle), acting as a crucial component that dramatically enhances navigation precision.
+
+*   **Selection Rationale:** Although the RRC Lite Controller has an onboard IMU, we opted for the external BNO055 for its superior accuracy and stability. Its internal 9-axis sensor fusion algorithms provide a reliable, low-drift heading estimate.
+*   **Software Integration:** The yaw data from the `/imu/yaw` topic is **essential for correcting the LiDAR data** in our `get_distance_at_world_angle()` function. This is how we overcome the "Black Wall Problem," ensuring accurate wall distance measurements regardless of the robot's orientation.
+
+*Code Snippet: Subscribing to IMU Data*
+```python
+# This code in __init__ subscribes to the IMU's yaw topic.
+# The yaw_callback function updates the robot's current heading.
+self.yaw_subscriber = self.create_subscription(
+    Float64, 
+    '/imu/yaw', 
+    self.yaw_callback, 
+    10
+)
+```
+
+### 6.3. Wiring Diagram
+
+The following diagram illustrates the complete electrical connections between our core components, including the Raspberry Pi, RRC Lite Controller, battery, and all sensors. This centralized wiring, managed by the RRC Lite Controller, simplifies the overall structure and enhances reliability by minimizing potential points of failure.
+
+<p align="center">
+  <img src="schemes/wiring_diagram.png" alt="Robot Wiring Diagram" width="800">
+</p>
+
+A detailed list of all the components shown in this diagram is available in [**Section 3: Bill of Materials (BOM)**](#3-bill-of-materials-bom).
 
 ---
 
@@ -340,7 +468,7 @@ This planning phase consists of three key steps:
 The data from this scan is then analyzed to make a final decision. The image below shows the actual log output from our robot's analysis process. Over a scan of 36 frames, it found the largest green blob (area: 2122.0) to be significantly larger than the largest red blob and the detection threshold, leading to the final decision of a `'green_to_red'` obstacle pattern.
 
 <p align="center">
-  <img src="schemes\planning_analysis_log.png" alt="Log output of planning analysis" width="400">
+  <img src="assets\planning_analysis_log.png" alt="Log output of planning analysis" width="400">
   <br>
   <em>The actual log output, showing the data-driven decision process.</em>
 </p>
