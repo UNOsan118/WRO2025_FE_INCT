@@ -813,21 +813,158 @@ These planned improvements show that our current design is not an endpoint, but 
 
 ## 8. 3D Models & Custom Parts
 
-*   (Showcase some of the most important custom-designed parts, such as sensor mounts or protective bumpers.)
-*   (Include renders and a brief description of their purpose.)
-*   (Provide a link to the `models` directory for access to all `.stl` or `.step` files.)
+All custom components for our robot were designed in SOLIDWORKS. We focused on creating parts that were not only functional but also lightweight, durable, and optimized for 3D printing. This section showcases our key custom-designed components.
+
+All design files, including `.SLDPRT` source files, `.stl` files for printing, and `.pdf` blueprints, are available in our [`models`](models) directory to ensure full reproducibility.
+
+### 8.1. Main Assemblies
+
+Our robot's unique structure is composed of two primary custom-designed assemblies, which were modeled in SOLIDWORKS and 3D-printed. This modular design allows for easy maintenance and precise component alignment.
+
+<p align="center">
+  <img src="./assets/cad_assembly_drive_system.jpg" alt="Drive System Assembly Render" width="300">
+  <br>
+  <strong>Rear Drive System Assembly</strong>
+</p>
+
+This assembly houses our custom single-motor drive system. It includes the 3D-printed gearbox, the differential gears, and the entire rear axle assembly, forming the core of our robot's propulsion.
+
+---
+
+<p align="center">
+  <img src="./assets/cad_assembly_sensor_tower.jpg" alt="Sensor Tower Assembly Render" width ="300">
+  <br>
+  <strong>Sensor Tower & Base Assembly</strong>
+</p>
+
+This assembly serves as the main structural backbone. It combines the base plate that mounts to the chassis, the LiDAR mount, and the tall tower for the camera, ensuring all sensors are held in their optimal, rigid positions.
+
+### 8.2. Key Individual Components
+
+Below are the blueprints for some of our most critical custom-designed parts, which define our robot's performance. All components have been designed with functionality, strength, and ease of 3D printing in mind.
+
+---
+
+#### 8.2.1. Base Mounting Plate
+
+**Role:** This plate serves as the foundation for attaching all sensor mounts. It ensures precise positioning and rigid fixation to the main chassis.
+
+<p align="center">
+  <img src="./assets/blueprint_bottom-plate.png" alt="Blueprint of Base Mounting Plate" width="300">
+</p>
+
+---
+
+#### 8.2.2. Camera Tower
+
+**Role:** This component provides the necessary height for the camera. It features a lightweight truss structure to minimize weight at the top of the robot.
+
+<p align="center">
+  <img src="./assets/blueprint_cam-side.png" alt="Blueprint of Camera Tower" width="200">
+</p>
+
+---
+
+#### 8.2.3. Camera Mount
+
+**Role:** This part securely holds the camera and is designed to integrate with the tilt servo, enabling vertical camera movement.
+
+<p align="center">
+  <img src="./assets/blueprint_cam-upper.png" alt="Blueprint of Camera Mount" width="300">
+</p>
+
+---
+
+#### 8.2.4. LiDAR Mount (Mid Frame)
+
+**Role:** This component positions the LiDAR sensor at the optimal height to reliably detect both the course walls and the obstacles on the track.
+
+<p align="center">
+  <img src="./assets/blueprint_lidar-mid.png" alt="Blueprint of LiDAR Mid Frame" width="300">
+</p>
+
+---
+
+#### 8.2.5. LiDAR Mount (Upper Frame)
+
+**Role:** This part suspends the LiDAR sensor in an inverted position. Its shape is designed to hold the LiDAR stably while minimizing the risk of the mount itself interfering with obstacles.
+
+<p align="center">
+  <img src="./assets/blueprint_lidar-upper.png" alt="Blueprint of LiDAR Upper Frame" width="300">
+</p>
+
+---
+
+#### 8.2.6. Differential Gearbox
+
+**Role:** This housing protects the drive motor and differential gears. It is designed with high dimensional accuracy to maintain precise gear mesh.
+
+<p align="center">
+  <img src="./assets/blueprint_gearbox.png" alt="Blueprint of Differential Gearbox" width="300">
+</p>
+
+---
+
+#### 8.2.7. Bevel Gear
+
+**Role:** As one of the most critical gears in the drive system, it translates the motor's rotation by 90 degrees to transfer power to the differential mechanism. The tooth profile is optimized for smooth power transmission.
+
+<p align="center">
+  <img src="./assets/blueprint_bevel-gear.png" alt="Blueprint of Bevel Gear" width="300">
+</p>
 
 ---
 
 ## 9. Performance Videos
 
-*   (Embed or link to YouTube videos demonstrating the robot successfully completing the course.)
-*   (It's recommended to have separate videos for different challenges, e.g., with and without obstacles, parking start, etc.)
+This section provides video evidence of our robot's performance, demonstrating the successful implementation of all the strategies and designs discussed in this document. The videos show complete runs for each of the main challenges.
+
+---
+
+### 9.1. Obstacle Challenge
+
+This video demonstrates our robot navigating the complex obstacle course. Key moments, such as the proactive corner scanning, dynamic turning strategies, and smooth two-phase avoidance maneuvers, are highlighted.
+
+> **[Click to watch the Obstacle Challenge video on YouTube](https://youtu.be/rJHoL39SJ84)**
+
+<a href="https://youtu.be/rJHoL39SJ84">
+  <p align="center">
+    <img src="https://img.youtube.com/vi/動画ID/maxresdefault.jpg" alt="Obstacle Challenge Video Thumbnail" width="500">
+  </p>
+</a>
+
+---
+
+### 9.2. Open Challenge
+
+This video showcases the robot's pure speed and cornering ability on the course without obstacles. It highlights the stability of our PID wall-following algorithm and the efficiency of our chassis and drive system at high speed.
+
+> **[Click to watch the Open Challenge video on YouTube](https://youtu.be/WeeWG6k68Qk)**
+
+<a href="https://youtu.be/WeeWG6k68Qk">
+  <p align="center">
+    <img src="https://img.youtube.com/vi/動画ID/maxresdefault.jpg" alt="Open Challenge Video Thumbnail" width="500">
+  </p>
+</a>
 
 ---
 
 ## 10. References
 
-*   [WRO 2025 Future Engineers Rules](link-to-rules)
-*   [ROS 2 Documentation](https://docs.ros.org/)
-*   (Any other significant libraries, tutorials, or resources used.)
+This project was built upon the shoulders of giants. This section provides links to the key official documentation, product pages, and community resources that were essential to our development process.
+
+### Official Rules & Frameworks
+*   **[WRO 2025 Future Engineers - General Rules](ここに大会ルールのPDFへのリンク)**: The official rulebook that governed all aspects of our design and strategy.
+*   **[ROS 2 Documentation](https://docs.ros.org/)**: The official documentation for the Robot Operating System 2, the core framework of our software.
+
+### Key Hardware Components & Datasheets
+*   **[Hiwonder MentorPi A1 Robotic Kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247)**: The base platform for our robot, including the chassis, camera, and several motors.
+*   **[Hiwonder RRC Lite Controller](https://www.hiwonder.com/products/rrc-lite)**: The central interface board for power management and low-level control.
+*   **[Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)**: The main single-board computer (SBC) that runs our ROS 2 navigation node.
+*   **[STL-19P D500 LiDAR](https://www.hiwonder.com/products/ld19-d300-lidar?_pos=1&_sid=6968f314c&_ss=r)**: The primary 360° distance sensor for environmental mapping.
+*   **[BNO055 9-Axis IMU](https://akizukidenshi.com/catalog/g/g116996/)**: The external Inertial Measurement Unit used for precise orientation tracking.
+
+### Key Software & Libraries
+*   **[SOLIDWORKS](https://www.solidworks.com/)**: The CAD software used to design all our custom 3D-printed parts.
+*   **[OpenCV Library](https://opencv.org/)**: The open-source computer vision library used for obstacle color detection.
+*   **[Draw.io (Diagrams.net)](https://app.diagrams.net/)**: The tool used to create the diagrams and flowcharts in this document.
