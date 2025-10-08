@@ -954,7 +954,7 @@ This video showcases the robot's pure speed and cornering ability on the course 
 This project was built upon the shoulders of giants. This section provides links to the key official documentation, product pages, and community resources that were essential to our development process.
 
 ### Official Rules & Frameworks
-*   **[WRO 2025 Future Engineers - General Rules](ここに大会ルールのPDFへのリンク)**: The official rulebook that governed all aspects of our design and strategy.
+*   **[WRO 2025 Future Engineers - General Rules](https://wro-association.org/wp-content/uploads/WRO-2025-Future-Engineers-Self-Driving-Cars-General-Rules.pdf)**: The official rulebook that governed all aspects of our design and strategy.
 *   **[ROS 2 Documentation](https://docs.ros.org/)**: The official documentation for the Robot Operating System 2, the core framework of our software.
 
 ### Key Hardware Components & Datasheets
