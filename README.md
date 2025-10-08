@@ -264,7 +264,7 @@ Our primary power source is a **7.4V 2200mAh 10C LiPo Battery**.
     *   **Integrated BMS:** The battery includes a built-in Battery Management System (BMS) that protects against over-charge, over-discharge, over-current, and short circuits, significantly enhancing safety during testing and competition.
 
 <p align="center">
-  <img src="assets/lipo_battery.png" alt="7.4V 2200mAh LiPo Battery" width="400">
+  <img src="assets/lipo_battery_specs.png" alt="7.4V 2200mAh LiPo Battery" width="400">
 </p>
 
 **2. Power Distribution and Stabilization:**
