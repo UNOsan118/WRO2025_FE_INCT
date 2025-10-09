@@ -185,22 +185,26 @@ To mathematically model our robot's motion and ensure pure rolling without later
 **Core Formulas:**
 
 1.  **Angular Velocity Consistency:** The angular velocity is consistent across the vehicle.
+   
     $$
     \omega = \frac{V}{R} = \frac{V_L}{R_L} = \frac{V_R}{R_R}
     $$
 
 2.  **Relationship between Steering Angle and Turning Radius:** The turning radius is geometrically related to the steering angle and wheelbase.
+    
     $$
     \tan(\theta) = \frac{H}{R} \quad \implies \quad R_L = R - \frac{D}{2}, \quad R_R = R + \frac{D}{2}
     $$
 
 3.  **Individual Wheel Velocities:** By knowing the wheelbase, track width, vehicle speed, and servo steering angle, we can calculate the required velocity for each rear wheel. This difference in speed is physically realized by our differential gearbox.
     *   **Left Wheel Velocity (V<sub>L</sub>):**
+        
         $$
         V_L = \frac{V}{R} R_L = V \times \left(1 - \frac{D \times \tan(\theta)}{2H}\right)
         $$
 
     *   **Right Wheel Velocity (V<sub>R</sub>):**
+        
         $$
         V_R = \frac{V}{R} R_R = V \times \left(1 + \frac{D \times \tan(\theta)}{2H}\right)
         $$
