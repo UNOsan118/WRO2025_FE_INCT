@@ -102,12 +102,17 @@ A high-level introduction to our robot's design philosophy and key features.
 
 | Front View | Right View | Rear View |
 | :---: | :---: | :---: |
-| `(image)` | `(image)` | `(image)` |
+|<p align="center">
+  <img src="v-photos\Front Veiw.jpg" alt="Team members photo" width="100">
+  <img src="v-photos\Right Veiw.jpg" alt="Team members photo" width="100">
+  <img src="v-photos\Rear View.jpg" alt="Team members photo" width="100">
+</p> |
 | **Left View** | **Top View** | **Bottom View** |
-| `(image)` | `(image)` | `(image)` |
-
-> [!NOTE]
-> For more detailed photos, including close-ups of specific mechanisms, please see the [`v-photos`](v-photos) directory.
+|<p align="center">
+  <img src="v-photos\Left Veiw.jpg" alt="Team members photo" width="100">
+  <img src="v-photos\Top Veiw.jpg" alt="Team members photo" width="100">
+  <img src="v-photos\Bottom Veiw.jpg" alt="Team members photo" width="100">
+</p>|
 
 ---
 
