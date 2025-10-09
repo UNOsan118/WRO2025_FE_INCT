@@ -102,9 +102,9 @@ A high-level introduction to our robot's design philosophy and key features.
 
 | Front_View | Right_View | Rear_View |
 | :--: | :--: | :--: |
-| <img src="v-photos\Front_Veiw.jpg" alt="Front_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Right_Veiw.jpg" alt="Right_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Rear_View.jpg" alt="Rear_View" style="width: 250px; height: 250px; object-fit: contain;"> |
+| <img src="v-photos\Front_View.jpg" alt="Front_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Right_View.jpg" alt="Right_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Rear_View.jpg" alt="Rear_View" style="width: 250px; height: 250px; object-fit: contain;"> |
 | Left_View | Top_View | Bottom_View |
-| <img src="v-photos\Left_Veiw.jpg" alt="Left_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Top_Veiw.jpg" alt="Top_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Bottom_Veiw.jpg" alt="Bottom_View" style="width: 250px; height: 250px; object-fit: contain;"> |
+| <img src="v-photos\Left_View.jpg" alt="Left_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Top_View.jpg" alt="Top_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Bottom_View.jpg" alt="Bottom_View" style="width: 250px; height: 250px; object-fit: contain;"> |
 
 ---             
 
