@@ -1,7 +1,9 @@
 # WRO 2025 Future Engineers: Team Ishikawa KOSEN <img src="https://upload.wikimedia.org/wikipedia/en/9/9e/Flag_of_Japan.svg" alt="Flag of Japan" width="30"/>
 
-<!-- A captivating main image of your robot -->
-![Main Robot Image](v-photos/main_view.jpg)
+<p align="center">
+  <img src="v-photos\Main_View.jpg" alt="Main_View" width="350">
+  <br>
+</p>
 
 <!-- Social media badges (optional but nice) -->
 [![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/your-channel-link)
