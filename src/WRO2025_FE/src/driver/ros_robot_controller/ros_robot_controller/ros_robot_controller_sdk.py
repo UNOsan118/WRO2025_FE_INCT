@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
-# stm32 python sdk
+# Simplified and hardened STM32 Python SDK for WRO2025 project (with Button support)
+
 import enum
 import time
 import queue
@@ -8,9 +9,8 @@ import struct
 import serial
 import threading
 
+# --- Protocol Definitions ---
 class PacketControllerState(enum.IntEnum):
-    # 通信协议的格式(the format of the communication protocol)
-    # 0xAA 0x55 Length Function ID Data Checksum
     PACKET_CONTROLLER_STATE_STARTBYTE1 = 0
     PACKET_CONTROLLER_STATE_STARTBYTE2 = 1
     PACKET_CONTROLLER_STATE_LENGTH = 2
@@ -20,23 +20,18 @@ class PacketControllerState(enum.IntEnum):
     PACKET_CONTROLLER_STATE_CHECKSUM = 6
 
 class PacketFunction(enum.IntEnum):
-    # 可通过串口实现的控制功能(achieve control function via the serial port)
     PACKET_FUNC_SYS = 0
-    PACKET_FUNC_LED = 1  # LED控制(LED control)
-    PACKET_FUNC_BUZZER = 2  # 蜂鸣器控制(buzzer control)
-    PACKET_FUNC_MOTOR = 3  # 电机控制(motor control)
-    PACKET_FUNC_PWM_SERVO = 4  # PWM舵机控制, 板子上从里到外依次为1-4(PWM servo control. The servos on the board are numbered 1 to 4 from inside to outside)
-    PACKET_FUNC_BUS_SERVO = 5  # 总线舵机控制(bus servo control)
-    PACKET_FUNC_KEY = 6  # 按键获取(obtain button)
-    PACKET_FUNC_IMU = 7  # IMU获取(obtain IMU)
-    PACKET_FUNC_GAMEPAD = 8  # 手柄获取(obtain handle)
-    PACKET_FUNC_SBUS = 9  # 航模遥控获取(obtain model aircraft remote control)
-    PACKET_FUNC_OLED = 10  # OLED 显示内容设置(set OLED display content)
-    PACKET_FUNC_RGB = 11  # RGB
+    PACKET_FUNC_LED = 1
+    PACKET_FUNC_BUZZER = 2
+    PACKET_FUNC_MOTOR = 3
+    PACKET_FUNC_PWM_SERVO = 4
+    PACKET_FUNC_KEY = 6
+    PACKET_FUNC_IMU = 7 # CRITICAL: Re-add IMU function ID
+    # Removed bus servo, gamepad, sbus, oled, rgb
     PACKET_FUNC_NONE = 12
 
+# Re-added for button support
 class PacketReportKeyEvents(enum.IntEnum):
-    # 按键的不同状态(different button status)
     KEY_EVENT_PRESSED = 0x01
     KEY_EVENT_LONGPRESS = 0x02
     KEY_EVENT_LONGPRESS_REPEAT = 0x04
@@ -66,104 +61,47 @@ crc8_table = [
 ]
 
 def checksum_crc8(data):
-    # 校验(check)
     check = 0
     for b in data:
         check = crc8_table[check ^ b]
     return check & 0x00FF
 
-class SBusStatus:
-    def __init__(self):
-        self.channels = [0] * 16
-        self.channel_17 = False
-        self.channel_18 = False
-        self.signal_loss = True
-        self.fail_safe = False
-
 class Board:
-    buttons_map = {
-            'GAMEPAD_BUTTON_MASK_L2':        0x0001,
-            'GAMEPAD_BUTTON_MASK_R2':        0x0002,
-            'GAMEPAD_BUTTON_MASK_SELECT':    0x0004,
-            'GAMEPAD_BUTTON_MASK_START':     0x0008,
-            'GAMEPAD_BUTTON_MASK_L3':        0x0020,
-            'GAMEPAD_BUTTON_MASK_R3':        0x0040,
-            'GAMEPAD_BUTTON_MASK_CROSS':     0x0100,
-            'GAMEPAD_BUTTON_MASK_CIRCLE':    0x0200,
-            'GAMEPAD_BUTTON_MASK_SQUARE':    0x0800,
-            'GAMEPAD_BUTTON_MASK_TRIANGLE':  0x1000,
-            'GAMEPAD_BUTTON_MASK_L1':        0x4000,
-            'GAMEPAD_BUTTON_MASK_R1':        0x8000
-    }
-
     def __init__(self, device="/dev/rrc", baudrate=1000000, timeout=10, logger=None):
         self.logger = logger
         self.enable_recv = False
         self.frame = []
         self.recv_count = 0
 
-        # Initialize with a non-blocking timeout of 0
-        self.port = serial.Serial(None, baudrate, timeout=0)
+        # CRITICAL FIX: Set both read (timeout) and write (write_timeout) timeouts.
+        self.port = serial.Serial(None, baudrate, timeout=0.1, write_timeout=0.1)
         self.port.rts = False
         self.port.dtr = False
         self.port.setPort(device)
         self.port.open()
 
         self.state = PacketControllerState.PACKET_CONTROLLER_STATE_STARTBYTE1
-        # self.servo_read_lock = threading.Lock()
-        # self.pwm_servo_read_lock = threading.Lock()
         self.access_lock = threading.RLock()
 
-        # 队列用来存储数据(use queue to store data)
+        # Queues for necessary data
         self.sys_queue = queue.Queue(maxsize=1)
-        self.bus_servo_queue = queue.Queue(maxsize=1)
         self.pwm_servo_queue = queue.Queue(maxsize=1)
-        self.key_queue = queue.Queue(maxsize=1)
-        self.imu_queue = queue.Queue(maxsize=1)
-        self.gamepad_queue = queue.Queue(maxsize=1)
-        self.sbus_queue = queue.Queue(maxsize=1)
+        self.key_queue = queue.Queue(maxsize=1) # Re-added for button support
 
+        # Parsers for necessary data
         self.parsers = {
             PacketFunction.PACKET_FUNC_SYS: self.packet_report_sys,
-            PacketFunction.PACKET_FUNC_KEY: self.packet_report_key,
-            PacketFunction.PACKET_FUNC_IMU: self.packet_report_imu,
-            PacketFunction.PACKET_FUNC_GAMEPAD: self.packet_report_gamepad,
-            PacketFunction.PACKET_FUNC_BUS_SERVO: self.packet_report_serial_servo,
-            PacketFunction.PACKET_FUNC_SBUS: self.packet_report_sbus,
-            PacketFunction.PACKET_FUNC_PWM_SERVO: self.packet_report_pwm_servo
+            PacketFunction.PACKET_FUNC_PWM_SERVO: self.packet_report_pwm_servo,
+            PacketFunction.PACKET_FUNC_KEY: self.packet_report_key, # Re-added for button support
+            PacketFunction.PACKET_FUNC_IMU: self.packet_report_imu # CRITICAL: Re-add IMU parser
         }
 
         time.sleep(0.5)
         threading.Thread(target=self.recv_task, daemon=True).start()
 
-
     def packet_report_sys(self, data):
         try:
             self.sys_queue.put_nowait(data)
-        except queue.Full:
-            pass
-
-    def packet_report_key(self, data):
-        try:
-            self.key_queue.put_nowait(data)
-        except queue.Full:
-            pass
-
-    def packet_report_imu(self, data):
-        try:
-            self.imu_queue.put_nowait(data)
-        except queue.Full:
-            pass
-
-    def packet_report_gamepad(self, data):
-        try:
-            self.gamepad_queue.put_nowait(data)
-        except queue.Full:
-            pass
-
-    def packet_report_serial_servo(self, data):
-        try:
-            self.bus_servo_queue.put_nowait(data)
         except queue.Full:
             pass
 
@@ -173,228 +111,117 @@ class Board:
         except queue.Full:
             pass
 
-    def packet_report_sbus(self, data):
+    def packet_report_key(self, data):
+        # Re-added for button support
         try:
-            self.sbus_queue.put_nowait(data)
+            self.key_queue.put_nowait(data)
         except queue.Full:
             pass
 
+    def packet_report_imu(self, data):
+        # This function receives the IMU data from the recv_task,
+        # but does nothing with it. This effectively discards the packet
+        # without causing an error.
+        pass
+
     def get_battery(self):
-        # 获取电压，单位mAh(obtain voltage, which is in the unit of mAh)
         if self.enable_recv:
             try:
                 data = self.sys_queue.get(block=False)
                 if data[0] == 0x04:
                     return struct.unpack('<H', data[1:])[0]
                 else:
-                    None
+                    return None
             except queue.Empty:
                 return None
         else:
-            print('get_battery enable reception first!')
+            if self.logger:
+                self.logger.warn('get_battery called but reception is not enabled!')
             return None
 
     def get_button(self):
-        # 获取按键key1， key2状态，返回按键ID(1表示按键1，2表示按键2)和状态(0表示按下，1表示松开)(Get the status of buttons 1 and 2, and return the button ID (1 for key1, and 2 for key2) and status (0 for pressed, and 1 for released))
+        # Re-added for button support
         if self.enable_recv:
             try:
                 data = self.key_queue.get(block=False)
                 key_id = data[0]
-                key_event = PacketReportKeyEvents(data[1])
-                if key_event == PacketReportKeyEvents.KEY_EVENT_CLICK:
-                    return key_id, 0
-                elif key_event == PacketReportKeyEvents.KEY_EVENT_PRESSED:
-                    return key_id, 1
+                key_event = data[1]
+                # This function now returns the raw event data for the main node to interpret
+                return key_id, key_event
             except queue.Empty:
                 return None
         else:
-            print('get_button enable reception first!')
+            if self.logger:
+                self.logger.warn('get_button called but reception is not enabled!')
             return None
 
-    def get_imu(self):
-        # 获取IMU数据，返回ax, ay, az, gx, gy, gz(obtain IMU data to return ax, ay, az, gx, gy, and gz)
-        if self.enable_recv:
-            try:
-                # ax, ay, az, gx, gy, gz
-                return struct.unpack('<6f', self.imu_queue.get(block=False))
-            except queue.Empty:
-                return None
-        else:
-            print('get_imu enable reception first!')
-            return None
-
-    def get_gamepad(self):
-        # 获取手柄数据(obtain handle data)
-        if self.enable_recv:
-            try:
-                # buttons, hat, lx, ly, rx, ry
-                gamepad_data = struct.unpack("<HB4b", self.gamepad_queue.get(block=False))
-                # 'lx', 'ly', 'rx', 'ry', 'r2', 'l2', 'hat_x', 'hat_y'
-                axes = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-                # 'cross', 'circle', '', 'square', 'triangle', '', 'l1', 'r1', 'l2', 'r2', 'select', 'start', '', 'l3', 'r3', ''
-                buttons = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 
-                for b in self.buttons_map:
-                    if self.buttons_map[b] & gamepad_data[0]:
-                        if b == 'GAMEPAD_BUTTON_MASK_R2':
-                            axes[4] = 1.0
-                        elif b == 'GAMEPAD_BUTTON_MASK_L2':
-                            axes[5] = 1.0
-                        elif b == 'GAMEPAD_BUTTON_MASK_CROSS':
-                            buttons[0] = 1
-                        elif b == 'GAMEPAD_BUTTON_MASK_CIRCLE':
-                            buttons[1] = 1
-                        elif b == 'GAMEPAD_BUTTON_MASK_SQUARE':
-                            buttons[3] = 1
-                        elif b == 'GAMEPAD_BUTTON_MASK_TRIANGLE':
-                            buttons[4] = 1
-                        elif b == 'GAMEPAD_BUTTON_MASK_L1':
-                            buttons[6] = 1
-                        elif b == 'GAMEPAD_BUTTON_MASK_R1':
-                            buttons[7] = 1
-                        elif b == 'GAMEPAD_BUTTON_MASK_SELECT':
-                            buttons[10] = 1
-                        elif b == 'GAMEPAD_BUTTON_MASK_START':
-                            buttons[11] = 1
-               
-                if gamepad_data[2] > 0:
-                    axes[0] = -gamepad_data[2] / 127
-                elif gamepad_data[2] < 0:
-                    axes[0] = -gamepad_data[2] / 128
-
-                if gamepad_data[3] > 0:
-                    axes[1] = gamepad_data[3] / 127
-                elif gamepad_data[3] < 0:
-                    axes[1] = gamepad_data[3] / 128
-
-                if gamepad_data[4] > 0:
-                    axes[2] = -gamepad_data[4] / 127
-                elif gamepad_data[4] < 0:
-                    axes[2] = -gamepad_data[4] / 128
-
-                if gamepad_data[5] > 0:
-                    axes[3] = gamepad_data[5] / 127
-                elif gamepad_data[5] < 0:
-                    axes[3] = gamepad_data[5] / 128
-            
-                if gamepad_data[1] == 9:
-                    axes[6] = 1.0
-                elif gamepad_data[1] == 13:
-                    axes[6] = -1.0
-                
-                if gamepad_data[1] == 11:
-                    axes[7] = -1.0
-                elif gamepad_data[1] == 15:
-                    axes[7] = 1.0
-                return axes, buttons
-            except queue.Empty:
-                return None
-        else:
-            print('get_gamepad enable reception first!')
-            return None
-
-    def get_sbus(self):
-        if self.enable_recv:
-            try:
-                sbus_data = self.sbus_queue.get(block=False)
-                status = SBusStatus()
-                *status.channels, ch17, ch18, sig_loss, fail_safe = struct.unpack("<16hBBBB", sbus_data)
-                status.channel_17 = ch17 != 0
-                status.channel_18 = ch18 != 0
-                status.signal_loss = sig_loss != 0
-                status.fail_safe = fail_safe != 0
-                data = []
-                if status.signal_loss:
-                    data = 16 * [0.5]
-                    data[4] = 0
-                    data[5] = 0
-                    data[6] = 0
-                    data[7] = 0
-                else:
-                    for i in status.channels:
-                        data.append(2*(i - 192)/(1792 - 192) - 1)
-                return data
-            except queue.Empty:
-                return None
-        else:
-            print('get_sbus enable reception first!')
-            return None
-
-    def buf_write(self, func, data):
+    def _buf_write(self, func, data):
+        # This is a private helper. Lock is handled by the public-facing methods.
+        # This method can now raise serial.SerialTimeoutException.
         buf = [0xAA, 0x55, int(func)]
         buf.append(len(data))
         buf.extend(data)
         buf.append(checksum_crc8(bytes(buf[2:])))
         buf = bytes(buf)
         self.port.write(buf)
-        #print(buf)
-
-
-    def set_led(self, on_time, off_time, repeat=1, led_id=1):
-        on_time = int(on_time*1000)
-        off_time = int(off_time*1000)
-        self.buf_write(PacketFunction.PACKET_FUNC_LED, struct.pack("<BHHH", led_id, on_time, off_time, repeat))
-
-    def set_buzzer(self, freq, on_time, off_time, repeat=1):
-        on_time = int(on_time*1000)
-        off_time = int(off_time*1000)
-        self.buf_write(PacketFunction.PACKET_FUNC_BUZZER, struct.pack("<HHHH", freq, on_time, off_time, repeat))
 
     def set_motor_speed(self, speeds):
         data = [0x01, len(speeds)]
         for i in speeds:
             data.extend(struct.pack("<Bf", int(i[0] - 1), float(i[1])))
-        self.buf_write(PacketFunction.PACKET_FUNC_MOTOR, data)
-    
-    '''
-    def set_rgb(self, pixels):
-        #data = [0x01, len(pixels), ]
-        #data = pixels
-        data = []
-        #print('data:',data)
-        #if len(pixels) > 4:
-        #data = [0]
-        #for index, r, g, b in pixels:
-        #   data.extend(struct.pack("<BBBB", int(index), int(r), int(g), int(b)))
-        #data.extend(struct.pack("<BBBBBBB", int(0), int(0), int(0), int(222),int(0), int(0), int(222)))
-        data.extend(struct.pack("<BBBBBBB", 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
-        print('data:',data)
-        self.buf_write(PacketFunction.PACKET_FUNC_RGB, data)
-    '''
-    def set_rgb(self , pixels):
-        data = [0x01 , len(pixels),]
-        for index , r , g , b in pixels:
-            data.extend(struct.pack("<BBBB", int(index - 1) , int(r), int(g) , int(b)))
-        self.buf_write(PacketFunction.PACKET_FUNC_RGB , data)
         
-    def set_oled_text(self, line, text):
-        data = [line, len(text)] # 子命令为 0x01 设置 SSID, 第二个字节是字符串长度，该长度包含'\0'字符串结束符(The sub-command 0x01 is used to set the SSID. The second byte is the length of the string, which includes the '\0' string termination character)
-        data.extend(bytes(text, encoding='utf-8'))
-        self.buf_write(PacketFunction.PACKET_FUNC_OLED, data)
+        with self.access_lock:
+            try:
+                self._buf_write(PacketFunction.PACKET_FUNC_MOTOR, data)
+            except serial.SerialTimeoutException:
+                log_msg = "Write timeout in set_motor_speed. Motor might be stalled."
+                if self.logger:
+                    self.logger.warn(log_msg)
 
     def pwm_servo_set_position(self, duration, positions):
         duration = int(duration * 1000)
         data = [0x01, duration & 0xFF, 0xFF & (duration >> 8), len(positions)]
         for i in positions:
             data.extend(struct.pack("<BH", i[0], i[1]))
-        self.buf_write(PacketFunction.PACKET_FUNC_PWM_SERVO, data)
+        
+        with self.access_lock:
+            try:
+                self._buf_write(PacketFunction.PACKET_FUNC_PWM_SERVO, data)
+            except serial.SerialTimeoutException:
+                log_msg = "Write timeout in pwm_servo_set_position."
+                if self.logger:
+                    self.logger.warn(log_msg)
 
     def pwm_servo_set_offset(self, servo_id, offset):
         data = struct.pack("<BBb", 0x07, servo_id, int(offset))
-        self.buf_write(PacketFunction.PACKET_FUNC_PWM_SERVO, data)
-
-    def pwm_servo_read_and_unpack(self, servo_id, cmd, unpack):
         with self.access_lock:
-            self.buf_write(PacketFunction.PACKET_FUNC_PWM_SERVO, [cmd, servo_id])
             try:
-                data = self.pwm_servo_queue.get(block=True, timeout=0.1)
-                servo_id, cmd, info = struct.unpack(unpack, data)
+                self._buf_write(PacketFunction.PACKET_FUNC_PWM_SERVO, data)
+            except serial.SerialTimeoutException:
+                log_msg = f"Write timeout in pwm_servo_set_offset for servo {servo_id}."
+                if self.logger:
+                    self.logger.warn(log_msg)
+
+    def pwm_servo_read_and_unpack(self, servo_id, cmd, unpack_format):
+        with self.access_lock:
+            try:
+                while not self.pwm_servo_queue.empty():
+                    self.pwm_servo_queue.get_nowait()
+                
+                self._buf_write(PacketFunction.PACKET_FUNC_PWM_SERVO, [cmd, servo_id])
+                
+                data = self.pwm_servo_queue.get(block=True, timeout=0.2)
+                _servo_id, _cmd, info = struct.unpack(unpack_format, data)
                 return info
             except queue.Empty:
                 log_msg = f"Timeout waiting for PWM servo {servo_id} response to cmd {cmd}"
                 if self.logger:
                     self.logger.warn(log_msg)
-                else:
-                    print(log_msg)
+                return None
+            except serial.SerialTimeoutException:
+                log_msg = f"Write timeout when requesting data from PWM servo {servo_id}."
+                if self.logger:
+                    self.logger.warn(log_msg)
                 return None
 
     def pwm_servo_read_offset(self, servo_id):
@@ -402,99 +229,6 @@ class Board:
 
     def pwm_servo_read_position(self, servo_id):
         return self.pwm_servo_read_and_unpack(servo_id, 0x05, "<BBH")
-
-    def bus_servo_enable_torque(self, servo_id, enable):
-        if enable:
-            data = struct.pack("<BB", 0x0B, servo_id)
-        else:
-            data = struct.pack("<BB", 0x0C, servo_id)
-        self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, data)
-        time.sleep(0.02)
-
-    def bus_servo_set_id(self, servo_id_now, servo_id_new):
-        data = struct.pack("<BBB", 0x10, servo_id_now, servo_id_new)
-        self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, data)
-        time.sleep(0.02)
-
-    def bus_servo_set_offset(self, servo_id, offset):
-        data = struct.pack("<BBb", 0x20, servo_id, int(offset))
-        self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, data)
-        time.sleep(0.02)
-
-    def bus_servo_save_offset(self, servo_id):
-        data = struct.pack("<BB", 0x24, servo_id)
-        self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, data)
-        time.sleep(0.02)
-
-    def bus_servo_set_angle_limit(self, servo_id, limit):
-        data = struct.pack("<BBHH", 0x30, servo_id, int(limit[0]), int(limit[1]))
-        self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, data)
-        time.sleep(0.02)
-
-    def bus_servo_set_vin_limit(self, servo_id, limit):
-        data = struct.pack("<BBHH", 0x34, servo_id, int(limit[0]), int(limit[1]))
-        self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, data)
-        time.sleep(0.02)
-
-    def bus_servo_set_temp_limit(self, servo_id, limit):
-        data = struct.pack("<BBb", 0x38, servo_id, int(limit))
-        self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, data)
-        time.sleep(0.02)
-
-    def bus_servo_stop(self, servo_id):
-        data = [0x03, len(servo_id)] 
-        data.extend(struct.pack("<"+'B'*len(servo_id), *servo_id))
-        self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, data)
-
-    def bus_servo_set_position(self, duration, positions):
-        duration = int(duration * 1000)
-        data = [0x01, duration & 0xFF, 0xFF & (duration >> 8), len(positions)] # 0x00 is bus servo sub command
-        for i in positions:
-            data.extend(struct.pack("<BH", i[0], i[1]))
-        self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, data)
-
-    def bus_servo_read_and_unpack(self, servo_id, cmd, unpack):
-        with self.access_lock:
-            self.buf_write(PacketFunction.PACKET_FUNC_BUS_SERVO, [cmd, servo_id])
-            try:
-                data = self.bus_servo_queue.get(block=True, timeout=0.1)
-                servo_id, cmd, success, *info = struct.unpack(unpack, data)
-                if success == 0:
-                    return info
-            except queue.Empty:
-                log_msg = f"Timeout waiting for Bus servo {servo_id} response to cmd {cmd}"
-                if self.logger:
-                    self.logger.warn(log_msg)
-                else:
-                    print(log_msg)
-                return None
-
-    def bus_servo_read_id(self, servo_id=254):
-        return self.bus_servo_read_and_unpack(servo_id, 0x12, "<BBbB")
-
-    def bus_servo_read_offset(self, servo_id):
-        return self.bus_servo_read_and_unpack(servo_id, 0x22, "<BBbb")
-    
-    def bus_servo_read_position(self, servo_id):
-        return self.bus_servo_read_and_unpack(servo_id, 0x05, "<BBbh")
-
-    def bus_servo_read_vin(self, servo_id):
-        return self.bus_servo_read_and_unpack(servo_id, 0x07, "<BBbH")
-    
-    def bus_servo_read_temp(self, servo_id):
-        return self.bus_servo_read_and_unpack(servo_id, 0x09, "<BBbB")
-
-    def bus_servo_read_temp_limit(self, servo_id):
-        return self.bus_servo_read_and_unpack(servo_id, 0x3A, "<BBbB")
-
-    def bus_servo_read_angle_limit(self, servo_id):
-        return self.bus_servo_read_and_unpack(servo_id, 0x32, "<BBb2H")
-
-    def bus_servo_read_vin_limit(self, servo_id):
-        return self.bus_servo_read_and_unpack(servo_id, 0x36, "<BBb2H")
-
-    def bus_servo_read_torque_state(self, servo_id):
-        return self.bus_servo_read_and_unpack(servo_id, 0x0D, "<BBbb")
 
     def enable_reception(self, enable=True):
         self.enable_recv = enable
@@ -553,7 +287,7 @@ class Board:
                                     continue
                     else:
                         # No data available, sleep briefly to prevent busy-waiting
-                        time.sleep(0.001)
+                        time.sleep(0.005)
                 else:
                     time.sleep(0.01)
             except Exception as e:
@@ -566,52 +300,6 @@ class Board:
         self.port.close()
         print("END...")
 
-def bus_servo_test(board):
-    board.bus_servo_set_position(1, [[1, 500], [2, 500]])
-    time.sleep(1)
-    board.bus_servo_set_position(2, [[1, 0], [2, 0]])
-    time.sleep(1)
-    board.bus_servo_stop([1, 2])
-    time.sleep(1)
-    
-    servo_id = 1
-    board.bus_servo_set_id(254, servo_id)
-    servo_id = board.bus_servo_read_id()
-    if servo_id is not None:
-        servo_id = servo_id[0]
-        
-        offset_set = -10
-        board.bus_servo_set_offset(servo_id, offset_set)
-        board.bus_servo_save_offset(servo_id)
-        
-        vin_l, vin_h = 4500, 14500
-        board.bus_servo_set_vin_limit(servo_id, [vin_l, vin_h])
-
-        temp_limit = 85
-        board.bus_servo_set_temp_limit(servo_id, temp_limit)
-
-        angle_l, angle_h = 0, 1000
-        board.bus_servo_set_angle_limit(servo_id, [angle_l, angle_h])
-        
-        board.bus_servo_enable_torque(servo_id, 1)
-
-        print('id:', board.bus_servo_read_id(servo_id))
-        print('offset:', board.bus_servo_read_offset(servo_id), offset_set)
-        print('vin:', board.bus_servo_read_vin(servo_id))
-        print('temp:', board.bus_servo_read_temp(servo_id))
-        print('position:', board.bus_servo_read_position(servo_id))
-        print('angle_limit:', board.bus_servo_read_angle_limit(servo_id), [angle_l, angle_h])
-        print('vin_limit:', board.bus_servo_read_vin_limit(servo_id), [vin_l, vin_h])
-        print('temp_limit:', board.bus_servo_read_temp_limit(servo_id), temp_limit)
-        print('torque_state:', board.bus_servo_read_torque_state(servo_id))
-
-def pwm_servo_test(board):
-    servo_id = 1
-    board.pwm_servo_set_position(0.5, [[servo_id, 500]])
-    board.pwm_servo_set_offset(servo_id, 0)
-    board.pwm_servo_set_position(0.5, [[servo_id, 1500]])
-    print('offset:', board.pwm_servo_read_offset(servo_id))
-    print('position:', board.pwm_servo_read_position(servo_id))
 
 if __name__ == "__main__":
     board = Board()

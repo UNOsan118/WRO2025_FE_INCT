@@ -3,12 +3,71 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
 from sensor_msgs.msg import Imu
-import board
 import adafruit_bno055
 import json
 import os
 import math
 import time
+from smbus2 import SMBus, i2c_msg
+
+# This class makes an smbus2 object look like a CircuitPython busio.I2C object
+class SMBus2Wrapper:
+    def __init__(self, bus_number=1, timeout=0.1):
+        self._bus = SMBus(bus_number)
+        self._bus.timeout = timeout
+
+    def writeto_then_readfrom(
+        self,
+        address,
+        buffer_out,
+        buffer_in,
+        out_start=0,
+        out_end=None,
+        in_start=0,
+        in_end=None,
+    ):
+        if out_end is None:
+            out_end = len(buffer_out)
+        if in_end is None:
+            in_end = len(buffer_in)
+
+        write_msg = i2c_msg.write(address, buffer_out[out_start:out_end])
+        read_msg = i2c_msg.read(address, in_end - in_start)
+        
+        self._bus.i2c_rdwr(write_msg, read_msg)
+
+        for i, byte in enumerate(list(read_msg)):
+            if in_start + i < in_end:
+                buffer_in[in_start + i] = byte
+
+    # This is an alias for the 'write' method, required by some versions of the library.
+    def writeto(self, address, buffer, start=0, end=None):
+        self.write(address, buffer, start, end)
+        
+    def write(self, address, buffer, start=0, end=None):
+        if end is None:
+            end = len(buffer)
+        
+        # The BNO055 library's write operations send the register address as the first byte.
+        # smbus2's write_i2c_block_data expects the register address as a separate argument.
+        if (end - start) > 1:
+            reg_addr = buffer[start]
+            data = list(buffer[start+1:end])
+            self._bus.write_i2c_block_data(address, reg_addr, data)
+        elif (end - start) == 1:
+            # Handle the case of writing a single byte (register address only)
+            # This is less common but we handle it for robustness.
+            reg_addr = buffer[start]
+            self._bus.write_byte(address, reg_addr)
+
+    def try_lock(self):
+        return True
+
+    def unlock(self):
+        pass
+
+    def deinit(self):
+        self._bus.close()
 
 class YawPublisher(Node):
     def __init__(self):
@@ -42,19 +101,25 @@ class YawPublisher(Node):
         retry_delay_sec = 1.0
         for attempt in range(max_retries):
             try:
-                i2c = board.I2C()
+                # Create an instance of our wrapper class
+                i2c = SMBus2Wrapper(bus_number=1, timeout=0.1)
+                
+                # Pass this wrapper object to the standard adafruit_bno055 constructor
                 self.sensor = adafruit_bno055.BNO055_I2C(i2c)
+                
                 IMU_MODE = 0x08
                 self.sensor.mode = IMU_MODE
-                self.get_logger().info('BNO055 sensor found and set to IMU mode (0x08).')
+                self.get_logger().info('BNO055 sensor found via SMBus2Wrapper and set to IMU mode (0x08).')
                 time.sleep(0.1) 
                 break
             except Exception as e:
                 self.get_logger().warn(f'Attempt {attempt + 1}/{max_retries} failed to initialize BNO055 sensor: {e}')
                 if attempt + 1 == max_retries:
                     self.get_logger().error('Could not initialize BNO055 sensor after multiple retries. Shutting down.')
-                    rclpy.shutdown()
-                    return
+                    # This shutdown logic was causing cascading errors.
+                    # We will let the node die gracefully instead.
+                    # rclpy.shutdown() 
+                    raise e # Re-raise the exception to stop the node cleanly
                 time.sleep(retry_delay_sec)
 
         # --- Load FULL calibration data but only apply Gyro/Accel initially ---
@@ -256,14 +321,21 @@ class YawPublisher(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = YawPublisher()
     try:
+        node = YawPublisher()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
+    except Exception as e:
+        # Log the exception that might be raised from __init__
+        if rclpy.ok():
+            # Create a temporary minimal node to log the error if the main node failed to initialize
+            error_logger_node = rclpy.create_node('yaw_publisher_error_logger')
+            error_logger_node.get_logger().fatal(f"YawPublisher failed to initialize and shut down: {e}")
+            error_logger_node.destroy_node()
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
