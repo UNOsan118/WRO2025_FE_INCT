@@ -100,21 +100,13 @@ The table below lists all the major electrical and mechanical components used to
 
 A high-level introduction to our robot's design philosophy and key features.
 
-| Front View | Right View | Rear View |
-| :---: | :---: | :---: |
-|<p align="center">
-  <img src="v-photos\Front Veiw.jpg" alt="Team members photo" width="100">
-  <img src="v-photos\Right Veiw.jpg" alt="Team members photo" width="100">
-  <img src="v-photos\Rear View.jpg" alt="Team members photo" width="100">
-</p> |
-| **Left View** | **Top View** | **Bottom View** |
-|<p align="center">
-  <img src="v-photos\Left Veiw.jpg" alt="Team members photo" width="100">
-  <img src="v-photos\Top Veiw.jpg" alt="Team members photo" width="100">
-  <img src="v-photos\Bottom Veiw.jpg" alt="Team members photo" width="100">
-</p>|
+| Front_View | Right_View | Rear_View |
+| :--: | :--: | :--: |
+| <img src="v-photos\Front_Veiw.jpg" alt="Front_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Right_Veiw.jpg" alt="Right_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Rear_View.jpg" alt="Rear_View" style="width: 250px; height: 250px; object-fit: contain;"> |
+| Left_View | Top_View | Bottom_View |
+| <img src="v-photos\Left_Veiw.jpg" alt="Left_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Top_Veiw.jpg" alt="Top_View" style="width: 250px; height: 250px; object-fit: contain;"> | <img src="v-photos\Bottom_Veiw.jpg" alt="Bottom_View" style="width: 250px; height: 250px; object-fit: contain;"> |
 
----
+---             
 
 ## 5. Mobility Management
 
