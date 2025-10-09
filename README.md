@@ -185,29 +185,25 @@ To mathematically model our robot's motion and ensure pure rolling without later
 **Core Formulas:**
 
 1.  **Angular Velocity Consistency:** The angular velocity is consistent across the vehicle.
-   
-    $$
-    \omega = \frac{V}{R} = \frac{V_L}{R_L} = \frac{V_R}{R_R}
-    $$
+    <p align="center">
+      <img src="./schemes/formula_angular_velocity.png" alt="Formula for Angular Velocity" height=70>
+    </p>
 
 2.  **Relationship between Steering Angle and Turning Radius:** The turning radius is geometrically related to the steering angle and wheelbase.
+    <p align="center">
+      <img src="./schemes/formula_turning_radius.png" alt="Formula for Turning Radius" height=70>
+    </p>
     
-    $$
-    \tan(\theta) = \frac{H}{R} \quad \implies \quad R_L = R - \frac{D}{2}, \quad R_R = R + \frac{D}{2}
-    $$
-
 3.  **Individual Wheel Velocities:** By knowing the wheelbase, track width, vehicle speed, and servo steering angle, we can calculate the required velocity for each rear wheel. This difference in speed is physically realized by our differential gearbox.
     *   **Left Wheel Velocity (V<sub>L</sub>):**
-        
-        $$
-        V_L = \frac{V}{R} R_L = V \times \left(1 - \frac{D \times \tan(\theta)}{2H}\right)
-        $$
+        <p align="center">
+          <img src="./schemes/formula_left_wheel_velocity.png" alt="Formula for Left Wheel Velocity" height=70>
+        </p>
 
     *   **Right Wheel Velocity (V<sub>R</sub>):**
-        
-        $$
-        V_R = \frac{V}{R} R_R = V \times \left(1 + \frac{D \times \tan(\theta)}{2H}\right)
-        $$
+        <p align="center">
+          <img src="./schemes/formula_right_wheel_velocity.png" alt="Formula for Right Wheel Velocity" height=70>
+        </p>
 
 This mathematical model is fundamental to how our `ros_robot_controller` translates high-level velocity commands into precise, differential wheel speeds, enabling accurate path following.
 
