@@ -391,7 +391,9 @@ The core of our robot's operation is the cyclical transition between the `STRAIG
 
 **High-Level State Transition Flowchart:**
 
-![State Machine Flowchart](schemes\state_flowchart.png)
+<p align="center">
+    <img src="schemes\state_flowchart.png" alt="State Flowchart" width="500">
+</p>
 
 ### 7.2. The ROS 2 Ecosystem: How Our Nodes Collaborate
 
