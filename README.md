@@ -140,7 +140,7 @@ We selected this specific motor for three key reasons:
 
 **Motor Specifications:**
 <p align="center">
-  <img src="schemes/drive_motor.png" alt="Blob detection result" width="300">
+  <img src="assets/drive_motor.png" alt="drive_motor" width="300">
   <img src="assets/drive_motor_specs.png" alt="Drive Motor Specifications" width="300"><br>
   <em>Image and specifications sourced from <a href="https://www.hiwonder.com/products/hall-encoder-dc-geared-motor?variant=40451123675223">Hiwonder's official product page</a>.</em>
 </p>
@@ -235,7 +235,7 @@ To fully unleash the potential of our base vehicle and physically support our na
 These custom modifications form the critical physical foundation that enables our software to perform at its peak. All 3D models for these parts, including our custom chassis and gearbox components, are available in the [`models`](models) directory. To facilitate the reproduction of our design, we have also provided **detailed blueprints and assembly diagrams** for these custom parts in the [`models\blueprints`](models/blueprints) directory.
 
 <p align="center">
-  <img src="assets/3d_printed_parts_on_robot.jpg" alt="Custom 3D-Printed Mounts" width="600">
+  <img src="assets\cad_assembly_sensor_tower.jpg" alt="Custom 3D-Printed Mounts" width="200">
   <br>
   <em>Our custom-designed LiDAR mount and camera tower, engineered for optimal sensor performance.</em>
 </p>
