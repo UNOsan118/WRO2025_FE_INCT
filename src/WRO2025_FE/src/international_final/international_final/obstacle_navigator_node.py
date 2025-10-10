@@ -323,7 +323,8 @@ class ObstacleNavigatorNode(Node):
         self._initialize_debug_directory()
         self._setup_ros_communications()
         self.controller_ready_client = self.create_client(Trigger, '/ros_robot_controller/init_finish')
-
+        self.yaw_publisher_ready_client = self.create_client(Trigger, '/yaw_publisher_node/init_finish')
+        
 
         # 7. MAIN LOOP TIMER
         # ==================
@@ -594,14 +595,22 @@ class ObstacleNavigatorNode(Node):
     # --- Preparation Sub-States ---
     def _handle_preparation_sub_waiting_for_controller(self):
         """
-        Sub-state: Waits for the controller service to become available, then transitions.
+        Sub-state: Waits for all critical services (Controller, Yaw Publisher) to become available.
         This is a non-blocking check within the main control loop.
         """
-        if not self.controller_ready_client.service_is_ready():
+        controller_ready = self.controller_ready_client.service_is_ready()
+        yaw_publisher_ready = self.yaw_publisher_ready_client.service_is_ready()
+
+        if not controller_ready:
             self.get_logger().info('PREPARATION: Controller service not available, waiting...', throttle_duration_sec=1.0)
             return
+            
+        if not yaw_publisher_ready:
+            self.get_logger().info('PREPARATION: Yaw Publisher service not available, waiting...', throttle_duration_sec=1.0)
+            return
 
-        self.get_logger().info("PREPARATION: Controller service is ready. Transitioning to INITIALIZING_CAMERA.")
+        # All services are ready, proceed to the next state.
+        self.get_logger().info("PREPARATION: All dependency services are ready. Transitioning to INITIALIZING_CAMERA.")
         self.preparation_sub_state = PreparationSubState.INITIALIZING_CAMERA
 
     def _handle_preparation_sub_initializing_camera(self):
@@ -875,14 +884,20 @@ class ObstacleNavigatorNode(Node):
     # --- Determine Course Sub-States (Legacy) ---
     def _handle_determine_sub_waiting_for_controller(self):
         """
-        Sub-state: Waits for the controller service to become available, then transitions.
-        This is a non-blocking check within the main control loop.
+        Sub-state: Waits for all critical services for legacy start mode.
         """
-        if not self.controller_ready_client.service_is_ready():
-            self.get_logger().info('Controller service not available, waiting...', throttle_duration_sec=1.0)
+        controller_ready = self.controller_ready_client.service_is_ready()
+        yaw_publisher_ready = self.yaw_publisher_ready_client.service_is_ready()
+
+        if not controller_ready:
+            self.get_logger().info('DETERMINE_COURSE: Controller service not available, waiting...', throttle_duration_sec=1.0)
             return
 
-        self.get_logger().info("Controller service is ready. Transitioning to INITIALIZING_CAMERA.")
+        if not yaw_publisher_ready:
+            self.get_logger().info('DETERMINE_COURSE: Yaw Publisher service not available, waiting...', throttle_duration_sec=1.0)
+            return
+
+        self.get_logger().info("DETERMINE_COURSE: All dependency services are ready. Transitioning to INITIALIZING_CAMERA.")
         self.determine_course_sub_state = DetermineCourseSubState.INITIALIZING_CAMERA
 
     def _handle_determine_sub_initializing_camera(self):
