@@ -72,8 +72,26 @@ class TurningSubState(Enum):
     FINALIZE_TURN = auto()
 
 class ParkingSubState(Enum):
-    PRE_PARKING_ADJUST = auto()
-    REVERSE_INTO_SPACE = auto()
+    PREPARE_PARKING = auto()
+    REORIENT_FOR_PARKING = auto()     # Sub-state for U-turn if direction is CW
+    APPROACH_PARKING_START = auto()   # Sub-state to move to the parking start position
+
+    # --- Old states ---
+    # PRE_PARKING_ADJUST = auto()
+    # REVERSE_INTO_SPACE = auto()
+
+class ReorientStep(Enum):
+    INITIAL_FORWARD_APPROACH = auto()
+    # Steps for Inner Lane S-Turn
+    INNER_TURN_1 = auto()
+    INNER_STRAIGHT1 = auto()
+    INNER_STRAIGHT2 = auto()
+    INNER_TURN_2 = auto()
+    # Steps for Outer Lane 3-Point Turn
+    OUTER_TURN_1 = auto()
+    OUTER_REVERSE_TURN = auto()
+    # Common completion state
+    COMPLETED = auto()
 
 class ObstacleNavigatorNode(Node):
     # --- Initialization & Lifecycle ---
@@ -111,7 +129,7 @@ class ObstacleNavigatorNode(Node):
         self.determine_course_sub_state = DetermineCourseSubState.WAITING_FOR_CONTROLLER # Legacy
         self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
         self.turning_sub_state = None 
-        self.parking_sub_state = ParkingSubState.PRE_PARKING_ADJUST
+        self.parking_sub_state = ParkingSubState.PREPARE_PARKING
 
 
         # Strategy and planning variables
@@ -123,7 +141,7 @@ class ObstacleNavigatorNode(Node):
         # 3. TUNING PARAMETERS (by category)
         # ==================================
         # --- General & Debug ---
-        self.start_from_parking = False
+        self.start_from_parking = True
         self.correct_mirrored_scan = True
         self.save_debug_images = True
         self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images'
@@ -193,7 +211,7 @@ class ObstacleNavigatorNode(Node):
         
         # Format: self.turn_[current_lane]_to_[next_lane]_[value]
         # For Outer -> Outer 
-        self.turn_outer_to_outer_dist_m = 0.6
+        self.turn_outer_to_outer_dist_m = 0.55
         self.turn_outer_to_outer_angle_deg = 40.0
         self.turn_outer_to_outer_approach_speed = 0.18
         self.turn_outer_to_outer_turn_speed = 0.18
@@ -223,7 +241,7 @@ class ObstacleNavigatorNode(Node):
         self.turn_inner_to_outer_turn_speed = 0.15
 
         # For Inner -> Outer (Clear) : Like Outer to Outer
-        self.turn_inner_to_outer_clear_dist_m =  0.6
+        self.turn_inner_to_outer_clear_dist_m =  0.5
         self.turn_inner_to_outer_clear_angle_deg = 40.0
         self.turn_inner_to_outer_clear_approach_speed = 0.18
         self.turn_inner_to_outer_clear_turn_speed = 0.18
@@ -330,6 +348,10 @@ class ObstacleNavigatorNode(Node):
         self.pre_parking_step = 0
         self.detection_results = []
 
+        # Parking state variables
+        self.reorient_step = None # Add this
+        self.reorient_base_yaw_deg = 0.0 # Add this
+
         # Planning state variables
         self.planning_initiated = False
         self.planning_detection_threshold = 570
@@ -340,6 +362,7 @@ class ObstacleNavigatorNode(Node):
         self.planning_scan_stop_dist = 0.25
         self.planning_scan_stop_dist_start_area = 0.38
         self.planning_scan_start_dist_m = 0.5
+        self.lidar_entrance_scan_start_dist_m = 0.7
         self.planning_camera_wait_timer = None
         self.is_sampling_for_planning = False 
         self.is_sampling_for_planning = False 
@@ -618,10 +641,18 @@ class ObstacleNavigatorNode(Node):
 
     def _handle_state_parking(self, msg: LaserScan):
         """Dispatches to the correct handler based on the parking_sub_state."""
-        if self.parking_sub_state == ParkingSubState.PRE_PARKING_ADJUST:
-            self._handle_parking_sub_pre_parking_adjust(msg)
-        elif self.parking_sub_state == ParkingSubState.REVERSE_INTO_SPACE:
-            self._handle_parking_sub_reverse_into_space(msg)
+        if self.parking_sub_state == ParkingSubState.PREPARE_PARKING:
+            self._handle_parking_sub_prepare_parking()
+        elif self.parking_sub_state == ParkingSubState.REORIENT_FOR_PARKING:
+            self._handle_parking_sub_reorient_for_parking(msg)
+        elif self.parking_sub_state == ParkingSubState.APPROACH_PARKING_START:
+            self._handle_parking_sub_approach_parking_start(msg)
+        
+        # --- Old handlers (deactivated for now) ---
+        # if self.parking_sub_state == ParkingSubState.PRE_PARKING_ADJUST:
+        #     self._handle_parking_sub_pre_parking_adjust(msg)
+        # elif self.parking_sub_state == ParkingSubState.REVERSE_INTO_SPACE:
+        #     self._handle_parking_sub_reverse_into_space(msg)
 
     def _handle_state_finished(self):
         """Action for the FINISHED state: stop the robot."""
@@ -854,8 +885,9 @@ class ObstacleNavigatorNode(Node):
                 self.unparking_sub_state = UnparkingSubState.AVOIDANCE_REVERSE
             
             else: # UNDEFINED or any other case
-                self.get_logger().error("Undefined unparking strategy! Halting for safety.")
-                self.state = State.FINISHED
+                self.get_logger().error("Undefined unparking strategy! Strategy requires outer lane. Transitioning to STRAIGHT state.")
+                self.state = State.STRAIGHT
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
             
             return # IMPORTANT: Exit after handling the state transition
 
@@ -1737,10 +1769,12 @@ class ObstacleNavigatorNode(Node):
             if not math.isnan(front_dist) and front_dist < self.planning_scan_start_dist_m:
                 self._scan_and_collect_data()
             
+            # --- LiDAR-based Entrance Blockage Detection (starts earlier) ---
+            if not math.isnan(front_dist) and front_dist < self.lidar_entrance_scan_start_dist_m:
                 next_segment_index = (self.wall_segment_index + 1) % len(self.entrance_obstacle_plan)
                 # Only check if the plan for this segment is not already 'obstructed'
                 if not self.entrance_obstacle_plan[next_segment_index]:
-                    clearance_threshold_min = 0.9
+                    clearance_threshold_min = 0.85
                     clearance_threshold_max = 1.1
                     if self.direction == 'ccw':
                         inner_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
@@ -1750,7 +1784,7 @@ class ObstacleNavigatorNode(Node):
                         outer_wall_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
                     
                     # Use a narrower scan for safety while moving
-                    inner_dist = self.get_closest_distance_in_range(msg, inner_wall_angle, 0.0)
+                    inner_dist = self.get_closest_distance_in_range(msg, inner_wall_angle, 1.0)
                     # inner_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
                     outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
                     
@@ -1759,7 +1793,7 @@ class ObstacleNavigatorNode(Node):
                         if clearance_threshold_min < total_dist < clearance_threshold_max:
                             self.get_logger().error(
                                 f"[ENTRANCE BLOCKED DETECTED WHILE MOVING] "
-                                f"Clearance: {total_dist:.3f}m. Flagging for careful turn.f:{front_dist:.3f} i:{inner_dist:.3f} o:{outer_dist:.3f}"
+                                f"Clearance: {total_dist:.3f}m. Flagging for careful turn.f:{front_dist:.3f} i:{inner_dist['distance']:.3f} o:{outer_dist:.3f}"
                             )
                             self.entrance_obstacle_plan[next_segment_index] = True
             
@@ -1814,7 +1848,7 @@ class ObstacleNavigatorNode(Node):
                 if self.direction == 'ccw':
                     self.final_approach_lane_is_outer = True
                 else: # cw
-                    self.final_approach_lane_is_outer = False
+                    self.final_approach_lane_is_outer = True # False
             
             self.get_logger().warn(f"Final approach lane decision: {'OUTER' if self.final_approach_lane_is_outer else 'INNER'}")
 
@@ -2030,6 +2064,236 @@ class ObstacleNavigatorNode(Node):
         self.publish_twist_with_gain(0.0, 0.0)
 
     # --- Parking Sub-States ---
+    def _handle_parking_sub_prepare_parking(self):
+        """
+        Sub-state: First step of the parking sequence.
+        Logs the vehicle's state and decides the next sub-state based on direction.
+        """
+        # (Logging part is unchanged)
+        log_message = (
+            f"\n"
+            f"--- PREPARING PARKING SEQUENCE ---\n"
+            f"  - Final Lap Direction : {self.direction.upper()}\n"
+            f"  - Final Approach Lane : {'OUTER' if self.final_approach_lane_is_outer else 'INNER'}\n"
+            f"  - Obstacle at Parking : {self.has_obstacle_at_parking_exit}\n"
+            f"------------------------------------"
+        )
+        self.get_logger().warn(log_message)
+
+        # Branch to the next sub-state based on the final driving direction.
+        if self.direction == "cw":
+            self.get_logger().info("Direction is CW. Transitioning to REORIENT_FOR_PARKING.")
+            self.parking_sub_state = ParkingSubState.REORIENT_FOR_PARKING
+        else: # "ccw"
+            self.get_logger().info("Direction is CCW. Transitioning to APPROACH_PARKING_START.")
+            self.parking_sub_state = ParkingSubState.APPROACH_PARKING_START
+
+    def _handle_parking_sub_reorient_for_parking(self, msg: LaserScan):
+        """
+        Sub-state: Executes a U-turn maneuver to face the CCW direction.
+        Manages a multi-step process for both inner and outer lane approaches.
+        """
+        # --- Initialize on first entry ---
+        if self.reorient_step is None:
+            # self.get_logger().info("Reorientation: Initializing maneuver.")
+            self.reorient_base_yaw_deg = self._calculate_base_angle()
+            self.reorient_step = ReorientStep.INITIAL_FORWARD_APPROACH
+        
+        # --- Dispatch to the correct step handler ---
+        if self.reorient_step == ReorientStep.INITIAL_FORWARD_APPROACH:
+            self._reorient_step_initial_forward(msg)
+        
+        # After INITIAL_FORWARD_APPROACH, the step will be updated.
+        # This elif block will be executed in the next loop cycle if the step changes.
+        elif self.reorient_step in [ReorientStep.INNER_TURN_1, ReorientStep.INNER_STRAIGHT1, ReorientStep.INNER_STRAIGHT2, ReorientStep.INNER_TURN_2]:
+            self._reorient_inner_lane_maneuver(msg)
+        
+        elif self.reorient_step in [ReorientStep.OUTER_TURN_1, ReorientStep.OUTER_REVERSE_TURN]:
+            self._reorient_outer_lane_maneuver(msg)
+
+        # --- Handle Completion ---
+        # This check is done after any of the above steps might have completed.
+        if self.reorient_step == ReorientStep.COMPLETED:
+            self.get_logger().warn("Reorientation maneuver complete. Now facing CCW direction.")
+            self.direction = "ccw" # CRITICAL: Update the global direction
+            self.reorient_step = None # Reset for next time
+            self.parking_sub_state = ParkingSubState.APPROACH_PARKING_START
+
+    def _handle_parking_sub_approach_parking_start(self, msg: LaserScan):
+        """
+        Sub-state (Skeleton): Moves the robot to the precise starting position for parking.
+        TODO: Implement the approach logic.
+        """
+        self.get_logger().info("In APPROACH_PARKING_START sub-state (for CCW).")
+
+        # For debugging, transition to FINISHED.
+        self.get_logger().info("Debug: Transitioning to FINISHED state.")
+        self.state = State.FINISHED
+
+    # --- Reorientation Helper Functions ---
+    def _reorient_step_initial_forward(self, msg: LaserScan):
+        """Helper for Reorientation: Moves forward to a safe turning position."""
+        front_dist = self.get_distance_at_world_angle(msg, self.reorient_base_yaw_deg)
+
+        if self.final_approach_lane_is_outer:
+            target_dist = 1.4
+        else:
+            target_dist = 0.94
+
+        if not math.isnan(front_dist) and front_dist < target_dist:
+            self.get_logger().info(f"Reorientation: Forward approach complete (Dist: {front_dist:.2f}m).")
+            self.publish_twist_with_gain(0.0, 0.0)
+            # Decide the first step of the turn based on the lane
+            if not self.final_approach_lane_is_outer:
+                self.reorient_step = ReorientStep.INNER_TURN_1
+            else:
+                self.reorient_step = ReorientStep.OUTER_TURN_1
+        else:
+            # --- MODIFIED: Add condition to disable distance control when close ---
+            use_imu_only = False
+            if not math.isnan(front_dist) and front_dist < 1.1:
+                use_imu_only = True
+                self.get_logger().debug("Reorientation Forward: Close to front wall, using IMU_ONLY alignment.", throttle_duration_sec=0.5)
+
+            # Drive forward using PID alignment if not yet at the target
+            self._execute_pid_alignment(
+                msg, 
+                self.reorient_base_yaw_deg, 
+                is_outer_wall=self.final_approach_lane_is_outer, 
+                speed=self.forward_speed * 0.7,
+                disable_dist_control=use_imu_only # Pass the conditional flag
+            )
+
+    def _reorient_inner_lane_maneuver(self, msg: LaserScan):
+        """Helper for Reorientation: S-Turn from the inner lane to reorient."""
+        yaw_tolerance_deg = 5.0
+        
+        if self.reorient_step == ReorientStep.INNER_TURN_1:
+            # Turn 90 degrees CCW (left) towards the outer wall
+            target_yaw = self._angle_normalize(self.reorient_base_yaw_deg - 90.0) # CORRECTED
+            is_turn_done = self._execute_p_controlled_turn(
+                target_yaw_deg=target_yaw,
+                tolerance_deg=yaw_tolerance_deg,
+                base_yaw_deg=self.reorient_base_yaw_deg,
+                turn_angle_deg=-90.0,
+                base_speed=-0.15
+            )
+            if is_turn_done:
+                self.get_logger().info("Reorientation (Inner): Turn 1 (CCW) complete.")
+                self.reorient_step = ReorientStep.INNER_STRAIGHT1
+
+        elif self.reorient_step == ReorientStep.INNER_STRAIGHT1:
+            # Go straight until close to the outer wall (which is now in front)
+            wall_angle = self._angle_normalize(self.reorient_base_yaw_deg - 90.0) # CORRECTED
+            wall_dist = self.get_distance_at_world_angle(msg, wall_angle)
+            if not math.isnan(wall_dist) and wall_dist < 0.1:
+                self.get_logger().info(f"Reorientation (Inner): Straight move complete (Dist: {wall_dist:.2f}m).")
+                self.publish_twist_with_gain(0.0, 0.0)
+                self.reorient_step = ReorientStep.INNER_STRAIGHT2
+            else:
+                self.get_logger().info(f"Straight move (Dist: {wall_dist:.2f}m).", throttle_duration_sec=0.1)
+                self.publish_twist_with_gain(self.forward_speed * 0.7, 0.0) # Drive straight
+
+        elif self.reorient_step == ReorientStep.INNER_STRAIGHT2:
+            # Go straight until close to the outer wall (which is now in front)
+            wall_angle = self._angle_normalize(self.reorient_base_yaw_deg - 90.0) # CORRECTED
+            wall_dist = self.get_distance_at_world_angle(msg, wall_angle)
+            if not math.isnan(wall_dist) and wall_dist > 0.11:
+                self.get_logger().info(f"Reorientation (Inner): Straight move complete (Dist: {wall_dist:.2f}m).")
+                self.publish_twist_with_gain(0.0, 0.0)
+                self.reorient_step = ReorientStep.INNER_TURN_2
+            else:
+                self.get_logger().info(f"Straight move (Dist: {wall_dist:.2f}m).", throttle_duration_sec=0.1)
+                self.publish_twist_with_gain(-self.forward_speed * 0.7, 0.0) # Drive straight
+
+        elif self.reorient_step == ReorientStep.INNER_TURN_2:
+            # Turn another 90 degrees CCW (left) to complete the 180
+            turn2_base_yaw = self._angle_normalize(self.reorient_base_yaw_deg - 90.0)
+            target_yaw = self._angle_normalize(self.reorient_base_yaw_deg - 180.0) # CORRECTED
+            is_turn_done = self._execute_p_controlled_turn(
+                target_yaw_deg=target_yaw,
+                tolerance_deg=yaw_tolerance_deg,
+                base_yaw_deg=turn2_base_yaw,
+                turn_angle_deg=-90.0,
+                base_speed=-0.15
+            )
+
+            if is_turn_done:
+                self.get_logger().info("Reorientation (Inner): Turn 2 (CCW) complete.")
+                self.reorient_step = ReorientStep.COMPLETED
+
+    def _reorient_outer_lane_maneuver(self, msg: LaserScan):
+        """Helper for Reorientation: 3-Point Turn from the outer lane."""
+        yaw_tolerance_deg = 5.0
+
+        if self.reorient_step == ReorientStep.OUTER_TURN_1:
+            # --- Step 1: Forward turn 90 degrees towards the inner wall ---
+            target_yaw = self._angle_normalize(self.reorient_base_yaw_deg - 90.0)
+            is_turn_done = self._execute_p_controlled_turn(
+                target_yaw_deg=target_yaw,
+                tolerance_deg=yaw_tolerance_deg,
+                base_yaw_deg=self.reorient_base_yaw_deg,
+                turn_angle_deg=90.0
+            )
+            if is_turn_done:
+                self.get_logger().info("Reorientation (Outer): Forward turn complete.")
+                self.reorient_step = ReorientStep.OUTER_REVERSE_TURN
+
+        elif self.reorient_step == ReorientStep.OUTER_REVERSE_TURN:
+            # --- Step 2: Reverse turn to complete the 180-degree reorientation ---
+            # The base for this turn is where the last turn ended.
+            reverse_base_yaw = self._angle_normalize(self.reorient_base_yaw_deg - 90.0)
+            target_yaw = self._angle_normalize(self.reorient_base_yaw_deg - 180.0)
+            
+            is_turn_done = self._execute_p_controlled_turn(
+                target_yaw_deg=target_yaw,
+                tolerance_deg=yaw_tolerance_deg,
+                base_yaw_deg=reverse_base_yaw,
+                turn_angle_deg=-90.0,
+                base_speed=-0.15 # Pass a negative speed for reversing
+            )
+
+            if is_turn_done:
+                self.get_logger().info("Reorientation (Outer): Reverse turn complete.")
+                self.reorient_step = ReorientStep.COMPLETED
+
+    def _execute_p_controlled_turn(self, target_yaw_deg, tolerance_deg, base_yaw_deg, turn_angle_deg, base_speed=0.2):
+        """
+        A generic helper to perform a P-controlled turn (forward or reverse).
+        Gradually reduces speed as it approaches the target.
+        - To reverse, provide a negative base_speed.
+        Returns True when the turn is complete.
+        """
+        yaw_error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
+
+        if abs(yaw_error_deg) < tolerance_deg:
+            self.publish_twist_with_gain(0.0, 0.0)
+            return True # Turn is complete
+
+        # --- Proportional Steering Control ---
+        turn_kp = 0.02
+        steer = np.clip(turn_kp * yaw_error_deg, -self.max_steer, self.max_steer)
+
+        # --- Proportional Speed Control ---
+        # The minimum speed maintains the same sign as the base speed.
+        min_speed = base_speed * 0.5
+        
+        # Calculate how much of the turn has been completed
+        angle_turned_deg = abs(self._angle_diff(self.current_yaw_deg, base_yaw_deg))
+        
+        total_turn_angle = abs(turn_angle_deg)
+        if total_turn_angle < 1.0:
+            total_turn_angle = 1.0
+        
+        # Calculate speed reduction based on progress
+        progress_ratio = min(1.0, angle_turned_deg / total_turn_angle)
+        final_speed = base_speed - (base_speed - min_speed) * progress_ratio
+        
+        # Execute the turn
+        self.publish_twist_with_gain(final_speed, steer)
+        return False # Turn is ongoing
+    
+    # --- Old Parking Sub-States (deactivated) ---
     def _handle_parking_sub_pre_parking_adjust(self, msg: LaserScan):
         """
         Sub-state: Final approach to the pre-parking position.
@@ -2893,7 +3157,7 @@ class ObstacleNavigatorNode(Node):
                 "Forcing transition to PARKING state."
             )
             self.state = State.PARKING
-            self.parking_sub_state = ParkingSubState.PRE_PARKING_ADJUST
+            self.parking_sub_state = ParkingSubState.PREPARE_PARKING
             self.pre_parking_step = 0
             self.publish_twist_with_gain(0.0, 0.0)
             # Return True to signal that a state change has occurred and the caller should stop.
@@ -2962,7 +3226,7 @@ class ObstacleNavigatorNode(Node):
             # --- Use the new helper function for the check ---
             is_oriented_correctly = self._check_yaw_alignment(base_angle_deg, 30.0)
             
-            if (not math.isnan(front_dist) and front_dist < 1.5 and front_dist > 1.0 and
+            if (not math.isnan(front_dist) and front_dist < 1.75 and front_dist > 1.0 and
                 not math.isnan(inner_wall_dist) and inner_wall_dist < 1.0 and 
                 not math.isnan(sum_side_walls_dist) and sum_side_walls_dist < 1.1 and sum_side_walls_dist > 0.4 and
                 is_oriented_correctly # Using the result of the new function
@@ -2974,7 +3238,7 @@ class ObstacleNavigatorNode(Node):
                 )
                 self.get_logger().warn("FINISH CONDITION MET. TRANSITIONING TO PARKING STATE.")
                 self.state = State.PARKING
-                self.parking_sub_state = ParkingSubState.PRE_PARKING_ADJUST
+                self.parking_sub_state = ParkingSubState.PREPARE_PARKING
                 self.pre_parking_step = 0
                 self.publish_twist_with_gain(0.0, 0.0)
                 return True
@@ -3273,7 +3537,7 @@ class ObstacleNavigatorNode(Node):
         if is_entering_final_segment and self.final_approach_lane_is_outer is not None:
             # --- Special Case: Final turn before parking ---
             # Use the pre-determined flag for the most reliable decision.
-            self.get_logger().info("Turn strategy: Using pre-determined flag for final segment approach.")
+            self.get_logger().info("Turn strategy: Using pre-determined flag for final segment approach.", throttle_duration_sec=0.1)
             is_next_path_outer = self.final_approach_lane_is_outer
         else:
             # --- Standard Case: Regular turn during laps ---
