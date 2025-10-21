@@ -76,6 +76,7 @@ class ParkingSubState(Enum):
     REORIENT_FOR_PARKING = auto()     # Sub-state for U-turn if direction is CW
     LANE_CHANGE_FOR_PARKING = auto()
     APPROACH_PARKING_START = auto()   # Sub-state to move to the parking start position
+    EXECUTE_PARKING_MANEUVER = auto()
 
     # --- Old states ---
     # PRE_PARKING_ADJUST = auto()
@@ -107,6 +108,12 @@ class ReorientStep(Enum):
 class ApproachStep(Enum):
     ALIGN_AND_FORWARD = auto()
     REVERSE_TO_FINAL_POS = auto()
+
+class ParkingManeuverStep(Enum):
+    STEP1_REVERSE_TURN = auto()
+    STEP2_REVERSE_STRAIGHT = auto()
+    STEP3_ALIGN_TURN = auto()
+    STEP4_FINAL_ADJUST = auto()
 
 class ObstacleNavigatorNode(Node):
     # --- Initialization & Lifecycle ---
@@ -145,6 +152,7 @@ class ObstacleNavigatorNode(Node):
         self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
         self.turning_sub_state = None 
         self.parking_sub_state = ParkingSubState.PREPARE_PARKING
+        self.parking_maneuver_step = ParkingManeuverStep.STEP1_REVERSE_TURN
 
 
         # Strategy and planning variables
@@ -161,7 +169,7 @@ class ObstacleNavigatorNode(Node):
         self.save_debug_images = True
         self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images'
         self.max_valid_range_m = 3.0
-        self.max_turns = 4 #12
+        self.max_turns = 12 #12
         
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
@@ -316,10 +324,18 @@ class ObstacleNavigatorNode(Node):
         self.lane_change_initial_approach_dist_m = 1.52
 
         # --- Approach ---
-        self.parking_approach_target_outer_dist_m = 0.335
+        self.parking_approach_target_outer_dist_m = 0.32
         self.parking_approach_slowdown_dist_m = 1.3  # Distance to start slowing down
-        self.parking_approach_final_stop_dist_m = 0.82  # Final target distance
+        self.parking_approach_final_stop_dist_m = 0.78  # Final target distance
         self.parking_approach_slow_speed = 0.05     # Slower speed for final approach
+
+        # --- Final Parking ---
+        self.parking_step1_reverse_speed = -0.05
+        self.parking_step1_target_angle_deg = 60.0
+        self.parking_step2_reverse_speed = -0.05
+        self.parking_step2_front_dist_trigger_m = 0.97
+        self.parking_step3_reverse_speed = -0.05
+        self.parking_step4_forward_speed = 0.05
 
         # --- Legacy Determine Course ---
         self.course_detection_threshold_m = 1.5
@@ -386,6 +402,8 @@ class ObstacleNavigatorNode(Node):
         self.reorient_step = None
         self.reorient_base_yaw_deg = 0.0
         self.approach_step = None
+        self.parking_maneuver_step = None
+        self.parking_base_yaw_deg = 0.0
 
         # Planning state variables
         self.planning_initiated = False
@@ -442,7 +460,7 @@ class ObstacleNavigatorNode(Node):
         # ==================
 
         # --- FOR DEBUGGING: Force start from PARKING state ---
-        force_start_from_parking = True # True -> Parking mode
+        force_start_from_parking = False # True -> Parking mode
         if force_start_from_parking:
             self.get_logger().warn("############################################################")
             self.get_logger().warn("##  DEBUG MODE: Forcing start from PARKING in 5 seconds...  ##")
@@ -734,6 +752,8 @@ class ObstacleNavigatorNode(Node):
             self._handle_parking_sub_lane_change_for_parking(msg)
         elif self.parking_sub_state == ParkingSubState.APPROACH_PARKING_START:
             self._handle_parking_sub_approach_parking_start(msg)
+        elif self.parking_sub_state == ParkingSubState.EXECUTE_PARKING_MANEUVER:
+            self._handle_parking_sub_execute_parking_maneuver(msg)
         
         # --- Old handlers (deactivated for now) ---
         # if self.parking_sub_state == ParkingSubState.PRE_PARKING_ADJUST:
@@ -2286,10 +2306,12 @@ class ObstacleNavigatorNode(Node):
             self.get_logger().warn(f"Approach Parking: Final position reached (Dist: {front_dist:.3f}m).")
             self.publish_twist_with_gain(0.0, 0.0)
 
+            # Store the current yaw as the base for the final parking maneuver
             self.parking_base_yaw_deg = self.current_yaw_deg
             
-            self.get_logger().info("Debug: Transitioning to FINISHED state.")
-            self.state = State.FINISHED
+            self.get_logger().info("Transitioning to EXECUTE_PARKING_MANEUVER.")
+            self.approach_step = None # Reset for next time
+            self.parking_sub_state = ParkingSubState.EXECUTE_PARKING_MANEUVER
             return
 
         # --- Proportional Speed Control ---
@@ -2345,6 +2367,24 @@ class ObstacleNavigatorNode(Node):
             override_target_dist=self.parking_approach_target_outer_dist_m,
             disable_dist_control=use_imu_only
         )
+
+    def _handle_parking_sub_execute_parking_maneuver(self, msg: LaserScan):
+        """
+        Sub-state: Executes the final 3-step parallel parking maneuver.
+        """
+        # --- Initialize on first entry ---
+        if self.parking_maneuver_step is None:
+            self.get_logger().warn("--- Executing Final Parking Maneuver ---")
+            self.parking_maneuver_step = ParkingManeuverStep.STEP1_REVERSE_TURN
+        # --- Dispatch to the correct step handler ---
+        if self.parking_maneuver_step == ParkingManeuverStep.STEP1_REVERSE_TURN:
+            self._parking_step1_reverse_turn(msg)
+        elif self.parking_maneuver_step == ParkingManeuverStep.STEP2_REVERSE_STRAIGHT:
+            self._parking_step2_reverse_straight(msg)
+        elif self.parking_maneuver_step == ParkingManeuverStep.STEP3_ALIGN_TURN:
+            self._parking_step3_align_turn(msg)
+        elif self.parking_maneuver_step == ParkingManeuverStep.STEP4_FINAL_ADJUST:
+            self._parking_step4_final_adjust(msg)
 
     # --- Reorientation Helper Functions ---
     def _reorient_step_initial_forward(self, msg: LaserScan):
@@ -2437,6 +2477,88 @@ class ObstacleNavigatorNode(Node):
             if is_turn_done:
                 self.get_logger().info("Reorientation (Outer): Reverse turn complete.")
                 self.reorient_step = ReorientStep.COMPLETED
+
+    def _parking_step1_reverse_turn(self, msg: LaserScan):
+        """Parking Step 1: Reverse while turning 45 degrees into the space."""
+        # Target yaw is 45 degrees CCW from the starting orientation
+        target_yaw = self._angle_normalize(self.parking_base_yaw_deg + self.parking_step1_target_angle_deg)
+        yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
+        
+        # Check for completion
+        if abs(yaw_error_deg) < self.reorient_yaw_tolerance_deg:
+            self.get_logger().info("Parking Step 1 (Reverse Turn): Complete.")
+            self.publish_twist_with_gain(0.0, 0.0)
+            self.parking_maneuver_step = ParkingManeuverStep.STEP2_REVERSE_STRAIGHT
+            return
+            
+        # P-control for steering while reversing
+        # To turn the rear to the left while reversing, we need to steer right (positive steer).
+        # A positive error (we need to turn left) should result in a positive steer.
+        turn_kp = 0.05 # Use a positive gain
+        steer = np.clip(turn_kp * yaw_error_deg, -self.max_steer, self.max_steer)
+        
+        self.publish_twist_with_gain(self.parking_step1_reverse_speed, steer)
+
+    def _parking_step2_reverse_straight(self, msg: LaserScan):
+        """
+        Parking Step 2: Reverse straight until the front wall is no longer detected.
+        """
+        # The orientation should be maintained at 45 degrees
+        target_yaw = self._angle_normalize(self.parking_base_yaw_deg + self.parking_step1_target_angle_deg)
+        
+        # --- Completion Check using front LiDAR ---
+        # "Front" is relative to the original orientation before parking
+        front_wall_angle = self.parking_base_yaw_deg
+        front_dist = self.get_distance_at_world_angle(msg, front_wall_angle)
+        
+        # Trigger when the front wall becomes distant (i.e., we've entered the space)
+        if not math.isnan(front_dist) and front_dist > self.parking_step2_front_dist_trigger_m:
+            self.get_logger().info(f"Parking Step 2 (Reverse Straight): Complete (Front wall lost, dist: {front_dist:.3f}m).")
+            self.publish_twist_with_gain(0.0, 0.0)
+            self.parking_maneuver_step = ParkingManeuverStep.STEP3_ALIGN_TURN
+            return
+            
+        # --- Drive straight back, maintaining the 45-degree angle ---
+        yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
+        angle_steer = self.align_kp_angle * yaw_error_deg
+        final_steer = np.clip(angle_steer, -self.max_steer, self.max_steer)
+        
+        self.get_logger().debug(f"Parking Step 2: Reversing straight... Front dist: {front_dist:.3f}m", throttle_duration_sec=0.2)
+        self.publish_twist_with_gain(self.parking_step2_reverse_speed, final_steer)
+        
+    def _parking_step3_align_turn(self, msg: LaserScan):
+        """Parking Step 3: Reverse while turning to become parallel to the wall."""
+        # Target yaw is the original straight orientation
+        target_yaw = self.parking_base_yaw_deg
+        yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
+        
+        # Check for completion
+        if abs(yaw_error_deg) < self.reorient_yaw_tolerance_deg:
+            self.get_logger().info("Parking Step 3 (Align Turn): Complete.")
+            self.publish_twist_with_gain(0.0, 0.0)
+            self.parking_maneuver_step = ParkingManeuverStep.STEP4_FINAL_ADJUST
+            return
+            
+        # Reverse with opposite steering (full steer to the right)
+        self.publish_twist_with_gain(self.parking_step3_reverse_speed, -self.max_steer)
+
+    def _parking_step4_final_adjust(self, msg: LaserScan):
+        """
+        Parking Step 4: Send a single forward command with zero steer to straighten the wheels,
+        then immediately finish the maneuver.
+        """
+        self.get_logger().info("Parking Step 4: Sending final command to straighten wheels.")
+
+        # Send a single, brief forward command with zero steering.
+        # This ensures the wheels are pointing straight when parking is complete.
+        self.publish_twist_with_gain(self.parking_step4_forward_speed, 0.0)
+
+        # After sending the command, immediately transition to the finished state.
+        # A very short delay might help ensure the command is sent before shutdown.
+        # time.sleep(0.1) # Optional, usually not needed.
+
+        self.get_logger().warn("--- PARKING MANEUVER COMPLETE ---")
+        self.state = State.FINISHED
 
     def _execute_parking_initial_forward(self, msg: LaserScan, target_dist: float, is_outer: bool, next_step: Enum):
         """
