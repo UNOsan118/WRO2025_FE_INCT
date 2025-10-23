@@ -169,7 +169,7 @@ class ObstacleNavigatorNode(Node):
         self.save_debug_images = True
         self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images'
         self.max_valid_range_m = 3.0
-        self.max_turns = 12 #12
+        self.max_turns = 4 #12
         
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
@@ -1439,6 +1439,35 @@ class ObstacleNavigatorNode(Node):
                 throttle_duration_sec=1.0
             )
 
+        if self.wall_segment_index == 0 and not disable_dist_control:
+            # Get side wall distances
+            if self.direction == 'ccw':
+                inner_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+                outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+            else: # cw
+                inner_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+                outer_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+            
+            inner_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
+            outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+
+            if not math.isnan(inner_dist) and not math.isnan(outer_dist):
+                course_width = inner_dist + outer_dist
+                if course_width < 0.9:
+                    disable_dist_control = True
+                    self.get_logger().warn(
+                        f"Start Segment: Abnormal course width ({course_width:.2f}m), using IMU_ONLY.", 
+                        throttle_duration_sec=0.2
+                    )
+            elif not math.isnan(outer_dist):
+                disable_dist_control = False
+            else:
+                disable_dist_control = True
+                self.get_logger().warn(
+                    "Start Segment: One side wall not visible, using IMU_ONLY.",
+                    throttle_duration_sec=0.2
+                )
+
         # Driving logic is common for all scenarios.
         speed = self.forward_speed * 0.7 if self.turn_count == 0 else self.forward_speed
         self._execute_pid_alignment(
@@ -1973,8 +2002,7 @@ class ObstacleNavigatorNode(Node):
     # --- Turning Sub-States ---
     def _handle_turning_sub_positioning_reverse(self, msg: LaserScan):
         """
-        Sub-state: Before approaching, reverse straight until the robot is in
-        a standard position to start the turn maneuver.
+        Sub-state: Reverse to a dynamically calculated position, with a failsafe.
         """
         front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
 
@@ -1983,9 +2011,12 @@ class ObstacleNavigatorNode(Node):
             self.publish_twist_with_gain(-self.course_detection_slow_speed * 0.8, 0.0)
             return
 
-        # --- Check the two completion conditions ---
-        condition1 = 0.85 < front_dist < 0.95
+        # --- Condition 1 (New): Dynamic distance based on next step ---
+        approach_trigger_dist, _, _, _ = self._get_turn_strategy()
+        reverse_target_dist = approach_trigger_dist + 0.05
+        condition_dynamic = front_dist >= reverse_target_dist
 
+        # --- Condition 2 (Original): Failsafe based on side walls ---
         if self.direction == 'ccw':
             left_angle = self._angle_normalize(self.approach_base_yaw_deg + 90.0)
             right_angle = self._angle_normalize(self.approach_base_yaw_deg - 90.0)
@@ -1996,15 +2027,21 @@ class ObstacleNavigatorNode(Node):
         left_dist = self.get_distance_at_world_angle(msg, left_angle)
         right_dist = self.get_distance_at_world_angle(msg, right_angle)
 
-        condition2 = False
+        condition2_failsafe = False
         if not math.isnan(left_dist) and not math.isnan(right_dist):
             side_dist_sum = left_dist + right_dist
-            if side_dist_sum <= 1.0 and front_dist > 0.8:
-                condition2 = True
+            # This triggers if the robot is "squeezed" in the corner entry
+            if side_dist_sum <= 1.0 and front_dist > (approach_trigger_dist - 0.1):
+                condition2_failsafe = True
 
         # --- If either condition is met, move to APPROACH_CORNER ---
-        if condition1 or condition2:
-            self.get_logger().info(f"Positioning reverse complete (Front: {front_dist:.2f}m). Transitioning to APPROACH_CORNER.")
+        if condition_dynamic or condition2_failsafe:
+            log_reason = "Dynamic Dist" if condition_dynamic else "Failsafe"
+            self.get_logger().info(
+                f"Positioning reverse complete (Reason: {log_reason}, "
+                f"Target: >{reverse_target_dist:.2f}m, Actual: {front_dist:.2f}m). "
+                f"Transitioning to APPROACH_CORNER."
+            )
             self.publish_twist_with_gain(0.0, 0.0)
             self.turning_sub_state = TurningSubState.APPROACH_CORNER
         else:
@@ -2228,6 +2265,7 @@ class ObstacleNavigatorNode(Node):
             self.can_start_new_turn = False
             self.stable_alignment_counter = 0
             self.reorient_step = None # Reset for next time
+            self.wall_segment_index = 2  # A 180-degree turn effectively places us on segment 2 (0->1->2) in a CCW coordinate system.
             self.parking_sub_state = ParkingSubState.APPROACH_PARKING_START
 
     def _handle_parking_sub_lane_change_for_parking(self, msg: LaserScan):
