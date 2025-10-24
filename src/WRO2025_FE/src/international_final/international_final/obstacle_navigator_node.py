@@ -166,7 +166,7 @@ class ObstacleNavigatorNode(Node):
         self.save_debug_images = True
         self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images'
         self.max_valid_range_m = 3.0
-        self.max_turns = 4 #12
+        self.max_turns = 12 #12
         
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
@@ -183,8 +183,9 @@ class ObstacleNavigatorNode(Node):
         # --- Unparking Sequence ---
         self.unparking_speed = 0.05
         self.unparking_initial_turn_deg = 55.0
-        self.unparking_exit_straight_dist_m = 0.33
-        self.unparking_cw_inner_dist_trigger_m = 0.5
+        self.unparking_exit_straight_dist_m = 0.28
+        self.unparking_exit_straight_speed = 0.10
+        self.unparking_cw_inner_dist_trigger_m = 0.55
         self.unparking_ccw_front_dist_trigger_m = 0.94
 
         # --- Camera & Vision ---
@@ -220,7 +221,7 @@ class ObstacleNavigatorNode(Node):
         
         # --- Alignment (PID) ---
         self.align_kp_angle = 0.02 # 0.04
-        self.align_kp_dist = 3.75 # 7.5
+        self.align_kp_dist = 5.0 # 3.75 # 7.5
         self.align_target_outer_dist_m = 0.2
         self.align_target_outer_dist_start_area_m = 0.39
         self.align_target_inner_dist_m = 0.2
@@ -251,13 +252,13 @@ class ObstacleNavigatorNode(Node):
         self.turn_outer_to_inner_turn_speed = 0.15
 
         # For Outer -> Inner (Clear) 
-        self.turn_outer_to_inner_clear_dist_m = 0.8
+        self.turn_outer_to_inner_clear_dist_m = 0.85
         self.turn_outer_to_inner_clear_angle_deg = 90.0 
         self.turn_outer_to_inner_clear_approach_speed = 0.18
         self.turn_outer_to_inner_clear_turn_speed = 0.15
 
         # For Inner -> Outer 
-        self.turn_inner_to_outer_dist_m = 0.3
+        self.turn_inner_to_outer_dist_m = 0.27
         self.turn_inner_to_outer_angle_deg = 90.0
         self.turn_inner_to_outer_approach_speed = 0.15
         self.turn_inner_to_outer_turn_speed = 0.15
@@ -275,7 +276,7 @@ class ObstacleNavigatorNode(Node):
         self.turn_inner_to_inner_turn_speed = 0.1
 
         # For Inner -> Inner (Clear)
-        self.turn_inner_to_inner_clear_dist_m = 0.80
+        self.turn_inner_to_inner_clear_dist_m = 0.85
         self.turn_inner_to_inner_clear_angle_deg = 90.0
         self.turn_inner_to_inner_clear_approach_speed = 0.17
         self.turn_inner_to_inner_clear_turn_speed = 0.17
@@ -998,7 +999,7 @@ class ObstacleNavigatorNode(Node):
         front_dist = self.get_distance_at_world_angle(msg, front_angle_deg)
 
         # --- 2. Check for completion ---
-        target_dist = 1.1
+        target_dist = 1.12
         if not math.isnan(front_dist) and front_dist > target_dist:
             self.get_logger().info(
                 f"AVOIDANCE_REVERSE: Reverse complete. Front distance is now {front_dist:.2f}m."
@@ -1058,7 +1059,7 @@ class ObstacleNavigatorNode(Node):
             throttle_duration_sec=0.2
         )
 
-        straight_speed = self.unparking_speed
+        straight_speed = self.unparking_exit_straight_speed
         self.publish_twist_with_gain(straight_speed, final_steer)
 
     def _handle_unparking_sub_exit_straight_for_outer(self, msg: LaserScan):
@@ -1113,7 +1114,7 @@ class ObstacleNavigatorNode(Node):
             f"({completion_log_info}), Steer:{final_steer:.2f}",
             throttle_duration_sec=0.2
         )
-        self.publish_twist_with_gain(self.unparking_speed, final_steer)
+        self.publish_twist_with_gain(self.unparking_exit_straight_speed, final_steer)
 
     # --- Determine Course Sub-States (Legacy) ---
     def _handle_determine_sub_waiting_for_controller(self):
@@ -3864,11 +3865,11 @@ class ObstacleNavigatorNode(Node):
         Includes special handling for the final turn before parking.
         """
         next_segment_index = (self.wall_segment_index + 1) % len(self.avoidance_path_plan)
-        is_entering_final_segment = next_segment_index == self.max_turns % len(self.avoidance_path_plan) # Assuming parking segment is 
+        is_final_turn = (self.turn_count == self.max_turns - 1) # Assuming parking segment is 
 
         # --- 1. Determine the nature of the next path (outer or inner) ---
         is_next_path_outer = False # Default to inner for safety
-        if is_entering_final_segment and self.final_approach_lane_is_outer is not None:
+        if is_final_turn and self.final_approach_lane_is_outer is not None:
             # --- Special Case: Final turn before parking ---
             # Use the pre-determined flag for the most reliable decision.
             self.get_logger().info("Turn strategy: Using pre-determined flag for final segment approach.", throttle_duration_sec=1.0)
