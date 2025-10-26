@@ -3024,7 +3024,7 @@ class ObstacleNavigatorNode(Node):
         """
         Callback for pre-unparking detection. Processes the image, logs the result,
         and transitions to the next sub-state (INITIAL_TURN).
-        Includes a retry mechanism for image acquisition.
+        Now includes an INFINITE retry mechanism for image acquisition.
         """
         with self.state_lock:
             # Clean up the primary timer if it exists.
@@ -3038,29 +3038,22 @@ class ObstacleNavigatorNode(Node):
             if self.pre_detection_step != 1:
                 return
 
-            # --- ADDED: Frame acquisition check with retry logic ---
-            max_retries = 10 # Try for 0.5 seconds (10 * 50ms)
+            # --- Frame acquisition check with INFINITE retries ---
             if self.latest_frame is None:
-                if self.image_acquisition_retries < max_retries:
-                    self.image_acquisition_retries += 1
-                    self.get_logger().warn(
-                        f"Frame not available yet. Retrying in 50ms... ({self.image_acquisition_retries}/{max_retries})"
-                    )
-                    # Create a short timer to try again
-                    self.pre_detection_timer = self.create_timer(
-                        0.05, # 50ms
-                        self._process_pre_unparking_image_callback
-                    )
-                    return # Exit the function and wait for the retry timer
-                else:
-                    self.get_logger().error(
-                        "Failed to acquire image after multiple retries. Aborting unparking."
-                    )
-                    self.state = State.FINISHED
-                    return
-            # --- END OF ADDED SECTION ---
+                self.image_acquisition_retries += 1
+                self.get_logger().warn(
+                    f"Frame not available yet. Retrying in 200ms... (Attempt #{self.image_acquisition_retries})",
+                    throttle_duration_sec=1.0 # Log once per second to avoid spam
+                )
+                # Create a timer to try again. The interval is slightly longer
+                # to give the camera node more time to respawn if it has died.
+                self.pre_detection_timer = self.create_timer(
+                    0.2, # 200ms
+                    self._process_pre_unparking_image_callback
+                )
+                return # Exit the function and wait for the retry timer
 
-            self.get_logger().info("PRE-UNPARKING DETECT (Step 1): Image acquired. Processing image...")
+            self.get_logger().info("PRE-UNPARKING DETECT (Step 1): Image acquired successfully. Processing image...")
             
             # Reset retry counter for the next time
             self.image_acquisition_retries = 0

@@ -21,7 +21,9 @@ def generate_launch_description():
                 ('image_raw/compressedDepth', '/ascamera/camera_publisher/rgb0/compressedDepth'),
                 ('image_raw/theora', '/ascamera/camera_publisher/rgb0/image_raw/theora'),
                 ('camera_info', '/ascamera/camera_publisher/rgb0/camera_info'),
-            ]
+            ],
+            respawn=True,
+            respawn_delay=2.0
         )
 
     return LaunchDescription([camera_nodes])
