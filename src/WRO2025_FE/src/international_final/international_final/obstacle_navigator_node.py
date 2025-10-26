@@ -978,6 +978,11 @@ class ObstacleNavigatorNode(Node):
 
         # Calculate and log elapsed time, ensuring it only runs once.
         if self.start_time is not None:
+            # --- NEW: Cancel the main control loop timer ---
+            if self.control_loop_timer and not self.control_loop_timer.is_canceled():
+                self.get_logger().info("Run finished. Canceling main control loop timer.")
+                self.control_loop_timer.cancel()
+            
             end_time = self.get_clock().now()
             duration_total_seconds = (end_time - self.start_time).nanoseconds / 1e9
 
