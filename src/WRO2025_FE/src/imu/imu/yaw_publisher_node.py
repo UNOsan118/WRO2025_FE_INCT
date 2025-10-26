@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
 from sensor_msgs.msg import Imu
+from std_srvs.srv import Trigger
 import adafruit_bno055
 import json
 import os
@@ -142,7 +143,33 @@ class YawPublisher(Node):
         # --- Main Timer ---
         self.timer = self.create_timer(1.0 / publish_rate, self.timer_callback)
         self.get_logger().info(f"Yaw publisher started in IMU_MODE. Waiting for first movement to switch to NDOF.")
+    
+        # --- Initialization Complete Service ---
+        self.is_initialized = False
+        self.init_finish_service = self.create_service(
+            Trigger,
+            '~/init_finish',
+            self.init_finish_callback
+        )
 
+        # Mark initialization as complete at the end of __init__
+        self.is_initialized = True
+        self.get_logger().info("Yaw publisher initialization complete. Service is now available.")
+
+    def init_finish_callback(self, request, response):
+        """
+        Callback for the initialization-complete service.
+        Responds with success if the node has finished its setup.
+        """
+        if self.is_initialized:
+            response.success = True
+            response.message = "Yaw publisher is initialized and ready."
+        else:
+            # This case is unlikely if we set the flag at the end of __init__,
+            # but it's good practice for robustness.
+            response.success = False
+            response.message = "Yaw publisher is not yet initialized."
+        return response
 
     def quaternion_to_yaw_rad(self, quaternion):
         """Converts a quaternion (w, x, y, z) to yaw in radians."""
