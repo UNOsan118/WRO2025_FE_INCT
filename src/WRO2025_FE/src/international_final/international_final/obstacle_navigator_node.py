@@ -372,7 +372,7 @@ class ObstacleNavigatorNode(Node):
         # --- Stuck Detection and Recovery ---
         self.stuck_detector_enabled = True
         self.stuck_check_interval_sec = 0.25
-        self.stuck_duration_threshold_sec = 1.0
+        self.stuck_duration_threshold_sec = 0.5
         self.stuck_wall_collision_dist_m = 0.05
         
         # Phase 1: Speed Boost
@@ -382,8 +382,10 @@ class ObstacleNavigatorNode(Node):
         # Phase 2: Angular Reduction (Wiggle)
         self.recovery_angular_reduction_start_level = 3 # Start reducing angular after 3 failed speed boosts
         self.recovery_angular_reduction_step = 0.25 # Reduce angular by 25% each time
+        self.recovery_max_level = 7
 
         self.recovery_reverse_gain = -0.8
+        self.recovery_final_reverse_dist_m = 0.20
         
         self.stuck_motion_yaw_threshold_deg = 0.5
         self.stuck_motion_dist_threshold_m = 0.02
@@ -396,10 +398,12 @@ class ObstacleNavigatorNode(Node):
         self.recovery_gain = 1.0
         self.recovery_angular_gain = 1.0 # Add this for angular control
         self.stuck_level = 0 # Add this to track the number of failed attempts
+        self.is_in_final_recovery_reverse = False
+        self.stuck_position_for_reverse = None
+        self.final_reverse_start_dists = None
 
         # Internal state variables for the detector
         self.last_stuck_check_time = self.get_clock().now()
-        self.motion_command_start_time = None
         self.last_yaw_at_check = self.current_yaw_deg
         self.last_front_dist_at_check = -1.0
         self.recovery_gain = 1.0 # The dynamic gain, starts at 1.0 (no effect)
@@ -676,6 +680,12 @@ class ObstacleNavigatorNode(Node):
             if self.latest_scan_msg is None:
                 return
 
+            # --- Final Emergency Reverse takes highest priority ---
+            # If this flag is set, execute the reverse maneuver and skip all other logic.
+            if self.is_in_final_recovery_reverse:
+                self._execute_final_recovery_reverse(self.latest_scan_msg)
+                return 
+
             # --- Reset recovery gain on any state change ---
             current_sub_state_str = self._get_current_sub_state_str()
             if self.state is not self.last_state or current_sub_state_str != self.last_sub_state_str:
@@ -688,7 +698,6 @@ class ObstacleNavigatorNode(Node):
                     self.recovery_gain = 1.0
                     self.motion_command_start_time = None
                     self.successful_motion_start_time = None
-                    self.current_stuck_boost = self.stuck_kp_boost_initial
             
             self.last_state = self.state
             self.last_sub_state_str = current_sub_state_str
@@ -754,10 +763,7 @@ class ObstacleNavigatorNode(Node):
     def _update_recovery_gain(self, msg: LaserScan):
         """
         Periodically checks if the robot is stuck and adjusts recovery gains.
-        This runs at the end of every control loop.
-        It uses a multi-phase recovery strategy:
-        1. Speed Boost: Gradually increases linear speed.
-        2. Angular Reduction: Resets speed and gradually reduces angular speed.
+        If not stuck, it checks if recovery mode can be exited.
         """
         now = self.get_clock().now()
         if (now - self.last_stuck_check_time).nanoseconds / 1e9 < self.stuck_check_interval_sec:
@@ -765,23 +771,13 @@ class ObstacleNavigatorNode(Node):
 
         self.last_stuck_check_time = now
 
-        # --- Motion Detection (Stricter) ---
-        is_commanding_forward = self.last_published_linear > 0.05
-        
-        yaw_change = abs(self._angle_diff(self.current_yaw_deg, self.last_yaw_at_check))
-        is_rotating = yaw_change > self.stuck_motion_yaw_threshold_deg
-
-        front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg)
-        dist_change = 0.0
-        if not math.isnan(front_dist) and self.last_front_dist_at_check > 0:
-            dist_change = abs(front_dist - self.last_front_dist_at_check)
-        is_advancing = dist_change > self.stuck_motion_dist_threshold_m
-
-        is_moving = is_rotating or is_advancing
+        # --- Motion Detection ---
+        is_commanding_motion = self.last_published_linear > 0.05 or abs(self.last_published_angular) > 0.1
+        is_moving = self._check_for_recovery_exit(msg) # Reuse the checker function
 
         # --- Update Recovery Gains based on motion ---
-        if (is_commanding_forward or self.recovery_gain < 0) and not is_moving:
-            # STUCK: Start or continue the stuck timer
+        if (is_commanding_motion or self.recovery_gain < 0) and not is_moving: 
+            # STUCK: Start or continue the stuck timer and adjust gains
             if self.motion_command_start_time is None:
                 self.get_logger().warn("Stuck Detector: Motion command without movement. Starting timer...")
                 self.motion_command_start_time = now
@@ -791,56 +787,154 @@ class ObstacleNavigatorNode(Node):
             
             if duration_stuck > self.stuck_duration_threshold_sec:
                 self.get_logger().error(f"STUCK DETECTED for {duration_stuck:.1f}s!")
-                self.stuck_level += 1 # Increment stuck level
+                self.stuck_level += 1
                 
                 # --- Analyze reason and set recovery gains ---
-                # Case 1: Wall collision
+                front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg)
                 if math.isnan(front_dist) or front_dist < self.stuck_wall_collision_dist_m:
                     self.get_logger().error("Stuck Reason: Wall collision. Setting REVERSE gain.")
                     self.recovery_gain = self.recovery_reverse_gain
-                    self.recovery_angular_gain = 1.0 # No angular change for simple reverse
-                    self.stuck_level = 0 # Reset level after deciding to reverse
-                
-                # Case 3: Phase 2 - Angular Reduction (Wiggle)
+                    self.recovery_angular_gain = 1.0
+                    self.stuck_level = 0
+                elif self.stuck_level >= self.recovery_max_level:
+                    self.get_logger().fatal("STUCK RECOVERY FAILED. All attempts exhausted. Initiating final emergency reverse.")
+                    self.is_in_final_recovery_reverse = True
+                    self.stuck_position_for_reverse = {
+                        'yaw': self.current_yaw_deg,
+                        'front_dist': front_dist,
+                        'inner_dist': self.get_distance_at_world_angle(msg, self._angle_normalize(self.current_yaw_deg + 90.0)),
+                        'outer_dist': self.get_distance_at_world_angle(msg, self._angle_normalize(self.current_yaw_deg - 90.0))
+                    }
+                    self.recovery_gain = 1.0
+                    self.recovery_angular_gain = 1.0
+                    self.stuck_level = 0
+                    self.motion_command_start_time = None
                 elif self.stuck_level >= self.recovery_angular_reduction_start_level:
-                    self.get_logger().warn(f"Stuck Phase 2 (Attempt #{self.stuck_level}): Speed boost failed. Reducing angular command.")
-                    self.recovery_gain = 1.0 # Reset speed gain to normal
-                    
-                    # Reduce angular gain progressively
+                    self.get_logger().warn(f"Stuck Phase 2 (Attempt #{self.stuck_level}): Reducing angular command.")
+                    self.recovery_gain = 1.0
                     new_angular_gain = self.recovery_angular_gain - self.recovery_angular_reduction_step
-                    if new_angular_gain < 0:
-                        new_angular_gain = 0
-                    self.recovery_angular_gain = new_angular_gain
-                    
+                    self.recovery_angular_gain = max(0, new_angular_gain)
                     self.get_logger().warn(f"  -> New Angular Gain: {self.recovery_angular_gain:.2f}")
-
-                # Case 2: Phase 1 - Speed Boost
                 else:
                     self.get_logger().warn(f"Stuck Phase 1 (Attempt #{self.stuck_level}): Attempting speed boost.")
                     new_boost = 1.0 + (self.stuck_level * self.recovery_speed_boost_increment)
-                    if new_boost > self.recovery_speed_boost_max:
-                        new_boost = self.recovery_speed_boost_max
-                    self.recovery_gain = new_boost
-                    self.recovery_angular_gain = 1.0 # Ensure angular gain is normal during speed boost
-                    
+                    self.recovery_gain = min(new_boost, self.recovery_speed_boost_max)
+                    self.recovery_angular_gain = 1.0
                     self.get_logger().warn(f"  -> New Speed Gain: {self.recovery_gain:.2f}x")
 
-                # Reset timer to re-evaluate after another second
                 self.motion_command_start_time = now
         else:
-            # NOT STUCK: Reset everything
+            # NOT STUCK: If we are in recovery mode, this is our chance to exit.
             if self.recovery_gain != 1.0 or self.recovery_angular_gain != 1.0:
-                self.get_logger().info("Stuck Recovery: Motion detected or command stopped. Resetting all recovery gains.")
+                # --- Perform the actual reset and detailed logging here ---
+                yaw_change = abs(self._angle_diff(self.current_yaw_deg, self.last_yaw_at_check))
+                front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg)
+                dist_change = 0.0
+                if not math.isnan(front_dist) and self.last_front_dist_at_check > 0:
+                    dist_change = abs(front_dist - self.last_front_dist_at_check)
+
+                log_reason = ""
+                if yaw_change > self.stuck_motion_yaw_threshold_deg:
+                    log_reason += (f"ROTATION (Yaw: {self.last_yaw_at_check:.2f} -> {self.current_yaw_deg:.2f}, Change: {yaw_change:.2f} deg) ")
+                if dist_change > self.stuck_motion_dist_threshold_m:
+                    log_reason += (f"ADVANCEMENT (Front: {self.last_front_dist_at_check:.3f} -> {front_dist:.3f}, Change: {dist_change:.3f} m)")
+
+                self.get_logger().info(f"Stuck Recovery: Motion detected. Reason: {log_reason.strip()}. Resetting all gains.")
+                
+                self.motion_command_start_time = None
+                self.recovery_gain = 1.0
+                self.recovery_angular_gain = 1.0
+                self.stuck_level = 0
             
+            # If not in recovery mode, ensure timer is reset.
             self.motion_command_start_time = None
-            self.recovery_gain = 1.0
-            self.recovery_angular_gain = 1.0
-            self.stuck_level = 0
 
         # Update last known values for the next check
         self.last_yaw_at_check = self.current_yaw_deg
+        front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg) # Re-get front_dist
         if not math.isnan(front_dist):
             self.last_front_dist_at_check = front_dist
+
+    def _execute_final_recovery_reverse(self, msg: LaserScan):
+        """
+        Final resort recovery maneuver: reverse until clear of the stuck position.
+        """
+        # --- Initialize on the first run of this maneuver ---
+        if self.final_reverse_start_dists is None:
+            self.get_logger().info("Final Recovery: Storing initial wall distances.")
+            
+            # Use the yaw from the moment we got stuck as the reference angle
+            base_yaw = self.current_yaw_deg
+            if self.stuck_position_for_reverse and 'yaw' in self.stuck_position_for_reverse:
+                base_yaw = self.stuck_position_for_reverse['yaw']
+
+            # Store the current distances to the walls
+            self.final_reverse_start_dists = {
+                'front': self.get_distance_at_world_angle(msg, base_yaw),
+                'inner': self.get_distance_at_world_angle(msg, self._angle_normalize(base_yaw + 90.0)),
+                'outer': self.get_distance_at_world_angle(msg, self._angle_normalize(base_yaw - 90.0))
+            }
+            # Immediately start reversing on the first run
+            self.publish_twist_with_gain(-self.forward_speed * 0.5, 0.0)
+            return
+
+        # --- Check for completion on subsequent runs ---
+        base_yaw = self.stuck_position_for_reverse['yaw']
+        
+        current_front_dist = self.get_distance_at_world_angle(msg, base_yaw)
+        current_inner_dist = self.get_distance_at_world_angle(msg, self._angle_normalize(base_yaw + 90.0))
+        current_outer_dist = self.get_distance_at_world_angle(msg, self._angle_normalize(base_yaw - 90.0))
+        
+        # Calculate how much each distance has changed since we started reversing
+        dist_change_front = 0.0
+        if not math.isnan(current_front_dist) and not math.isnan(self.final_reverse_start_dists['front']):
+            dist_change_front = abs(current_front_dist - self.final_reverse_start_dists['front'])
+
+        dist_change_inner = 0.0
+        if not math.isnan(current_inner_dist) and not math.isnan(self.final_reverse_start_dists['inner']):
+            dist_change_inner = abs(current_inner_dist - self.final_reverse_start_dists['inner'])
+
+        dist_change_outer = 0.0
+        if not math.isnan(current_outer_dist) and not math.isnan(self.final_reverse_start_dists['outer']):
+            dist_change_outer = abs(current_outer_dist - self.final_reverse_start_dists['outer'])
+        
+        # If ANY of the distances have changed by more than the threshold, recovery is complete.
+        if (dist_change_front > self.recovery_final_reverse_dist_m or
+            dist_change_inner > self.recovery_final_reverse_dist_m or
+            dist_change_outer > self.recovery_final_reverse_dist_m):
+            
+            self.get_logger().warn("Final Recovery: Cleared stuck position by 20cm. Resuming normal operation.")
+            self.is_in_final_recovery_reverse = False
+            self.stuck_position_for_reverse = None
+            self.final_reverse_start_dists = None # Reset for next time
+            self.publish_twist_with_gain(0.0, 0.0)
+            return
+
+        # If not complete, continue reversing straight
+        self.get_logger().debug(f"Final Recovery: Reversing... (Dist changes: F:{dist_change_front:.2f}, I:{dist_change_inner:.2f}, O:{dist_change_outer:.2f})", throttle_duration_sec=0.5)
+        self.publish_twist_with_gain(-self.forward_speed * 0.5, 0.0)
+
+    def _check_for_recovery_exit(self, msg: LaserScan):
+        """
+        Checks if the robot is moving enough to justify exiting recovery mode.
+        This is a pure check function and does not modify any state.
+        Returns True if recovery can be exited, False otherwise.
+        """
+        # --- Motion Detection ---
+        # This uses the same strict thresholds as the main stuck detector.
+        yaw_change = abs(self._angle_diff(self.current_yaw_deg, self.last_yaw_at_check))
+        is_rotating = yaw_change > self.stuck_motion_yaw_threshold_deg
+
+        front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg)
+        dist_change = 0.0
+        if not math.isnan(front_dist) and self.last_front_dist_at_check > 0:
+            dist_change = abs(front_dist - self.last_front_dist_at_check)
+        is_advancing = dist_change > self.stuck_motion_dist_threshold_m
+        
+        is_moving = is_rotating or is_advancing
+
+        return is_moving
+
 
     def _get_current_sub_state_str(self) -> str:
         """Returns the name of the current sub-state as a string."""
@@ -865,33 +959,6 @@ class ObstacleNavigatorNode(Node):
                 return self.parking_sub_state.name
         else:
             return "" # For states like FINISHED, DETERMINE_COURSE etc.
-
-    def _check_for_recovery_exit(self, msg: LaserScan):
-        """
-        Checks if the robot is moving and resets the recovery gain if so.
-        """
-        # If we are not in recovery mode, do nothing.
-        if self.recovery_gain == 1.0:
-            self.motion_command_start_time = None # Also ensure main timer is reset
-            return
-            
-        # --- Motion Detection (same logic as in the main check) ---
-        yaw_change = abs(self._angle_diff(self.current_yaw_deg, self.last_yaw_at_check))
-        is_rotating = yaw_change > self.stuck_motion_yaw_threshold_deg
-
-        front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg)
-        dist_change = 0.0
-        if not math.isnan(front_dist) and self.last_front_dist_at_check > 0:
-            dist_change = abs(front_dist - self.last_front_dist_at_check)
-        is_advancing = dist_change > self.stuck_motion_dist_threshold_m
-        
-        is_moving = is_rotating or is_advancing
-
-        if is_moving:
-            # If ANY motion is detected while in recovery mode, reset everything immediately.
-            self.get_logger().info("Stuck Recovery: Motion detected. Resetting recovery gain to 1.0.")
-            self.recovery_gain = 1.0
-            self.motion_command_start_time = None
 
     # --- Main State Handlers ---
     def _handle_state_preparation(self, msg: LaserScan):
