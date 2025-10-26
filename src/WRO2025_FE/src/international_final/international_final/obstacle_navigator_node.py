@@ -63,6 +63,7 @@ class StraightSubState(Enum):
     ALIGN_WITH_INNER_WALL = auto()
     PLAN_NEXT_AVOIDANCE = auto()
     PRE_SCANNING_REVERSE = auto()
+    PRE_LANE_CHANGE_REVERSE = auto()
     EXECUTE_LANE_CHANGE = auto()
 
 class TurningSubState(Enum):
@@ -301,6 +302,9 @@ class ObstacleNavigatorNode(Node):
         self.avoid_inner_pass_thresh_m = 0.6
 
         # --- NEW: S-Curve Lane Change ---
+        self.pre_lc_reverse_target_dist_m = 1.55 # Target distance for pre-lane-change reverse
+        self.pre_lc_decision_threshold_dist_m = 1.9 # Threshold to decide between lane change or align
+
         self.lc_turn_angle_deg = 65.0  # Lane Change turn angle
         self.lc_turn_kp = 0.02         # P-gain for turning during lane change
         self.lc_step1_speed = 0.22
@@ -738,6 +742,8 @@ class ObstacleNavigatorNode(Node):
             self._handle_straight_sub_plan_next_avoidance(msg)
         elif self.straight_sub_state == StraightSubState.PRE_SCANNING_REVERSE:
             self._handle_straight_sub_pre_scanning_reverse(msg)
+        elif self.straight_sub_state == StraightSubState.PRE_LANE_CHANGE_REVERSE:
+            self._handle_straight_sub_pre_lane_change_reverse(msg)
         elif self.straight_sub_state == StraightSubState.EXECUTE_LANE_CHANGE:
             self._handle_straight_sub_execute_lane_change(msg)
 
@@ -1463,10 +1469,10 @@ class ObstacleNavigatorNode(Node):
                 path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='outer')
                 
                 # Only transition state if a lane change is required.
-                if path_type == 'outer_to_inner' and self.turn_count != self.max_turns:
-                    self.get_logger().info("--- (Align) Obstacle cleared. Initiating lane change [O->I]. ---")
-                    # Transition to the new lane change state
-                    self.straight_sub_state = StraightSubState.EXECUTE_LANE_CHANGE
+                if path_type == 'outer_to_inner':
+                    self.get_logger().info("--- (Align) Obstacle cleared. Initiating PRE-LANE-CHANGE REVERSE. ---")
+                    # Transition to the new pre-check reverse state
+                    self.straight_sub_state = StraightSubState.PRE_LANE_CHANGE_REVERSE
                     return
                 
                 # For a simple 'outer' avoidance, just reset the flag and continue alignment.
@@ -1551,10 +1557,10 @@ class ObstacleNavigatorNode(Node):
                 path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='inner')
                 
                 # Only transition state if a lane change is required.
-                if path_type == 'inner_to_outer' and self.turn_count != self.max_turns:
-                    self.get_logger().info("--- (Align) Obstacle cleared. Initiating lane change [I->O]. ---")
-                    # Transition to the new lane change state
-                    self.straight_sub_state = StraightSubState.EXECUTE_LANE_CHANGE
+                if path_type == 'inner_to_outer':
+                    self.get_logger().info("--- (Align) Obstacle cleared. Initiating PRE-LANE-CHANGE REVERSE. ---")
+                    # Transition to the new pre-check reverse state
+                    self.straight_sub_state = StraightSubState.PRE_LANE_CHANGE_REVERSE
                     return
 
                 # For a simple 'inner' avoidance, just reset the flag and continue alignment.
@@ -1620,6 +1626,58 @@ class ObstacleNavigatorNode(Node):
                     override_target_dist=override_dist,
                     disable_dist_control=True
                 )
+
+    def _handle_straight_sub_pre_lane_change_reverse(self, msg: LaserScan):
+        """
+        Sub-state: Reverses to a safe position before a lane change,
+        then decides whether to proceed with the lane change or revert to alignment.
+        """
+        base_angle_deg = self._calculate_base_angle()
+        front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
+
+        # If the front wall is already too close, abort the lane change immediately.
+        # This prevents reversing in a tight spot after passing an obstacle.
+        immediate_abort_dist = 0.65
+        if not math.isnan(front_dist) and front_dist < immediate_abort_dist:
+            self.get_logger().error(
+                f"Pre-LC Reverse: ABORTING. Front wall is too close ({front_dist:.2f}m) to safely reverse. "
+                "Reverting to alignment."
+            )
+            if self.last_avoidance_path_was_outer:
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+            else:
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+            return
+
+        # --- Phase 1: Reverse until the target distance is reached ---
+        if math.isnan(front_dist) or front_dist < self.pre_lc_reverse_target_dist_m:
+            self.get_logger().debug(f"Pre-LC Reverse: Reversing... (Front: {front_dist:.2f}m)", throttle_duration_sec=0.2)
+            
+            # Reverse straight back using PID alignment (IMU only)
+            self._execute_pid_alignment(
+                msg=msg,
+                base_angle_deg=base_angle_deg,
+                is_outer_wall=self.last_avoidance_path_was_outer,
+                speed=-self.forward_speed * 0.7,
+                disable_dist_control=True
+            )
+            return
+
+        # --- Phase 2: Reverse is complete. Make a decision. ---
+        self.get_logger().info(f"Pre-LC Reverse: Reverse complete (Front: {front_dist:.2f}m). Making decision.")
+        self.publish_twist_with_gain(0.0, 0.0) # Stop briefly
+
+        if front_dist > self.pre_lc_decision_threshold_dist_m:
+            # If front is very far, it was likely a false trigger. Revert to alignment.
+            self.get_logger().warn("Pre-LC Reverse: Front is too far. Canceling lane change and reverting to alignment.")
+            if self.last_avoidance_path_was_outer:
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+            else:
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+        else:
+            # Front distance is reasonable, proceed with the lane change.
+            self.get_logger().info("Pre-LC Reverse: Proceeding with lane change.")
+            self.straight_sub_state = StraightSubState.EXECUTE_LANE_CHANGE
 
     def _handle_straight_sub_execute_lane_change(self, msg: LaserScan):
         """
