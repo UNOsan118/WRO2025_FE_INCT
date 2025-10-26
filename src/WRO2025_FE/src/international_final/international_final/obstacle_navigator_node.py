@@ -1165,10 +1165,8 @@ class ObstacleNavigatorNode(Node):
         # --- 1. Determine target yaw and steer direction (No changes here) ---
         if self.direction == 'ccw':
             target_yaw_deg = self._angle_normalize(self.unparking_base_yaw_deg + self.unparking_initial_turn_deg)
-            steer = self.max_steer
         else: # cw
             target_yaw_deg = self._angle_normalize(self.unparking_base_yaw_deg - self.unparking_initial_turn_deg)
-            steer = -self.max_steer
 
         # --- 2. Check for completion ---
         yaw_error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
@@ -1210,6 +1208,11 @@ class ObstacleNavigatorNode(Node):
 
         # --- 4. Execute the turn (No changes here) ---
         turn_speed = self.unparking_speed
+        dynamic_max = self._get_dynamic_max_steer(turn_speed)
+        if self.direction == 'ccw':
+            steer = dynamic_max
+        else: # cw
+            steer = -dynamic_max
         self.publish_twist_with_gain(turn_speed, steer)
 
     def _handle_unparking_sub_avoidance_reverse(self, msg: LaserScan):
@@ -1275,7 +1278,10 @@ class ObstacleNavigatorNode(Node):
         # We only use the angle part of the PID control to go straight.
         angle_error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
         angle_steer = self.align_kp_angle * angle_error_deg
-        final_steer = max(min(angle_steer, self.max_steer), -self.max_steer)
+
+        straight_speed = self.unparking_exit_straight_speed
+        dynamic_max = self._get_dynamic_max_steer(straight_speed)
+        final_steer = max(min(angle_steer, dynamic_max), -dynamic_max)
 
         self.get_logger().debug(
             f"UNPARKING_STRAIGHT: TargetYaw:{target_yaw_deg:.1f}, CurrentYaw:{self.current_yaw_deg:.1f}, "
@@ -1283,7 +1289,6 @@ class ObstacleNavigatorNode(Node):
             throttle_duration_sec=0.2
         )
 
-        straight_speed = self.unparking_exit_straight_speed
         self.publish_twist_with_gain(straight_speed, final_steer)
 
     def _handle_unparking_sub_exit_straight_for_outer(self, msg: LaserScan):
@@ -1331,14 +1336,18 @@ class ObstacleNavigatorNode(Node):
         # --- 3. Execute PID-controlled straight movement ---
         angle_error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
         angle_steer = self.align_kp_angle * angle_error_deg
-        final_steer = np.clip(angle_steer, -self.max_steer, self.max_steer)
+
+        final_speed = self.unparking_exit_straight_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        final_steer = np.clip(angle_steer, -dynamic_max, dynamic_max)
 
         self.get_logger().debug(
             f"Unparking Straight (Outer): TargetYaw:{target_yaw_deg:.1f}, "
             f"({completion_log_info}), Steer:{final_steer:.2f}",
             throttle_duration_sec=0.2
         )
-        self.publish_twist_with_gain(self.unparking_exit_straight_speed, final_steer)
+
+        self.publish_twist_with_gain(final_speed, final_steer)
 
     # --- Determine Course Sub-States (Legacy) ---
     def _handle_determine_sub_waiting_for_controller(self):
@@ -1960,10 +1969,13 @@ class ObstacleNavigatorNode(Node):
         if self.direction == 'ccw':
             turn_direction *= -1.0
         target_yaw = self._angle_normalize(self.lane_change_base_yaw_deg + (self.lc_turn_angle_deg * turn_direction))
-
         yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
-        steer = np.clip(self.align_kp_angle * yaw_error_deg, -self.max_steer, self.max_steer)
-        self.publish_twist_with_gain(self.lc_step2_speed, steer)
+
+        final_speed = self.lc_step2_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        steer = np.clip(self.align_kp_angle * yaw_error_deg, -dynamic_max, dynamic_max)
+
+        self.publish_twist_with_gain(final_speed, steer)
 
     def _lane_change_step3_align(self, msg: LaserScan):
         """Lane Change Step 3: Turn back to align with the new lane."""
@@ -2337,9 +2349,6 @@ class ObstacleNavigatorNode(Node):
             steer_direction = -1.0
             
         final_steer = proportional_steer * steer_direction
-        
-        # Limit the steering to the maximum possible value
-        final_steer = np.clip(final_steer, -self.max_steer, self.max_steer)
 
         # --- Add Proportional Speed Control ---
         min_turn_speed = base_turn_speed * 0.7 # Minimum speed (e.g., 40% of original)
@@ -2347,9 +2356,11 @@ class ObstacleNavigatorNode(Node):
         # Calculate speed based on how close we are to the target
         # (angle_turned_deg / turn_amount_deg) goes from 0 to 1 as the turn progresses
         speed_reduction_factor = max(0, 1.0 - (angle_turned_deg / turn_amount_deg))
-        
         final_speed = min_turn_speed + (base_turn_speed - min_turn_speed) * speed_reduction_factor
-        # ------------------------------------
+
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        # Limit the steering to the maximum possible value
+        final_steer = np.clip(final_steer, -dynamic_max, dynamic_max)
 
         # --- 5. Continue turning with adjusted speed and steer ---
         self.publish_twist_with_gain(final_speed, final_steer)
@@ -2731,10 +2742,14 @@ class ObstacleNavigatorNode(Node):
         # P-control for steering while reversing
         # To turn the rear to the left while reversing, we need to steer right (positive steer).
         # A positive error (we need to turn left) should result in a positive steer.
-        turn_kp = 0.05 # Use a positive gain
-        steer = np.clip(turn_kp * yaw_error_deg, -self.max_steer, self.max_steer)
         
-        self.publish_twist_with_gain(self.parking_step1_reverse_speed, steer)
+        final_speed = self.parking_step1_reverse_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+
+        turn_kp = 0.05 # Use a positive gain
+        steer = np.clip(turn_kp * yaw_error_deg, -dynamic_max, dynamic_max)
+
+        self.publish_twist_with_gain(final_speed, steer)
 
     def _parking_step2_reverse_straight(self, msg: LaserScan):
         """
@@ -2757,11 +2772,14 @@ class ObstacleNavigatorNode(Node):
             
         # --- Drive straight back, maintaining the 45-degree angle ---
         yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
+
+        final_speed = self.parking_step2_reverse_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
         angle_steer = self.align_kp_angle * yaw_error_deg
-        final_steer = np.clip(angle_steer, -self.max_steer, self.max_steer)
-        
+        final_steer = np.clip(angle_steer, -dynamic_max, dynamic_max)
+
         self.get_logger().debug(f"Parking Step 2: Reversing straight... Front dist: {front_dist:.3f}m", throttle_duration_sec=0.2)
-        self.publish_twist_with_gain(self.parking_step2_reverse_speed, final_steer)
+        self.publish_twist_with_gain(final_speed, final_steer)
         
     def _parking_step3_align_turn(self, msg: LaserScan):
         """Parking Step 3: Reverse while turning to become parallel to the wall."""
@@ -2775,9 +2793,12 @@ class ObstacleNavigatorNode(Node):
             self.publish_twist_with_gain(0.0, 0.0)
             self.parking_maneuver_step = ParkingManeuverStep.STEP4_FINAL_ADJUST
             return
-            
+        
+        final_speed = self.parking_step3_reverse_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+
         # Reverse with opposite steering (full steer to the right)
-        self.publish_twist_with_gain(self.parking_step3_reverse_speed, -self.max_steer)
+        self.publish_twist_with_gain(final_speed, -dynamic_max)
 
     def _parking_step4_final_adjust(self, msg: LaserScan):
         """
@@ -2854,8 +2875,6 @@ class ObstacleNavigatorNode(Node):
             return True # Turn is complete
 
         # --- Proportional Steering Control ---
-        turn_kp = self.reorient_turn_kp
-        steer = np.clip(turn_kp * yaw_error_deg, -self.max_steer, self.max_steer)
 
         # --- Proportional Speed Control ---
         # The minimum speed maintains the same sign as the base speed.
@@ -2872,6 +2891,10 @@ class ObstacleNavigatorNode(Node):
         progress_ratio = min(1.0, angle_turned_deg / total_turn_angle)
         final_speed = base_speed - (base_speed - min_speed) * progress_ratio
         
+        turn_kp = self.reorient_turn_kp
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        steer = np.clip(turn_kp * yaw_error_deg, -dynamic_max, dynamic_max)
+
         # Execute the turn
         self.publish_twist_with_gain(final_speed, steer)
         return False # Turn is ongoing
@@ -3184,8 +3207,10 @@ class ObstacleNavigatorNode(Node):
             dist_steer = 0.0
             log_mode += "_IMU_ONLY"
         
+        final_speed = speed
         angular_z = angle_steer + dist_steer
-        final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        final_steer = max(min(angular_z, dynamic_max), -dynamic_max)
         
         self.get_logger().debug(
             f"{log_prefix}({log_mode}) | WallD: {wall_dist:.2f} | "
@@ -4261,6 +4286,30 @@ class ObstacleNavigatorNode(Node):
 
         # Return True if the deviation is less than the tolerance
         return yaw_deviation_deg < tolerance_deg
+
+    def _get_dynamic_max_steer(self, current_speed: float) -> float:
+        """
+        Calculates a dynamic maximum steering value based on the current speed.
+        This prevents overly sharp turns at low speeds.
+        """
+        # self.max_steer is the maximum allowable steer at self.forward_speed
+        base_speed = self.forward_speed
+        if base_speed < 0.01:
+             base_speed = 0.01 # Avoid division by zero
+
+        # Calculate the ratio of the current speed to the base speed
+        speed_ratio = abs(current_speed) / base_speed
+        
+        # The dynamic max steer is proportional to the speed ratio
+        dynamic_max_steer = self.max_steer * speed_ratio
+
+        # To prevent the max steer from becoming too small at very low speeds,
+        # set a minimum threshold. 0.3 is a sensible starting point.
+        min_allowable_steer = 0.3
+        
+        # Return the calculated value, but not less than the minimum,
+        # and not more than the absolute maximum.
+        return np.clip(dynamic_max_steer, min_allowable_steer, self.max_steer)
 
     # --- Misc Helpers ---
     def _get_state_specific_gain(self) -> float:
