@@ -63,6 +63,8 @@ class StraightSubState(Enum):
     ALIGN_WITH_INNER_WALL = auto()
     PLAN_NEXT_AVOIDANCE = auto()
     PRE_SCANNING_REVERSE = auto()
+    EXECUTE_LANE_CHANGE = auto()
+
     AVOID_OUTER_TURN_IN = auto()
     AVOID_INNER_TURN_IN = auto()
 
@@ -78,6 +80,11 @@ class ParkingSubState(Enum):
     LANE_CHANGE_FOR_PARKING = auto()
     APPROACH_PARKING_START = auto()   # Sub-state to move to the parking start position
     EXECUTE_PARKING_MANEUVER = auto()
+
+class LaneChangeStep(Enum):
+    TURN_1_INTO_LANE = auto()
+    STRAIGHT_ACROSS_LANE = auto()
+    TURN_2_ALIGN_LANE = auto()
 
 class ReorientStep(Enum):
     INITIAL_FORWARD_APPROACH = auto()
@@ -301,6 +308,17 @@ class ObstacleNavigatorNode(Node):
         self.avoid_inner_approach_target_dist_m = 0.25
         self.avoid_inner_pass_thresh_m = 0.6
 
+        # --- NEW: S-Curve Lane Change ---
+        self.lc_turn_angle_deg = 70.0  # Lane Change turn angle
+        self.lc_turn_kp = 0.02         # P-gain for turning during lane change
+        self.lc_step1_speed = 0.20
+        self.lc_step2_speed = 0.22
+        self.lc_step3_speed = 0.18
+        # Target distances for the straight part of the lane change
+        self.lc_target_dist_inner_m = 0.25
+        self.lc_target_dist_outer_m = 0.25
+        self.lc_target_dist_outer_start_area_m = 0.45
+
         # --- Parking ---
         # --- Prepare (U-Turn/Lane Change) ---
         # --- Reorientation (U-Turn) Maneuver ---
@@ -377,7 +395,15 @@ class ObstacleNavigatorNode(Node):
         self.start_area_avoidance_required = False
         self.last_valid_steer = 0.0
         self.is_in_avoidance_alignment = False
+
+        # --- Lane Change State ---
+        self.lane_change_step = None
+        self.lane_change_base_yaw_deg = 0.0
+        self.lane_change_target_is_outer = False
+
         self.lane_change_stability_counter = 0
+
+
 
         # State-specific variables
         self.unparking_base_yaw_deg = 0.0
@@ -720,6 +746,8 @@ class ObstacleNavigatorNode(Node):
             self._handle_straight_sub_plan_next_avoidance(msg)
         elif self.straight_sub_state == StraightSubState.PRE_SCANNING_REVERSE:
             self._handle_straight_sub_pre_scanning_reverse(msg)
+        elif self.straight_sub_state == StraightSubState.EXECUTE_LANE_CHANGE:
+            self._handle_straight_sub_execute_lane_change(msg)
         elif self.straight_sub_state == StraightSubState.AVOID_OUTER_TURN_IN:
             self._handle_straight_sub_avoid_outer_turn_in(msg)
         elif self.straight_sub_state == StraightSubState.AVOID_INNER_TURN_IN:
@@ -967,8 +995,9 @@ class ObstacleNavigatorNode(Node):
             
             elif self.unparking_strategy == UnparkingStrategy.STANDARD_EXIT_TO_INNER_LANE:
                 self.get_logger().info("Strategy requires inner lane. Transitioning to STRAIGHT state.")
-                self.state = State.STRAIGHT
-                self.straight_sub_state = StraightSubState.AVOID_INNER_TURN_IN
+                # self.state = State.STRAIGHT
+                # self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+                self.unparking_sub_state = UnparkingSubState.EXIT_STRAIGHT
 
             elif self.unparking_strategy == UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW:
                 self.get_logger().info("Strategy requires obstacle avoidance. Transitioning to EXIT_STRAIGHT.")
@@ -1448,10 +1477,9 @@ class ObstacleNavigatorNode(Node):
                 # Only transition state if a lane change is required.
                 if path_type == 'outer_to_inner' and self.turn_count != self.max_turns:
                     self.get_logger().info("--- (Align) Obstacle cleared. Initiating lane change [O->I]. ---")
-                    self._complete_avoidance_phase(
-                        next_sub_state=StraightSubState.AVOID_INNER_TURN_IN,
-                        path_was_outer=True)
-                    return # A state transition occurred, so exit this loop iteration.
+                    # Transition to the new lane change state
+                    self.straight_sub_state = StraightSubState.EXECUTE_LANE_CHANGE
+                    return
                 
                 # For a simple 'outer' avoidance, just reset the flag and continue alignment.
                 self.get_logger().info("--- (Align) Outer avoidance complete. Resuming normal alignment. ---")
@@ -1537,10 +1565,9 @@ class ObstacleNavigatorNode(Node):
                 # Only transition state if a lane change is required.
                 if path_type == 'inner_to_outer' and self.turn_count != self.max_turns:
                     self.get_logger().info("--- (Align) Obstacle cleared. Initiating lane change [I->O]. ---")
-                    self._complete_avoidance_phase(
-                        next_sub_state=StraightSubState.AVOID_OUTER_TURN_IN,
-                        path_was_outer=False)
-                    return # A state transition occurred, so exit this loop iteration.
+                    # Transition to the new lane change state
+                    self.straight_sub_state = StraightSubState.EXECUTE_LANE_CHANGE
+                    return
 
                 # For a simple 'inner' avoidance, just reset the flag and continue alignment.
                 self.get_logger().info("--- (Align) Inner avoidance complete. Resuming normal alignment. ---")
@@ -1829,6 +1856,116 @@ class ObstacleNavigatorNode(Node):
                     override_target_dist=override_dist,
                     disable_dist_control=True
                 )
+
+    def _handle_straight_sub_execute_lane_change(self, msg: LaserScan):
+        """
+        Sub-state: Executes a smooth S-curve lane change maneuver.
+        """
+        # --- Initialize on first entry ---
+        if self.lane_change_step is None:
+            self.get_logger().info("--- Initializing S-Curve Lane Change ---")
+            self.lane_change_base_yaw_deg = self._calculate_base_angle()
+            
+            # Determine target lane based on current lane
+            self.lane_change_target_is_outer = not self.last_avoidance_path_was_outer
+            
+            log_dir = "I->O" if self.lane_change_target_is_outer else "O->I"
+            self.get_logger().info(f"Lane Change Direction: [{log_dir}]")
+
+            self.lane_change_step = LaneChangeStep.TURN_1_INTO_LANE
+            self.can_start_new_turn = False # Disable corner detection during maneuver
+            self.stable_alignment_counter = 0
+
+        # --- Dispatch to the correct step handler ---
+        if self.lane_change_step == LaneChangeStep.TURN_1_INTO_LANE:
+            self._lane_change_step1_turn(msg)
+        elif self.lane_change_step == LaneChangeStep.STRAIGHT_ACROSS_LANE:
+            self._lane_change_step2_straight(msg)
+        elif self.lane_change_step == LaneChangeStep.TURN_2_ALIGN_LANE:
+            self._lane_change_step3_align(msg)
+
+    def _lane_change_step1_turn(self, msg: LaserScan):
+        """Lane Change Step 1: Turn to the specified angle."""
+        turn_direction = 1.0 if self.lane_change_target_is_outer else -1.0
+        # For CW, turning "outer" is negative yaw, "inner" is positive.
+        if self.direction == 'ccw':
+            turn_direction *= -1.0
+        
+        target_yaw = self._angle_normalize(self.lane_change_base_yaw_deg + (self.lc_turn_angle_deg * turn_direction))
+        
+        is_complete = self._execute_p_controlled_turn(
+            target_yaw_deg=target_yaw,
+            tolerance_deg=5.0,
+            base_yaw_deg=self.lane_change_base_yaw_deg,
+            turn_angle_deg=self.lc_turn_angle_deg,
+            base_speed=self.lc_step1_speed
+        )
+        
+        if is_complete:
+            self.get_logger().info("LC Step 1 (Turn): Complete.")
+            self.lane_change_step = LaneChangeStep.STRAIGHT_ACROSS_LANE
+
+    def _lane_change_step2_straight(self, msg: LaserScan):
+        """Lane Change Step 2: Drive straight until target wall is close."""
+        # Determine which wall to measure and its angle
+        if self.lane_change_target_is_outer:
+            is_measuring_outer_wall = True
+            if self.wall_segment_index == 0:
+                target_dist = self.lc_target_dist_outer_start_area_m
+            else:
+                target_dist = self.lc_target_dist_outer_m
+        else: # Target is Inner
+            is_measuring_outer_wall = False
+            target_dist = self.lc_target_dist_inner_m
+            
+        # Get wall angle based on the base yaw of the straight segment
+        if is_measuring_outer_wall:
+             wall_offset = -90.0 if self.direction == 'ccw' else 90.0
+        else: # Inner
+             wall_offset = 90.0 if self.direction == 'ccw' else -90.0
+        wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg + wall_offset)
+        wall_dist = self.get_distance_at_world_angle(msg, wall_angle)
+
+        # Check for completion
+        if not math.isnan(wall_dist) and wall_dist < target_dist:
+            self.get_logger().info(f"LC Step 2 (Straight): Complete (WallDist: {wall_dist:.2f}m).")
+            self.lane_change_step = LaneChangeStep.TURN_2_ALIGN_LANE
+            self.publish_twist_with_gain(0.0, 0.0)
+            return
+            
+        # Drive straight at the angle from Step 1
+        turn_direction = 1.0 if self.lane_change_target_is_outer else -1.0
+        if self.direction == 'ccw':
+            turn_direction *= -1.0
+        target_yaw = self._angle_normalize(self.lane_change_base_yaw_deg + (self.lc_turn_angle_deg * turn_direction))
+
+        yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
+        steer = np.clip(self.align_kp_angle * yaw_error_deg, -self.max_steer, self.max_steer)
+        self.publish_twist_with_gain(self.lc_step3_speed, steer)
+
+    def _lane_change_step3_align(self, msg: LaserScan):
+        """Lane Change Step 3: Turn back to align with the new lane."""
+        target_yaw = self.lane_change_base_yaw_deg
+
+        is_complete = self._execute_p_controlled_turn(
+            target_yaw_deg=target_yaw,
+            tolerance_deg=5.0,
+            base_yaw_deg=self._angle_normalize(target_yaw - (self.lc_turn_angle_deg * np.sign(self.current_yaw_deg - target_yaw))), # Approx start angle
+            turn_angle_deg=self.lc_turn_angle_deg,
+            base_speed=self.lc_step2_speed
+        )
+        
+        if is_complete:
+            self.get_logger().info("LC Step 3 (Align): Complete. Lane change finished.")
+            # Finalize the lane change
+            self.lane_change_step = None
+            self.is_in_avoidance_alignment = True # Mark as being in alignment after avoidance
+            self.last_avoidance_path_was_outer = self.lane_change_target_is_outer
+            
+            if self.lane_change_target_is_outer:
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+            else:
+                self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
 
     def _handle_straight_sub_plan_next_avoidance(self, msg: LaserScan):
         """
