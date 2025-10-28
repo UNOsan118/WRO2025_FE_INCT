@@ -234,8 +234,7 @@ class ObstacleNavigatorNode(Node):
 
         # --- Turning ---
         self.pre_scanning_reverse_target_dist_m = 0.7
-        self.turn_forward_speed = 0.15
-        self.turn_speed = 0.15
+        self.turn_positioning_reverse_speed = 0.2
         
         # Format: self.turn_[current_lane]_to_[next_lane]_[value]
         # For Outer -> Outer 
@@ -309,7 +308,7 @@ class ObstacleNavigatorNode(Node):
         self.lc_turn_kp = 0.02         # P-gain for turning during lane change
         self.lc_step1_speed = 0.22
         self.lc_step2_speed = 0.21
-        self.lc_step3_speed = 0.24
+        self.lc_step3_speed = 0.22
         # Target distances for the straight part of the lane change
         self.lc_target_dist_inner_m = 0.28
         self.lc_target_dist_outer_m = 0.25
@@ -337,12 +336,12 @@ class ObstacleNavigatorNode(Node):
         self.parking_approach_slow_speed = 0.05     # Slower speed for final approach
 
         # --- Final Parking ---
-        self.parking_step1_reverse_speed = -0.05
+        self.parking_step1_reverse_speed = -0.1
         self.parking_step1_target_angle_deg = 60.0
-        self.parking_step2_reverse_speed = -0.05
+        self.parking_step2_reverse_speed = -0.1
         self.parking_step2_front_dist_trigger_m = 0.97
-        self.parking_step3_reverse_speed = -0.05
-        self.parking_step4_forward_speed = 0.05
+        self.parking_step3_reverse_speed = -0.1
+        self.parking_step4_forward_speed = 0.1
 
         # --- Legacy Determine Course ---
         self.course_detection_threshold_m = 1.5
@@ -363,6 +362,7 @@ class ObstacleNavigatorNode(Node):
         self.current_yaw_deg = 0.0
         self.latest_scan_msg = None
         self.latest_frame = None
+        self.force_start_debug_mode = False
 
         # Rate Limiter state
         self.last_published_linear = 0.0
@@ -441,7 +441,6 @@ class ObstacleNavigatorNode(Node):
         self.last_sub_state_str = ""
 
 
-
         # State-specific variables
         self.unparking_base_yaw_deg = 0.0
         self.pre_detection_step = 0 # 0=start, 1=waiting
@@ -515,11 +514,13 @@ class ObstacleNavigatorNode(Node):
         # ==================
 
         # --- FOR DEBUGGING: Force start from PARKING state ---
-        force_start_from_parking = False # True -> Parking mode
+        force_start_from_parking = True # True -> Parking Test mode
         if force_start_from_parking:
             self.get_logger().warn("############################################################")
             self.get_logger().warn("##  DEBUG MODE: Forcing start from PARKING in 5 seconds...  ##")
             self.get_logger().warn("############################################################")
+
+            self.force_start_debug_mode = True
 
             # Temporarily set the state to FINISHED to prevent any movement
             self.state = State.FINISHED
@@ -1046,7 +1047,7 @@ class ObstacleNavigatorNode(Node):
         # Calculate and log elapsed time, ensuring it only runs once.
         if self.start_time is not None:
             # --- NEW: Cancel the main control loop timer ---
-            if self.control_loop_timer and not self.control_loop_timer.is_canceled():
+            if self.control_loop_timer and not self.control_loop_timer.is_canceled() and not self.force_start_debug_mode:
                 self.get_logger().info("Run finished. Canceling main control loop timer.")
                 self.control_loop_timer.cancel()
             
@@ -2337,7 +2338,7 @@ class ObstacleNavigatorNode(Node):
                     msg,
                     self.approach_base_yaw_deg,
                     is_outer_wall=True,
-                    speed=-self.forward_speed * 0.7,
+                    speed=-self.turn_positioning_reverse_speed,
                     disable_dist_control=True
                 )
             else:
@@ -2347,7 +2348,7 @@ class ObstacleNavigatorNode(Node):
                     msg,
                     self.approach_base_yaw_deg,
                     is_outer_wall=True, # Forcibly use the outer wall
-                    speed=-self.forward_speed * 0.7,
+                    speed=-self.turn_positioning_reverse_speed,
                     override_target_dist=override_dist,
                     disable_dist_control=True
                 )
