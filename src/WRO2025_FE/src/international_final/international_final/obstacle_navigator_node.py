@@ -332,7 +332,7 @@ class ObstacleNavigatorNode(Node):
         # --- Approach ---
         self.parking_approach_target_outer_dist_m = 0.32
         self.parking_approach_slowdown_dist_m = 1.3  # Distance to start slowing down
-        self.parking_approach_final_stop_dist_m = 0.78  # Final target distance
+        self.parking_approach_final_stop_dist_m = 0.81 # 0.78  # Final target distance
         self.parking_approach_yaw_tolerance_deg = 10.0 # Max yaw deviation to complete approach
         self.parking_approach_min_front_dist_m = 0.6 # Min front dist to avoid false trigger
         self.parking_approach_slow_speed = 0.05     # Slower speed for final approach
@@ -2673,7 +2673,7 @@ class ObstacleNavigatorNode(Node):
         # --- Safety Checks (use_imu_only) ---
         use_imu_only = False
         # If we are in the slowdown zone, it's safer to use IMU only for alignment.
-        if not math.isnan(front_dist) and front_dist < self.parking_approach_slowdown_dist_m:
+        if not math.isnan(front_dist) and 0.97 < front_dist < 1.05: 
             use_imu_only = True
         
         # Additional safety check for abnormal course width
