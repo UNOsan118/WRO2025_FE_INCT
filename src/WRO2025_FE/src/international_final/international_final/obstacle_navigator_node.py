@@ -2949,20 +2949,22 @@ class ObstacleNavigatorNode(Node):
         # --- Proportional Steering Control ---
 
         # --- Proportional Speed Control ---
-        # The minimum speed maintains the same sign as the base speed.
+        # This new logic does not depend on base_yaw_deg, making it more robust.
         min_speed = base_speed * 0.5
-        
-        # Calculate how much of the turn has been completed
-        angle_turned_deg = abs(self._angle_diff(self.current_yaw_deg, base_yaw_deg))
         
         total_turn_angle = abs(turn_angle_deg)
         if total_turn_angle < 1.0:
-            total_turn_angle = 1.0
+            total_turn_angle = 1.0 # Avoid division by zero
+            
+        # This ratio goes from 0.0 (far from target) to 1.0 (close to target)
+        # It represents how much the turn has been "completed".
+        completion_ratio = 1.0 - (abs(yaw_error_deg) / total_turn_angle)
+        completion_ratio = np.clip(completion_ratio, 0.0, 1.0)
         
-        # Calculate speed reduction based on progress
-        progress_ratio = min(1.0, angle_turned_deg / total_turn_angle)
-        final_speed = base_speed - (base_speed - min_speed) * progress_ratio
+        # Linearly interpolate speed from base_speed (at the start) down to min_speed (at the end)
+        final_speed = base_speed - (base_speed - min_speed) * completion_ratio
         
+        # --- Steering Control (no changes) ---
         turn_kp = self.reorient_turn_kp
         dynamic_max = self._get_dynamic_max_steer(final_speed)
         steer = np.clip(turn_kp * yaw_error_deg, -dynamic_max, dynamic_max)
