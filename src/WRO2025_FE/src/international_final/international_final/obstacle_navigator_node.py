@@ -333,6 +333,8 @@ class ObstacleNavigatorNode(Node):
         self.parking_approach_target_outer_dist_m = 0.32
         self.parking_approach_slowdown_dist_m = 1.3  # Distance to start slowing down
         self.parking_approach_final_stop_dist_m = 0.78  # Final target distance
+        self.parking_approach_yaw_tolerance_deg = 10.0 # Max yaw deviation to complete approach
+        self.parking_approach_min_front_dist_m = 0.6 # Min front dist to avoid false trigger
         self.parking_approach_slow_speed = 0.05     # Slower speed for final approach
 
         # --- Final Parking ---
@@ -2622,9 +2624,20 @@ class ObstacleNavigatorNode(Node):
         base_angle_deg = self._calculate_base_angle()
         front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
 
-        # --- Check for completion ---
-        if not math.isnan(front_dist) and front_dist < self.parking_approach_final_stop_dist_m:
-            self.get_logger().warn(f"Approach Parking: Final position reached (Dist: {front_dist:.3f}m).")
+        # --- Check for completion with multiple safety conditions ---
+        yaw_deviation_deg = abs(self._angle_diff(self.current_yaw_deg, base_angle_deg))
+        
+        # Condition 1: Robot is sufficiently aligned with the wall
+        is_aligned = yaw_deviation_deg < self.parking_approach_yaw_tolerance_deg
+        
+        # Condition 2: Front distance is within the valid target window
+        is_dist_in_window = (not math.isnan(front_dist) and
+                             self.parking_approach_min_front_dist_m < front_dist < self.parking_approach_final_stop_dist_m)
+
+        if is_aligned and is_dist_in_window:
+            self.get_logger().warn(
+                f"Approach Parking: Final position reached (Dist: {front_dist:.3f}m, YawDev: {yaw_deviation_deg:.1f}deg)."
+            )
             self.publish_twist_with_gain(0.0, 0.0)
 
             # Store the current yaw as the base for the final parking maneuver
