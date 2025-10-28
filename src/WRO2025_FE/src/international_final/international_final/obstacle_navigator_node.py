@@ -175,7 +175,7 @@ class ObstacleNavigatorNode(Node):
         
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
-        self.max_steer = 1.2 # 1.0
+        self.max_steer = 1.2 # 1.2
         self.declare_parameter('gain', 2.0)
         self.gain_straight_align_outer_wall = 1.0
         self.gain_straight_align_inner_wall = 1.0
@@ -186,7 +186,7 @@ class ObstacleNavigatorNode(Node):
         self.max_angular_acceleration_rad = 7000.0 # rad/s^2 past:70
 
         # --- Unparking Sequence ---
-        self.unparking_speed = 0.05
+        self.unparking_speed = 0.1 #0.05
         self.unparking_initial_turn_deg = 55.0
         self.unparking_exit_straight_dist_m = 0.28
         self.unparking_exit_straight_speed = 0.10
@@ -277,8 +277,8 @@ class ObstacleNavigatorNode(Node):
         # For Inner -> Inner 
         self.turn_inner_to_inner_dist_m = 0.85
         self.turn_inner_to_inner_angle_deg = 90.0
-        self.turn_inner_to_inner_approach_speed = 0.1
-        self.turn_inner_to_inner_turn_speed = 0.1
+        self.turn_inner_to_inner_approach_speed = 0.13
+        self.turn_inner_to_inner_turn_speed = 0.15
 
         # For Inner -> Inner (Clear)
         self.turn_inner_to_inner_clear_dist_m = 0.85
@@ -369,6 +369,45 @@ class ObstacleNavigatorNode(Node):
         self.last_published_angular = 0.0
         self.last_cmd_pub_time = self.get_clock().now()
 
+        # --- Stuck Detection and Recovery ---
+        self.stuck_detector_enabled = True
+        self.stuck_check_interval_sec = 0.25
+        self.stuck_duration_threshold_sec = 0.5
+        self.stuck_wall_collision_dist_m = 0.05
+        
+        # Phase 1: Speed Boost
+        self.recovery_speed_boost_increment = 0.5
+        self.recovery_speed_boost_max = 3.0 # Max speed multiplier
+        
+        # Phase 2: Angular Reduction (Wiggle)
+        self.recovery_angular_reduction_start_level = 3 # Start reducing angular after 3 failed speed boosts
+        self.recovery_angular_reduction_step = 0.25 # Reduce angular by 25% each time
+        self.recovery_max_level = 7
+
+        self.recovery_reverse_gain = -0.8
+        self.recovery_final_reverse_dist_m = 0.20
+        
+        self.stuck_motion_yaw_threshold_deg = 0.5
+        self.stuck_motion_dist_threshold_m = 0.02
+        
+        # Internal state variables for the detector
+        self.last_stuck_check_time = self.get_clock().now()
+        self.motion_command_start_time = None
+        self.last_yaw_at_check = self.current_yaw_deg
+        self.last_front_dist_at_check = -1.0
+        self.recovery_gain = 1.0
+        self.recovery_angular_gain = 1.0 # Add this for angular control
+        self.stuck_level = 0 # Add this to track the number of failed attempts
+        self.is_in_final_recovery_reverse = False
+        self.stuck_position_for_reverse = None
+        self.final_reverse_start_dists = None
+
+        # Internal state variables for the detector
+        self.last_stuck_check_time = self.get_clock().now()
+        self.last_yaw_at_check = self.current_yaw_deg
+        self.last_front_dist_at_check = -1.0
+        self.recovery_gain = 1.0 # The dynamic gain, starts at 1.0 (no effect)
+
         # Dynamic Tilt state
         self.servo_units_per_degree = 1000.0 / 90.0
         self.last_tilt_update_time = self.get_clock().now()
@@ -398,6 +437,8 @@ class ObstacleNavigatorNode(Node):
         self.lane_change_target_is_outer = False
 
         self.lane_change_stability_counter = 0
+        self.last_state = self.state 
+        self.last_sub_state_str = ""
 
 
 
@@ -639,6 +680,28 @@ class ObstacleNavigatorNode(Node):
             if self.latest_scan_msg is None:
                 return
 
+            # --- Final Emergency Reverse takes highest priority ---
+            # If this flag is set, execute the reverse maneuver and skip all other logic.
+            if self.is_in_final_recovery_reverse:
+                self._execute_final_recovery_reverse(self.latest_scan_msg)
+                return 
+
+            # --- Reset recovery gain on any state change ---
+            current_sub_state_str = self._get_current_sub_state_str()
+            if self.state is not self.last_state or current_sub_state_str != self.last_sub_state_str:
+                if self.recovery_gain != 1.0:
+                    self.get_logger().warn(
+                        f"State changed from {self.last_state.name}:{self.last_sub_state_str} "
+                        f"to {self.state.name}:{current_sub_state_str}. "
+                        "Forcibly resetting recovery gain to 1.0."
+                    )
+                    self.recovery_gain = 1.0
+                    self.motion_command_start_time = None
+                    self.successful_motion_start_time = None
+            
+            self.last_state = self.state
+            self.last_sub_state_str = current_sub_state_str
+
             # Use the stored message for all logic in this loop iteration.
             # This prevents data from changing mid-calculation.
             msg = self.latest_scan_msg
@@ -658,6 +721,11 @@ class ObstacleNavigatorNode(Node):
                 self._handle_state_straight(msg)
             elif self.state == State.PARKING:
                 self._handle_state_parking(msg)
+
+            # --- NEW: Stuck Detection and Gain Adjustment ---
+            # This is called at the end of the loop, after a command has been published.
+            if self.stuck_detector_enabled:
+                self._update_recovery_gain(msg)
 
     def scan_callback(self, msg):
         """Callback for LaserScan data. Only saves the latest message."""
@@ -691,6 +759,206 @@ class ObstacleNavigatorNode(Node):
             except CvBridgeError as e:
                 self.get_logger().error(f'CV Bridge Error: {e}')
 
+    # --- Stuck Detection and Recovery Helper ---
+    def _update_recovery_gain(self, msg: LaserScan):
+        """
+        Periodically checks if the robot is stuck and adjusts recovery gains.
+        If not stuck, it checks if recovery mode can be exited.
+        """
+        now = self.get_clock().now()
+        if (now - self.last_stuck_check_time).nanoseconds / 1e9 < self.stuck_check_interval_sec:
+            return
+
+        self.last_stuck_check_time = now
+
+        # --- Motion Detection ---
+        is_commanding_motion = self.last_published_linear > 0.05 or abs(self.last_published_angular) > 0.1
+        is_moving = self._check_for_recovery_exit(msg) # Reuse the checker function
+
+        # --- Update Recovery Gains based on motion ---
+        if (is_commanding_motion or self.recovery_gain < 0) and not is_moving: 
+            # STUCK: Start or continue the stuck timer and adjust gains
+            if self.motion_command_start_time is None:
+                self.get_logger().warn("Stuck Detector: Motion command without movement. Starting timer...")
+                self.motion_command_start_time = now
+            
+            duration_stuck = (now - self.motion_command_start_time).nanoseconds / 1e9
+            self.get_logger().debug(f"Stuck Detector: Timer at {duration_stuck:.2f}s")
+            
+            if duration_stuck > self.stuck_duration_threshold_sec:
+                self.get_logger().error(f"STUCK DETECTED for {duration_stuck:.1f}s!")
+                self.stuck_level += 1
+                
+                # --- Analyze reason and set recovery gains ---
+                front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg)
+                if math.isnan(front_dist) or front_dist < self.stuck_wall_collision_dist_m:
+                    self.get_logger().error("Stuck Reason: Wall collision. Setting REVERSE gain.")
+                    self.recovery_gain = self.recovery_reverse_gain
+                    self.recovery_angular_gain = 1.0
+                    self.stuck_level = 0
+                elif self.stuck_level >= self.recovery_max_level:
+                    self.get_logger().fatal("STUCK RECOVERY FAILED. All attempts exhausted. Initiating final emergency reverse.")
+                    self.is_in_final_recovery_reverse = True
+                    self.stuck_position_for_reverse = {
+                        'yaw': self.current_yaw_deg,
+                        'front_dist': front_dist,
+                        'inner_dist': self.get_distance_at_world_angle(msg, self._angle_normalize(self.current_yaw_deg + 90.0)),
+                        'outer_dist': self.get_distance_at_world_angle(msg, self._angle_normalize(self.current_yaw_deg - 90.0))
+                    }
+                    self.recovery_gain = 1.0
+                    self.recovery_angular_gain = 1.0
+                    self.stuck_level = 0
+                    self.motion_command_start_time = None
+                elif self.stuck_level >= self.recovery_angular_reduction_start_level:
+                    self.get_logger().warn(f"Stuck Phase 2 (Attempt #{self.stuck_level}): Reducing angular command.")
+                    self.recovery_gain = 1.0
+                    new_angular_gain = self.recovery_angular_gain - self.recovery_angular_reduction_step
+                    self.recovery_angular_gain = max(0, new_angular_gain)
+                    self.get_logger().warn(f"  -> New Angular Gain: {self.recovery_angular_gain:.2f}")
+                else:
+                    self.get_logger().warn(f"Stuck Phase 1 (Attempt #{self.stuck_level}): Attempting speed boost.")
+                    new_boost = 1.0 + (self.stuck_level * self.recovery_speed_boost_increment)
+                    self.recovery_gain = min(new_boost, self.recovery_speed_boost_max)
+                    self.recovery_angular_gain = 1.0
+                    self.get_logger().warn(f"  -> New Speed Gain: {self.recovery_gain:.2f}x")
+
+                self.motion_command_start_time = now
+        else:
+            # NOT STUCK: If we are in recovery mode, this is our chance to exit.
+            if self.recovery_gain != 1.0 or self.recovery_angular_gain != 1.0:
+                # --- Perform the actual reset and detailed logging here ---
+                yaw_change = abs(self._angle_diff(self.current_yaw_deg, self.last_yaw_at_check))
+                front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg)
+                dist_change = 0.0
+                if not math.isnan(front_dist) and self.last_front_dist_at_check > 0:
+                    dist_change = abs(front_dist - self.last_front_dist_at_check)
+
+                log_reason = ""
+                if yaw_change > self.stuck_motion_yaw_threshold_deg:
+                    log_reason += (f"ROTATION (Yaw: {self.last_yaw_at_check:.2f} -> {self.current_yaw_deg:.2f}, Change: {yaw_change:.2f} deg) ")
+                if dist_change > self.stuck_motion_dist_threshold_m:
+                    log_reason += (f"ADVANCEMENT (Front: {self.last_front_dist_at_check:.3f} -> {front_dist:.3f}, Change: {dist_change:.3f} m)")
+
+                self.get_logger().info(f"Stuck Recovery: Motion detected. Reason: {log_reason.strip()}. Resetting all gains.")
+                
+                self.motion_command_start_time = None
+                self.recovery_gain = 1.0
+                self.recovery_angular_gain = 1.0
+                self.stuck_level = 0
+            
+            # If not in recovery mode, ensure timer is reset.
+            self.motion_command_start_time = None
+
+        # Update last known values for the next check
+        self.last_yaw_at_check = self.current_yaw_deg
+        front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg) # Re-get front_dist
+        if not math.isnan(front_dist):
+            self.last_front_dist_at_check = front_dist
+
+    def _execute_final_recovery_reverse(self, msg: LaserScan):
+        """
+        Final resort recovery maneuver: reverse until clear of the stuck position.
+        """
+        # --- Initialize on the first run of this maneuver ---
+        if self.final_reverse_start_dists is None:
+            self.get_logger().info("Final Recovery: Storing initial wall distances.")
+            
+            # Use the yaw from the moment we got stuck as the reference angle
+            base_yaw = self.current_yaw_deg
+            if self.stuck_position_for_reverse and 'yaw' in self.stuck_position_for_reverse:
+                base_yaw = self.stuck_position_for_reverse['yaw']
+
+            # Store the current distances to the walls
+            self.final_reverse_start_dists = {
+                'front': self.get_distance_at_world_angle(msg, base_yaw),
+                'inner': self.get_distance_at_world_angle(msg, self._angle_normalize(base_yaw + 90.0)),
+                'outer': self.get_distance_at_world_angle(msg, self._angle_normalize(base_yaw - 90.0))
+            }
+            # Immediately start reversing on the first run
+            self.publish_twist_with_gain(-self.forward_speed * 0.5, 0.0)
+            return
+
+        # --- Check for completion on subsequent runs ---
+        base_yaw = self.stuck_position_for_reverse['yaw']
+        
+        current_front_dist = self.get_distance_at_world_angle(msg, base_yaw)
+        current_inner_dist = self.get_distance_at_world_angle(msg, self._angle_normalize(base_yaw + 90.0))
+        current_outer_dist = self.get_distance_at_world_angle(msg, self._angle_normalize(base_yaw - 90.0))
+        
+        # Calculate how much each distance has changed since we started reversing
+        dist_change_front = 0.0
+        if not math.isnan(current_front_dist) and not math.isnan(self.final_reverse_start_dists['front']):
+            dist_change_front = abs(current_front_dist - self.final_reverse_start_dists['front'])
+
+        dist_change_inner = 0.0
+        if not math.isnan(current_inner_dist) and not math.isnan(self.final_reverse_start_dists['inner']):
+            dist_change_inner = abs(current_inner_dist - self.final_reverse_start_dists['inner'])
+
+        dist_change_outer = 0.0
+        if not math.isnan(current_outer_dist) and not math.isnan(self.final_reverse_start_dists['outer']):
+            dist_change_outer = abs(current_outer_dist - self.final_reverse_start_dists['outer'])
+        
+        # If ANY of the distances have changed by more than the threshold, recovery is complete.
+        if (dist_change_front > self.recovery_final_reverse_dist_m or
+            dist_change_inner > self.recovery_final_reverse_dist_m or
+            dist_change_outer > self.recovery_final_reverse_dist_m):
+            
+            self.get_logger().warn("Final Recovery: Cleared stuck position by 20cm. Resuming normal operation.")
+            self.is_in_final_recovery_reverse = False
+            self.stuck_position_for_reverse = None
+            self.final_reverse_start_dists = None # Reset for next time
+            self.publish_twist_with_gain(0.0, 0.0)
+            return
+
+        # If not complete, continue reversing straight
+        self.get_logger().debug(f"Final Recovery: Reversing... (Dist changes: F:{dist_change_front:.2f}, I:{dist_change_inner:.2f}, O:{dist_change_outer:.2f})", throttle_duration_sec=0.5)
+        self.publish_twist_with_gain(-self.forward_speed * 0.5, 0.0)
+
+    def _check_for_recovery_exit(self, msg: LaserScan):
+        """
+        Checks if the robot is moving enough to justify exiting recovery mode.
+        This is a pure check function and does not modify any state.
+        Returns True if recovery can be exited, False otherwise.
+        """
+        # --- Motion Detection ---
+        # This uses the same strict thresholds as the main stuck detector.
+        yaw_change = abs(self._angle_diff(self.current_yaw_deg, self.last_yaw_at_check))
+        is_rotating = yaw_change > self.stuck_motion_yaw_threshold_deg
+
+        front_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg)
+        dist_change = 0.0
+        if not math.isnan(front_dist) and self.last_front_dist_at_check > 0:
+            dist_change = abs(front_dist - self.last_front_dist_at_check)
+        is_advancing = dist_change > self.stuck_motion_dist_threshold_m
+        
+        is_moving = is_rotating or is_advancing
+
+        return is_moving
+
+
+    def _get_current_sub_state_str(self) -> str:
+        """Returns the name of the current sub-state as a string."""
+        if self.state == State.PREPARATION:
+            return self.preparation_sub_state.name
+        elif self.state == State.UNPARKING:
+            return self.unparking_sub_state.name
+        elif self.state == State.STRAIGHT:
+            return self.straight_sub_state.name
+        elif self.state == State.TURNING:
+            # Turning sub-state can be None
+            return self.turning_sub_state.name if self.turning_sub_state else "None"
+        elif self.state == State.PARKING:
+            if self.parking_sub_state == ParkingSubState.REORIENT_FOR_PARKING or \
+               self.parking_sub_state == ParkingSubState.LANE_CHANGE_FOR_PARKING:
+                return self.reorient_step.name if self.reorient_step else "None"
+            elif self.parking_sub_state == ParkingSubState.APPROACH_PARKING_START:
+                return self.approach_step.name if self.approach_step else "None"
+            elif self.parking_sub_state == ParkingSubState.EXECUTE_PARKING_MANEUVER:
+                return self.parking_maneuver_step.name if self.parking_maneuver_step else "None"
+            else:
+                return self.parking_sub_state.name
+        else:
+            return "" # For states like FINISHED, DETERMINE_COURSE etc.
 
     # --- Main State Handlers ---
     def _handle_state_preparation(self, msg: LaserScan):
@@ -777,6 +1045,11 @@ class ObstacleNavigatorNode(Node):
 
         # Calculate and log elapsed time, ensuring it only runs once.
         if self.start_time is not None:
+            # --- NEW: Cancel the main control loop timer ---
+            if self.control_loop_timer and not self.control_loop_timer.is_canceled():
+                self.get_logger().info("Run finished. Canceling main control loop timer.")
+                self.control_loop_timer.cancel()
+            
             end_time = self.get_clock().now()
             duration_total_seconds = (end_time - self.start_time).nanoseconds / 1e9
 
@@ -964,10 +1237,8 @@ class ObstacleNavigatorNode(Node):
         # --- 1. Determine target yaw and steer direction (No changes here) ---
         if self.direction == 'ccw':
             target_yaw_deg = self._angle_normalize(self.unparking_base_yaw_deg + self.unparking_initial_turn_deg)
-            steer = self.max_steer
         else: # cw
             target_yaw_deg = self._angle_normalize(self.unparking_base_yaw_deg - self.unparking_initial_turn_deg)
-            steer = -self.max_steer
 
         # --- 2. Check for completion ---
         yaw_error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
@@ -1009,6 +1280,11 @@ class ObstacleNavigatorNode(Node):
 
         # --- 4. Execute the turn (No changes here) ---
         turn_speed = self.unparking_speed
+        dynamic_max = self._get_dynamic_max_steer(turn_speed)
+        if self.direction == 'ccw':
+            steer = dynamic_max
+        else: # cw
+            steer = -dynamic_max
         self.publish_twist_with_gain(turn_speed, steer)
 
     def _handle_unparking_sub_avoidance_reverse(self, msg: LaserScan):
@@ -1074,7 +1350,10 @@ class ObstacleNavigatorNode(Node):
         # We only use the angle part of the PID control to go straight.
         angle_error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
         angle_steer = self.align_kp_angle * angle_error_deg
-        final_steer = max(min(angle_steer, self.max_steer), -self.max_steer)
+
+        straight_speed = self.unparking_exit_straight_speed
+        dynamic_max = self._get_dynamic_max_steer(straight_speed)
+        final_steer = max(min(angle_steer, dynamic_max), -dynamic_max)
 
         self.get_logger().debug(
             f"UNPARKING_STRAIGHT: TargetYaw:{target_yaw_deg:.1f}, CurrentYaw:{self.current_yaw_deg:.1f}, "
@@ -1082,7 +1361,6 @@ class ObstacleNavigatorNode(Node):
             throttle_duration_sec=0.2
         )
 
-        straight_speed = self.unparking_exit_straight_speed
         self.publish_twist_with_gain(straight_speed, final_steer)
 
     def _handle_unparking_sub_exit_straight_for_outer(self, msg: LaserScan):
@@ -1130,14 +1408,18 @@ class ObstacleNavigatorNode(Node):
         # --- 3. Execute PID-controlled straight movement ---
         angle_error_deg = self._angle_diff(target_yaw_deg, self.current_yaw_deg)
         angle_steer = self.align_kp_angle * angle_error_deg
-        final_steer = np.clip(angle_steer, -self.max_steer, self.max_steer)
+
+        final_speed = self.unparking_exit_straight_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        final_steer = np.clip(angle_steer, -dynamic_max, dynamic_max)
 
         self.get_logger().debug(
             f"Unparking Straight (Outer): TargetYaw:{target_yaw_deg:.1f}, "
             f"({completion_log_info}), Steer:{final_steer:.2f}",
             throttle_duration_sec=0.2
         )
-        self.publish_twist_with_gain(self.unparking_exit_straight_speed, final_steer)
+
+        self.publish_twist_with_gain(final_speed, final_steer)
 
     # --- Determine Course Sub-States (Legacy) ---
     def _handle_determine_sub_waiting_for_controller(self):
@@ -1759,10 +2041,13 @@ class ObstacleNavigatorNode(Node):
         if self.direction == 'ccw':
             turn_direction *= -1.0
         target_yaw = self._angle_normalize(self.lane_change_base_yaw_deg + (self.lc_turn_angle_deg * turn_direction))
-
         yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
-        steer = np.clip(self.align_kp_angle * yaw_error_deg, -self.max_steer, self.max_steer)
-        self.publish_twist_with_gain(self.lc_step2_speed, steer)
+
+        final_speed = self.lc_step2_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        steer = np.clip(self.align_kp_angle * yaw_error_deg, -dynamic_max, dynamic_max)
+
+        self.publish_twist_with_gain(final_speed, steer)
 
     def _lane_change_step3_align(self, msg: LaserScan):
         """Lane Change Step 3: Turn back to align with the new lane."""
@@ -2136,9 +2421,6 @@ class ObstacleNavigatorNode(Node):
             steer_direction = -1.0
             
         final_steer = proportional_steer * steer_direction
-        
-        # Limit the steering to the maximum possible value
-        final_steer = np.clip(final_steer, -self.max_steer, self.max_steer)
 
         # --- Add Proportional Speed Control ---
         min_turn_speed = base_turn_speed * 0.7 # Minimum speed (e.g., 40% of original)
@@ -2146,9 +2428,11 @@ class ObstacleNavigatorNode(Node):
         # Calculate speed based on how close we are to the target
         # (angle_turned_deg / turn_amount_deg) goes from 0 to 1 as the turn progresses
         speed_reduction_factor = max(0, 1.0 - (angle_turned_deg / turn_amount_deg))
-        
         final_speed = min_turn_speed + (base_turn_speed - min_turn_speed) * speed_reduction_factor
-        # ------------------------------------
+
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        # Limit the steering to the maximum possible value
+        final_steer = np.clip(final_steer, -dynamic_max, dynamic_max)
 
         # --- 5. Continue turning with adjusted speed and steer ---
         self.publish_twist_with_gain(final_speed, final_steer)
@@ -2530,10 +2814,14 @@ class ObstacleNavigatorNode(Node):
         # P-control for steering while reversing
         # To turn the rear to the left while reversing, we need to steer right (positive steer).
         # A positive error (we need to turn left) should result in a positive steer.
-        turn_kp = 0.05 # Use a positive gain
-        steer = np.clip(turn_kp * yaw_error_deg, -self.max_steer, self.max_steer)
         
-        self.publish_twist_with_gain(self.parking_step1_reverse_speed, steer)
+        final_speed = self.parking_step1_reverse_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+
+        turn_kp = 0.05 # Use a positive gain
+        steer = np.clip(turn_kp * yaw_error_deg, -dynamic_max, dynamic_max)
+
+        self.publish_twist_with_gain(final_speed, steer)
 
     def _parking_step2_reverse_straight(self, msg: LaserScan):
         """
@@ -2556,11 +2844,14 @@ class ObstacleNavigatorNode(Node):
             
         # --- Drive straight back, maintaining the 45-degree angle ---
         yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
+
+        final_speed = self.parking_step2_reverse_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
         angle_steer = self.align_kp_angle * yaw_error_deg
-        final_steer = np.clip(angle_steer, -self.max_steer, self.max_steer)
-        
+        final_steer = np.clip(angle_steer, -dynamic_max, dynamic_max)
+
         self.get_logger().debug(f"Parking Step 2: Reversing straight... Front dist: {front_dist:.3f}m", throttle_duration_sec=0.2)
-        self.publish_twist_with_gain(self.parking_step2_reverse_speed, final_steer)
+        self.publish_twist_with_gain(final_speed, final_steer)
         
     def _parking_step3_align_turn(self, msg: LaserScan):
         """Parking Step 3: Reverse while turning to become parallel to the wall."""
@@ -2574,9 +2865,12 @@ class ObstacleNavigatorNode(Node):
             self.publish_twist_with_gain(0.0, 0.0)
             self.parking_maneuver_step = ParkingManeuverStep.STEP4_FINAL_ADJUST
             return
-            
+        
+        final_speed = self.parking_step3_reverse_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+
         # Reverse with opposite steering (full steer to the right)
-        self.publish_twist_with_gain(self.parking_step3_reverse_speed, -self.max_steer)
+        self.publish_twist_with_gain(final_speed, -dynamic_max)
 
     def _parking_step4_final_adjust(self, msg: LaserScan):
         """
@@ -2653,8 +2947,6 @@ class ObstacleNavigatorNode(Node):
             return True # Turn is complete
 
         # --- Proportional Steering Control ---
-        turn_kp = self.reorient_turn_kp
-        steer = np.clip(turn_kp * yaw_error_deg, -self.max_steer, self.max_steer)
 
         # --- Proportional Speed Control ---
         # The minimum speed maintains the same sign as the base speed.
@@ -2671,6 +2963,10 @@ class ObstacleNavigatorNode(Node):
         progress_ratio = min(1.0, angle_turned_deg / total_turn_angle)
         final_speed = base_speed - (base_speed - min_speed) * progress_ratio
         
+        turn_kp = self.reorient_turn_kp
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        steer = np.clip(turn_kp * yaw_error_deg, -dynamic_max, dynamic_max)
+
         # Execute the turn
         self.publish_twist_with_gain(final_speed, steer)
         return False # Turn is ongoing
@@ -2728,7 +3024,7 @@ class ObstacleNavigatorNode(Node):
         """
         Callback for pre-unparking detection. Processes the image, logs the result,
         and transitions to the next sub-state (INITIAL_TURN).
-        Includes a retry mechanism for image acquisition.
+        Now includes an INFINITE retry mechanism for image acquisition.
         """
         with self.state_lock:
             # Clean up the primary timer if it exists.
@@ -2742,29 +3038,22 @@ class ObstacleNavigatorNode(Node):
             if self.pre_detection_step != 1:
                 return
 
-            # --- ADDED: Frame acquisition check with retry logic ---
-            max_retries = 10 # Try for 0.5 seconds (10 * 50ms)
+            # --- Frame acquisition check with INFINITE retries ---
             if self.latest_frame is None:
-                if self.image_acquisition_retries < max_retries:
-                    self.image_acquisition_retries += 1
-                    self.get_logger().warn(
-                        f"Frame not available yet. Retrying in 50ms... ({self.image_acquisition_retries}/{max_retries})"
-                    )
-                    # Create a short timer to try again
-                    self.pre_detection_timer = self.create_timer(
-                        0.05, # 50ms
-                        self._process_pre_unparking_image_callback
-                    )
-                    return # Exit the function and wait for the retry timer
-                else:
-                    self.get_logger().error(
-                        "Failed to acquire image after multiple retries. Aborting unparking."
-                    )
-                    self.state = State.FINISHED
-                    return
-            # --- END OF ADDED SECTION ---
+                self.image_acquisition_retries += 1
+                self.get_logger().warn(
+                    f"Frame not available yet. Retrying in 200ms... (Attempt #{self.image_acquisition_retries})",
+                    throttle_duration_sec=1.0 # Log once per second to avoid spam
+                )
+                # Create a timer to try again. The interval is slightly longer
+                # to give the camera node more time to respawn if it has died.
+                self.pre_detection_timer = self.create_timer(
+                    0.2, # 200ms
+                    self._process_pre_unparking_image_callback
+                )
+                return # Exit the function and wait for the retry timer
 
-            self.get_logger().info("PRE-UNPARKING DETECT (Step 1): Image acquired. Processing image...")
+            self.get_logger().info("PRE-UNPARKING DETECT (Step 1): Image acquired successfully. Processing image...")
             
             # Reset retry counter for the next time
             self.image_acquisition_retries = 0
@@ -2867,8 +3156,8 @@ class ObstacleNavigatorNode(Node):
 
         # --- Gain Application ---
         state_specific_gain = self._get_state_specific_gain()
-        target_linear = linear_x * self.gain * state_specific_gain
-        target_angular = angular_z * self.gain * state_specific_gain
+        target_linear = linear_x * self.gain * state_specific_gain * self.recovery_gain
+        target_angular = angular_z * self.gain * state_specific_gain * self.recovery_gain * self.recovery_angular_gain
         
         # --- NEW: Rate Limiter Logic ---
         # Calculate time delta (dt) based on the control loop rate (50Hz)
@@ -2983,8 +3272,10 @@ class ObstacleNavigatorNode(Node):
             dist_steer = 0.0
             log_mode += "_IMU_ONLY"
         
+        final_speed = speed
         angular_z = angle_steer + dist_steer
-        final_steer = max(min(angular_z, self.max_steer), -self.max_steer)
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        final_steer = max(min(angular_z, dynamic_max), -dynamic_max)
         
         self.get_logger().debug(
             f"{log_prefix}({log_mode}) | WallD: {wall_dist:.2f} | "
@@ -4060,6 +4351,30 @@ class ObstacleNavigatorNode(Node):
 
         # Return True if the deviation is less than the tolerance
         return yaw_deviation_deg < tolerance_deg
+
+    def _get_dynamic_max_steer(self, current_speed: float) -> float:
+        """
+        Calculates a dynamic maximum steering value based on the current speed.
+        This prevents overly sharp turns at low speeds.
+        """
+        # self.max_steer is the maximum allowable steer at self.forward_speed
+        base_speed = self.forward_speed
+        if base_speed < 0.01:
+             base_speed = 0.01 # Avoid division by zero
+
+        # Calculate the ratio of the current speed to the base speed
+        speed_ratio = abs(current_speed) / base_speed
+        
+        # The dynamic max steer is proportional to the speed ratio
+        dynamic_max_steer = self.max_steer * speed_ratio
+
+        # To prevent the max steer from becoming too small at very low speeds,
+        # set a minimum threshold. 0.3 is a sensible starting point.
+        min_allowable_steer = 0.3
+        
+        # Return the calculated value, but not less than the minimum,
+        # and not more than the absolute maximum.
+        return np.clip(dynamic_max_steer, min_allowable_steer, self.max_steer)
 
     # --- Misc Helpers ---
     def _get_state_specific_gain(self) -> float:
