@@ -2843,6 +2843,14 @@ class ObstacleNavigatorNode(Node):
     def _parking_step2_reverse_straight(self, msg: LaserScan):
         """
         Parking Step 2: Reverse straight until the front wall is no longer detected.
+        [DEACTIVATED] This step is currently skipped as the position after step 1
+        is already sufficient. It transitions directly to step 3.
+        """
+        self.get_logger().info("Parking Step 2 (Reverse Straight): Skipping as per current strategy.")
+        self.publish_twist_with_gain(0.0, 0.0) # Ensure robot is stopped before next step
+        self.parking_maneuver_step = ParkingManeuverStep.STEP3_ALIGN_TURN
+
+        # --- Original Logic (Commented out for preservation) ---
         """
         # The orientation should be maintained at 45 degrees
         target_yaw = self._angle_normalize(self.parking_base_yaw_deg + self.parking_step1_target_angle_deg)
@@ -2869,6 +2877,7 @@ class ObstacleNavigatorNode(Node):
 
         self.get_logger().debug(f"Parking Step 2: Reversing straight... Front dist: {front_dist:.3f}m", throttle_duration_sec=0.2)
         self.publish_twist_with_gain(final_speed, final_steer)
+        """
         
     def _parking_step3_align_turn(self, msg: LaserScan):
         """Parking Step 3: Reverse while turning to become parallel to the wall."""
