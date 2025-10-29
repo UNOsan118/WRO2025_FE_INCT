@@ -310,7 +310,7 @@ class ObstacleNavigatorNode(Node):
         self.lc_step2_speed = 0.21
         self.lc_step3_speed = 0.22
         # Target distances for the straight part of the lane change
-        self.lc_target_dist_inner_m = 0.28
+        self.lc_target_dist_inner_m = 0.25
         self.lc_target_dist_outer_m = 0.25
         self.lc_target_dist_outer_start_area_m = 0.45
 
@@ -2383,14 +2383,26 @@ class ObstacleNavigatorNode(Node):
         self.get_logger().debug(f"Approaching wall for turn... Dist: {front_dist:.2f}m", throttle_duration_sec=0.2)
         
         if self.last_avoidance_path_was_outer:
+            # Determine the correct target distance for the outer wall
+            target_outer_dist = None # Let _execute_pid_alignment use its default
+            if self.wall_segment_index == 0:
+                target_outer_dist = self.align_target_outer_dist_start_area_m
+
             self._execute_pid_alignment(
-                msg, self.approach_base_yaw_deg, is_outer_wall=True, speed=approach_speed
+                msg=msg, 
+                base_angle_deg=self.approach_base_yaw_deg, 
+                is_outer_wall=True, 
+                speed=approach_speed,
+                override_target_dist=target_outer_dist # Pass the specific distance if needed
             )
         else:
             override_dist = 1.0 - self.align_target_inner_dist_m
             self._execute_pid_alignment(
-                msg, self.approach_base_yaw_deg, is_outer_wall=True,
-                speed=approach_speed, override_target_dist=override_dist
+                msg=msg, 
+                base_angle_deg=self.approach_base_yaw_deg, 
+                is_outer_wall=True,
+                speed=approach_speed, 
+                override_target_dist=override_dist
             )
 
     def _handle_turning_sub_execute_pivot_turn(self, msg: LaserScan):
