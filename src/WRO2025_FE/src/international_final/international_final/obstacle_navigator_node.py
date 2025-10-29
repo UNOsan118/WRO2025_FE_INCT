@@ -332,8 +332,11 @@ class ObstacleNavigatorNode(Node):
         # --- Approach ---
         self.parking_approach_target_outer_dist_m = 0.32
         self.parking_approach_slowdown_dist_m = 1.3  # Distance to start slowing down
-        self.parking_approach_final_stop_dist_m = 0.78  # Final target distance
+        self.parking_approach_final_stop_dist_m = 0.81 # 0.78  # Final target distance
+        self.parking_approach_yaw_tolerance_deg = 10.0 # Max yaw deviation to complete approach
+        self.parking_approach_min_front_dist_m = 0.6 # Min front dist to avoid false trigger
         self.parking_approach_slow_speed = 0.05     # Slower speed for final approach
+        self.parking_step4_duration_sec = 0.5 # Duration for the final forward adjustment
 
         # --- Final Parking ---
         self.parking_step1_reverse_speed = -0.1
@@ -341,7 +344,7 @@ class ObstacleNavigatorNode(Node):
         self.parking_step2_reverse_speed = -0.1
         self.parking_step2_front_dist_trigger_m = 0.97
         self.parking_step3_reverse_speed = -0.1
-        self.parking_step4_forward_speed = 0.1
+        self.parking_step4_forward_speed = 0.06
 
         # --- Legacy Determine Course ---
         self.course_detection_threshold_m = 1.5
@@ -458,6 +461,8 @@ class ObstacleNavigatorNode(Node):
         self.approach_step = None
         self.parking_maneuver_step = None
         self.parking_base_yaw_deg = 0.0
+        self.parking_step4_timer_started = False # Flag to ensure timer is created only once
+
 
         # Planning state variables
         self.planning_initiated = False
@@ -2622,9 +2627,20 @@ class ObstacleNavigatorNode(Node):
         base_angle_deg = self._calculate_base_angle()
         front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
 
-        # --- Check for completion ---
-        if not math.isnan(front_dist) and front_dist < self.parking_approach_final_stop_dist_m:
-            self.get_logger().warn(f"Approach Parking: Final position reached (Dist: {front_dist:.3f}m).")
+        # --- Check for completion with multiple safety conditions ---
+        yaw_deviation_deg = abs(self._angle_diff(self.current_yaw_deg, base_angle_deg))
+        
+        # Condition 1: Robot is sufficiently aligned with the wall
+        is_aligned = yaw_deviation_deg < self.parking_approach_yaw_tolerance_deg
+        
+        # Condition 2: Front distance is within the valid target window
+        is_dist_in_window = (not math.isnan(front_dist) and
+                             self.parking_approach_min_front_dist_m < front_dist < self.parking_approach_final_stop_dist_m)
+
+        if is_aligned and is_dist_in_window:
+            self.get_logger().warn(
+                f"Approach Parking: Final position reached (Dist: {front_dist:.3f}m, YawDev: {yaw_deviation_deg:.1f}deg)."
+            )
             self.publish_twist_with_gain(0.0, 0.0)
 
             # Store the current yaw as the base for the final parking maneuver
@@ -2660,7 +2676,7 @@ class ObstacleNavigatorNode(Node):
         # --- Safety Checks (use_imu_only) ---
         use_imu_only = False
         # If we are in the slowdown zone, it's safer to use IMU only for alignment.
-        if not math.isnan(front_dist) and front_dist < self.parking_approach_slowdown_dist_m:
+        if not math.isnan(front_dist) and 0.97 < front_dist < 1.05: 
             use_imu_only = True
         
         # Additional safety check for abnormal course width
@@ -2827,6 +2843,14 @@ class ObstacleNavigatorNode(Node):
     def _parking_step2_reverse_straight(self, msg: LaserScan):
         """
         Parking Step 2: Reverse straight until the front wall is no longer detected.
+        [DEACTIVATED] This step is currently skipped as the position after step 1
+        is already sufficient. It transitions directly to step 3.
+        """
+        self.get_logger().info("Parking Step 2 (Reverse Straight): Skipping as per current strategy.")
+        self.publish_twist_with_gain(0.0, 0.0) # Ensure robot is stopped before next step
+        self.parking_maneuver_step = ParkingManeuverStep.STEP3_ALIGN_TURN
+
+        # --- Original Logic (Commented out for preservation) ---
         """
         # The orientation should be maintained at 45 degrees
         target_yaw = self._angle_normalize(self.parking_base_yaw_deg + self.parking_step1_target_angle_deg)
@@ -2853,6 +2877,7 @@ class ObstacleNavigatorNode(Node):
 
         self.get_logger().debug(f"Parking Step 2: Reversing straight... Front dist: {front_dist:.3f}m", throttle_duration_sec=0.2)
         self.publish_twist_with_gain(final_speed, final_steer)
+        """
         
     def _parking_step3_align_turn(self, msg: LaserScan):
         """Parking Step 3: Reverse while turning to become parallel to the wall."""
@@ -2875,21 +2900,33 @@ class ObstacleNavigatorNode(Node):
 
     def _parking_step4_final_adjust(self, msg: LaserScan):
         """
-        Parking Step 4: Send a single forward command with zero steer to straighten the wheels,
-        then immediately finish the maneuver.
+        Parking Step 4: Move forward for a short duration to ensure wheel alignment,
+        then transition to the FINISHED state via a timer.
         """
-        self.get_logger().info("Parking Step 4: Sending final command to straighten wheels.")
-
-        # Send a single, brief forward command with zero steering.
-        # This ensures the wheels are pointing straight when parking is complete.
+        # Continuously send the forward command while in this state.
         self.publish_twist_with_gain(self.parking_step4_forward_speed, 0.0)
 
-        # After sending the command, immediately transition to the finished state.
-        # A very short delay might help ensure the command is sent before shutdown.
-        # time.sleep(0.1) # Optional, usually not needed.
+        # Start a one-shot timer on the first entry into this state.
+        if not self.parking_step4_timer_started:
+            self.parking_step4_timer_started = True
+            self.get_logger().info(
+                f"Parking Step 4: Moving forward for {self.parking_step4_duration_sec} seconds to align wheels."
+            )
+            
+            # This timer will call the callback function once after the specified duration.
+            self.create_timer(self.parking_step4_duration_sec, self._finish_parking_maneuver)
 
-        self.get_logger().warn("--- PARKING MANEUVER COMPLETE ---")
-        self.state = State.FINISHED
+    def _finish_parking_maneuver(self):
+        """
+        Callback function triggered by the timer in step 4.
+        Safely transitions the state to FINISHED.
+        """
+        # Acquire lock to prevent race conditions with the main control loop.
+        with self.state_lock:
+            # Check if we are still in the final adjustment step to avoid unintended state changes.
+            if self.parking_maneuver_step == ParkingManeuverStep.STEP4_FINAL_ADJUST:
+                self.get_logger().warn("--- PARKING MANEUVER COMPLETE ---")
+                self.state = State.FINISHED
 
     def _execute_parking_initial_forward(self, msg: LaserScan, target_dist: float, is_outer: bool, next_step: Enum):
         """
