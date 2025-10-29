@@ -188,10 +188,10 @@ class ObstacleNavigatorNode(Node):
         # --- Unparking Sequence ---
         self.unparking_speed = 0.1 #0.05
         self.unparking_initial_turn_deg = 55.0
-        self.unparking_exit_straight_dist_m = 0.28
+        self.unparking_exit_straight_dist_m = 0.26
         self.unparking_exit_straight_speed = 0.10
         self.unparking_cw_inner_dist_trigger_m = 0.55
-        self.unparking_ccw_front_dist_trigger_m = 0.94
+        self.unparking_ccw_front_dist_trigger_m = 1.02
 
         # --- Camera & Vision ---
         self.pan_servo_id = 1
@@ -3294,19 +3294,38 @@ class ObstacleNavigatorNode(Node):
         if not math.isnan(wall_dist):
             dist_error = target_dist - wall_dist
         
-        # --- NEW: Special logic for inner wall avoidance alignment ---
-        if not is_outer_wall and self.is_in_avoidance_alignment and (math.isnan(wall_dist) or wall_dist > 1.0):
-            # If the inner wall is lost during avoidance, try to estimate from the outer wall.
-            outer_wall_angle = self._angle_normalize(base_angle_deg - wall_offset_deg) # Opposite side
-            outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+        if not is_outer_wall:
+            front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
+            outer_wall_angle = self._angle_normalize(base_angle_deg - wall_offset_deg)
+            outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+            inner_dist = wall_dist # For clarity in the condition
             
-            if not math.isnan(outer_wall_dist):
-                effective_inner_dist = 1.0 - outer_wall_dist
-                dist_error = target_dist - effective_inner_dist
-                log_mode = f"ESTIMATED(O:{outer_wall_dist:.2f})"
-            else:
-                dist_error = 0.0 # No walls visible, rely on IMU only for heading.
-                log_mode = "IMU_ONLY"
+            course_width = (inner_dist if not math.isnan(inner_dist) else 0) + \
+                           (outer_dist if not math.isnan(outer_dist) else 0)
+
+            # New conditions to enter ESTIMATED/IMU_ONLY block
+            is_front_in_range = not math.isnan(front_dist) and 1.05 < front_dist < 1.95
+            is_width_normal = not math.isnan(course_width) and 0.9 < course_width < 1.1
+            is_inner_far = not math.isnan(inner_dist) and inner_dist > 0.8
+
+            if (not is_front_in_range) or (not is_width_normal) or is_inner_far:
+                # Inside this block, we decide between ESTIMATED or IMU_ONLY
+
+                # Check for new front distance conditions
+                is_front_in_imu_zone1 = not math.isnan(front_dist) and 0.90 < front_dist < 1.05
+                is_front_in_imu_zone2 = not math.isnan(front_dist) and 1.95 < front_dist < 2.1
+
+                if (not math.isnan(course_width) and course_width < 0.9 ) or \
+                   is_front_in_imu_zone1 or is_front_in_imu_zone2:
+                    dist_error = 0.0
+                    log_mode = "IMU_ONLY"
+                elif not math.isnan(outer_dist):
+                    effective_inner_dist = 1.0 - outer_dist
+                    dist_error = target_dist - effective_inner_dist
+                    log_mode = f"ESTIMATED(O:{outer_dist:.2f})"
+                else:
+                    dist_error = 0.0
+                    log_mode = "IMU_ONLY"
         
         
         # If the corner detection counter has started, prioritize heading control over distance control
