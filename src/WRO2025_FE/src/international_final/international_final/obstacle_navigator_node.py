@@ -171,7 +171,7 @@ class ObstacleNavigatorNode(Node):
         self.save_debug_images = True
         self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images'
         self.max_valid_range_m = 3.0
-        self.max_turns = 12 #12
+        self.max_turns = 4 #12
         
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
@@ -344,7 +344,7 @@ class ObstacleNavigatorNode(Node):
         self.parking_step2_reverse_speed = -0.1
         self.parking_step2_front_dist_trigger_m = 0.97
         self.parking_step3_reverse_speed = -0.1
-        self.parking_step4_forward_speed = 0.06
+        self.parking_step4_forward_speed = 0.02
 
         # --- Legacy Determine Course ---
         self.course_detection_threshold_m = 1.5
@@ -461,7 +461,7 @@ class ObstacleNavigatorNode(Node):
         self.approach_step = None
         self.parking_maneuver_step = None
         self.parking_base_yaw_deg = 0.0
-        self.parking_step4_timer_started = False # Flag to ensure timer is created only once
+        self.parking_step4_timer = None # Will hold the timer object
 
 
         # Planning state variables
@@ -682,6 +682,10 @@ class ObstacleNavigatorNode(Node):
         """
         # Acquire the lock at the beginning of the control cycle
         with self.state_lock:
+            if self.state == State.FINISHED:
+                self._handle_state_finished()
+                return
+            
             # Wait until the first valid scan message has been received.
             if self.latest_scan_msg is None:
                 return
@@ -1047,30 +1051,23 @@ class ObstacleNavigatorNode(Node):
 
     def _handle_state_finished(self):
         """Action for the FINISHED state: stop the robot."""
+        # Continuously publish the stop command as long as the node is running.
         self.publish_twist_with_gain(0.0, 0.0)
 
         # Calculate and log elapsed time, ensuring it only runs once.
         if self.start_time is not None:
-            # --- NEW: Cancel the main control loop timer ---
-            if self.control_loop_timer and not self.control_loop_timer.is_canceled() and not self.force_start_debug_mode:
-                self.get_logger().info("Run finished. Canceling main control loop timer.")
-                self.control_loop_timer.cancel()
-            
             end_time = self.get_clock().now()
             duration_total_seconds = (end_time - self.start_time).nanoseconds / 1e9
 
-            # --- MODIFIED: Calculation for minutes and seconds with one decimal place ---
             minutes = int(duration_total_seconds // 60)
-            # Use floating point for seconds and then format it
             seconds = duration_total_seconds % 60
 
             self.get_logger().info("=============================================")
             self.get_logger().info("               R U N   F I N I S H E D               ")
-            # Use an f-string with formatting to show one decimal place for seconds
             self.get_logger().info(f"    Elapsed Time: {minutes} minutes, {seconds:.1f} seconds")
             self.get_logger().info("=============================================")
 
-            # Set start_time to None to prevent this from running again
+            # Set start_time to None to prevent this block from running again.
             self.start_time = None
 
 
@@ -2910,26 +2907,36 @@ class ObstacleNavigatorNode(Node):
         self.publish_twist_with_gain(self.parking_step4_forward_speed, 0.0)
 
         # Start a one-shot timer on the first entry into this state.
-        if not self.parking_step4_timer_started:
-            self.parking_step4_timer_started = True
+        if self.parking_step4_timer is None:
             self.get_logger().info(
                 f"Parking Step 4: Moving forward for {self.parking_step4_duration_sec} seconds to align wheels."
             )
-            
-            # This timer will call the callback function once after the specified duration.
-            self.create_timer(self.parking_step4_duration_sec, self._finish_parking_maneuver)
+            # Create and store the timer object in the instance variable.
+            self.parking_step4_timer = self.create_timer(
+                self.parking_step4_duration_sec, self._finish_parking_maneuver
+            )
 
     def _finish_parking_maneuver(self):
         """
         Callback function triggered by the timer in step 4.
-        Safely transitions the state to FINISHED.
+        This function only sets the state to FINISHED. The main control loop
+        will handle the actual stopping command.
         """
-        # Acquire lock to prevent race conditions with the main control loop.
+        # Acquire lock to prevent race conditions.
         with self.state_lock:
-            # Check if we are still in the final adjustment step to avoid unintended state changes.
+            # Check if we are still in the final adjustment step.
             if self.parking_maneuver_step == ParkingManeuverStep.STEP4_FINAL_ADJUST:
                 self.get_logger().warn("--- PARKING MANEUVER COMPLETE ---")
+                
+                # Simply set the final state. Do NOT publish any commands from here.
                 self.state = State.FINISHED
+                # We can also reset the sub-state to be clean.
+                self.parking_maneuver_step = None
+
+            # Clean up the timer regardless.
+            if self.parking_step4_timer is not None and not self.parking_step4_timer.is_canceled():
+                self.parking_step4_timer.cancel()
+            self.parking_step4_timer = None
 
     def _execute_parking_initial_forward(self, msg: LaserScan, target_dist: float, is_outer: bool, next_step: Enum):
         """
