@@ -1754,7 +1754,7 @@ class ObstacleNavigatorNode(Node):
                 path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='outer')
                 
                 # Only transition state if a lane change is required.
-                if path_type == 'outer_to_inner':
+                if path_type == 'outer_to_inner' and self.turn_count != self.max_turns:
                     self.get_logger().info("--- (Align) Obstacle cleared. Initiating PRE-LANE-CHANGE REVERSE. ---")
                     # Transition to the new pre-check reverse state
                     self.straight_sub_state = StraightSubState.PRE_LANE_CHANGE_REVERSE
@@ -1842,7 +1842,7 @@ class ObstacleNavigatorNode(Node):
                 path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='inner')
                 
                 # Only transition state if a lane change is required.
-                if path_type == 'inner_to_outer':
+                if path_type == 'inner_to_outer' and self.turn_count != self.max_turns:
                     self.get_logger().info("--- (Align) Obstacle cleared. Initiating PRE-LANE-CHANGE REVERSE. ---")
                     # Transition to the new pre-check reverse state
                     self.straight_sub_state = StraightSubState.PRE_LANE_CHANGE_REVERSE
