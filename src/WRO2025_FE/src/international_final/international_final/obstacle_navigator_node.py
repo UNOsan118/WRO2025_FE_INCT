@@ -519,7 +519,7 @@ class ObstacleNavigatorNode(Node):
         # ==================
 
         # --- FOR DEBUGGING: Force start from PARKING state ---
-        force_start_from_parking = True # True -> Parking Test mode
+        force_start_from_parking = False # True -> Parking Test mode
         if force_start_from_parking:
             self.get_logger().warn("############################################################")
             self.get_logger().warn("##  DEBUG MODE: Forcing start from PARKING in 5 seconds...  ##")
@@ -2073,7 +2073,10 @@ class ObstacleNavigatorNode(Node):
             self.lane_change_step = None
             self.is_in_avoidance_alignment = True # Mark as being in alignment after avoidance
             self.last_avoidance_path_was_outer = self.lane_change_target_is_outer
-            
+
+            # --- Explicitly re-enable corner detection after lane change ---
+            self.can_start_new_turn = True
+
             if self.lane_change_target_is_outer:
                 self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
             else:
