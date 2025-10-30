@@ -2398,6 +2398,7 @@ class ObstacleNavigatorNode(Node):
                 override_target_dist=target_outer_dist # Pass the specific distance if needed
             )
         else:
+            """
             override_dist = 1.0 - self.align_target_inner_dist_m
             self._execute_pid_alignment(
                 msg=msg, 
@@ -2405,6 +2406,13 @@ class ObstacleNavigatorNode(Node):
                 is_outer_wall=True,
                 speed=approach_speed, 
                 override_target_dist=override_dist
+            )
+            """
+            self._execute_pid_alignment(
+                msg=msg, 
+                base_angle_deg=self.approach_base_yaw_deg, 
+                is_outer_wall=False,
+                speed=approach_speed, 
             )
 
     def _handle_turning_sub_execute_pivot_turn(self, msg: LaserScan):
@@ -3346,7 +3354,7 @@ class ObstacleNavigatorNode(Node):
                            (outer_dist if not math.isnan(outer_dist) else 0)
 
             # New conditions to enter ESTIMATED/IMU_ONLY block
-            is_front_in_range = not math.isnan(front_dist) and 1.05 < front_dist < 1.95
+            is_front_in_range = not math.isnan(front_dist) and 1.1 < front_dist < 1.90
             is_width_normal = not math.isnan(course_width) and 0.9 < course_width < 1.1
             is_inner_far = not math.isnan(inner_dist) and inner_dist > 0.8
 
@@ -3354,8 +3362,8 @@ class ObstacleNavigatorNode(Node):
                 # Inside this block, we decide between ESTIMATED or IMU_ONLY
 
                 # Check for new front distance conditions
-                is_front_in_imu_zone1 = not math.isnan(front_dist) and 0.90 < front_dist < 1.05
-                is_front_in_imu_zone2 = not math.isnan(front_dist) and 1.95 < front_dist < 2.1
+                is_front_in_imu_zone1 = not math.isnan(front_dist) and 0.90 < front_dist < 1.1
+                is_front_in_imu_zone2 = not math.isnan(front_dist) and 1.90 < front_dist < 2.1
 
                 if (not math.isnan(course_width) and course_width < 0.9 ) or \
                    is_front_in_imu_zone1 or is_front_in_imu_zone2:
