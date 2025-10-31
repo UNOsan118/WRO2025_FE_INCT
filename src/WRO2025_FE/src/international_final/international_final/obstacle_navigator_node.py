@@ -169,7 +169,7 @@ class ObstacleNavigatorNode(Node):
         self.start_from_parking = True
         self.correct_mirrored_scan = True
         self.save_debug_images = True
-        self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images'
+        self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/international_final/images'
         self.max_valid_range_m = 3.0
         self.max_turns = 12 #12
         
@@ -188,10 +188,10 @@ class ObstacleNavigatorNode(Node):
         # --- Unparking Sequence ---
         self.unparking_speed = 0.1 #0.05
         self.unparking_initial_turn_deg = 55.0
-        self.unparking_exit_straight_dist_m = 0.28
-        self.unparking_exit_straight_speed = 0.10
+        self.unparking_exit_straight_dist_m = 0.26
+        self.unparking_exit_straight_speed = 0.15
         self.unparking_cw_inner_dist_trigger_m = 0.55
-        self.unparking_ccw_front_dist_trigger_m = 0.94
+        self.unparking_ccw_front_dist_trigger_m = 1.02
 
         # --- Camera & Vision ---
         self.pan_servo_id = 1
@@ -310,7 +310,7 @@ class ObstacleNavigatorNode(Node):
         self.lc_step2_speed = 0.21
         self.lc_step3_speed = 0.22
         # Target distances for the straight part of the lane change
-        self.lc_target_dist_inner_m = 0.28
+        self.lc_target_dist_inner_m = 0.25
         self.lc_target_dist_outer_m = 0.25
         self.lc_target_dist_outer_start_area_m = 0.45
 
@@ -330,6 +330,7 @@ class ObstacleNavigatorNode(Node):
         self.lane_change_initial_approach_dist_m = 1.52
 
         # --- Approach ---
+        self.parking_approach_stability_threshold = 50
         self.parking_approach_target_outer_dist_m = 0.32
         self.parking_approach_slowdown_dist_m = 1.3  # Distance to start slowing down
         self.parking_approach_final_stop_dist_m = 0.81 # 0.78  # Final target distance
@@ -344,7 +345,7 @@ class ObstacleNavigatorNode(Node):
         self.parking_step2_reverse_speed = -0.1
         self.parking_step2_front_dist_trigger_m = 0.97
         self.parking_step3_reverse_speed = -0.1
-        self.parking_step4_forward_speed = 0.06
+        self.parking_step4_forward_speed = 0.02
 
         # --- Legacy Determine Course ---
         self.course_detection_threshold_m = 1.5
@@ -426,6 +427,7 @@ class ObstacleNavigatorNode(Node):
         self.inner_wall_far_counter = 0
         self.stable_alignment_counter = 0
         self.lane_change_stability_counter = 0
+        self.parking_approach_stability_counter = 0
         self.last_avoidance_path_was_outer = True
         self.initial_position_is_near = True
         self.initial_path_is_left = True
@@ -461,7 +463,7 @@ class ObstacleNavigatorNode(Node):
         self.approach_step = None
         self.parking_maneuver_step = None
         self.parking_base_yaw_deg = 0.0
-        self.parking_step4_timer_started = False # Flag to ensure timer is created only once
+        self.parking_step4_timer = None # Will hold the timer object
 
 
         # Planning state variables
@@ -519,7 +521,7 @@ class ObstacleNavigatorNode(Node):
         # ==================
 
         # --- FOR DEBUGGING: Force start from PARKING state ---
-        force_start_from_parking = True # True -> Parking Test mode
+        force_start_from_parking = False # True -> Parking Test mode
         if force_start_from_parking:
             self.get_logger().warn("############################################################")
             self.get_logger().warn("##  DEBUG MODE: Forcing start from PARKING in 5 seconds...  ##")
@@ -682,6 +684,10 @@ class ObstacleNavigatorNode(Node):
         """
         # Acquire the lock at the beginning of the control cycle
         with self.state_lock:
+            if self.state == State.FINISHED:
+                self._handle_state_finished()
+                return
+            
             # Wait until the first valid scan message has been received.
             if self.latest_scan_msg is None:
                 return
@@ -1047,30 +1053,23 @@ class ObstacleNavigatorNode(Node):
 
     def _handle_state_finished(self):
         """Action for the FINISHED state: stop the robot."""
+        # Continuously publish the stop command as long as the node is running.
         self.publish_twist_with_gain(0.0, 0.0)
 
         # Calculate and log elapsed time, ensuring it only runs once.
         if self.start_time is not None:
-            # --- NEW: Cancel the main control loop timer ---
-            if self.control_loop_timer and not self.control_loop_timer.is_canceled() and not self.force_start_debug_mode:
-                self.get_logger().info("Run finished. Canceling main control loop timer.")
-                self.control_loop_timer.cancel()
-            
             end_time = self.get_clock().now()
             duration_total_seconds = (end_time - self.start_time).nanoseconds / 1e9
 
-            # --- MODIFIED: Calculation for minutes and seconds with one decimal place ---
             minutes = int(duration_total_seconds // 60)
-            # Use floating point for seconds and then format it
             seconds = duration_total_seconds % 60
 
             self.get_logger().info("=============================================")
             self.get_logger().info("               R U N   F I N I S H E D               ")
-            # Use an f-string with formatting to show one decimal place for seconds
             self.get_logger().info(f"    Elapsed Time: {minutes} minutes, {seconds:.1f} seconds")
             self.get_logger().info("=============================================")
 
-            # Set start_time to None to prevent this from running again
+            # Set start_time to None to prevent this block from running again.
             self.start_time = None
 
 
@@ -1757,7 +1756,7 @@ class ObstacleNavigatorNode(Node):
                 path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='outer')
                 
                 # Only transition state if a lane change is required.
-                if path_type == 'outer_to_inner':
+                if path_type == 'outer_to_inner' and self.turn_count != self.max_turns:
                     self.get_logger().info("--- (Align) Obstacle cleared. Initiating PRE-LANE-CHANGE REVERSE. ---")
                     # Transition to the new pre-check reverse state
                     self.straight_sub_state = StraightSubState.PRE_LANE_CHANGE_REVERSE
@@ -1845,7 +1844,7 @@ class ObstacleNavigatorNode(Node):
                 path_type = self._get_path_type_for_segment(self.wall_segment_index, default_path='inner')
                 
                 # Only transition state if a lane change is required.
-                if path_type == 'inner_to_outer':
+                if path_type == 'inner_to_outer' and self.turn_count != self.max_turns:
                     self.get_logger().info("--- (Align) Obstacle cleared. Initiating PRE-LANE-CHANGE REVERSE. ---")
                     # Transition to the new pre-check reverse state
                     self.straight_sub_state = StraightSubState.PRE_LANE_CHANGE_REVERSE
@@ -2073,7 +2072,10 @@ class ObstacleNavigatorNode(Node):
             self.lane_change_step = None
             self.is_in_avoidance_alignment = True # Mark as being in alignment after avoidance
             self.last_avoidance_path_was_outer = self.lane_change_target_is_outer
-            
+
+            # --- Explicitly re-enable corner detection after lane change ---
+            self.can_start_new_turn = True
+
             if self.lane_change_target_is_outer:
                 self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
             else:
@@ -2383,14 +2385,34 @@ class ObstacleNavigatorNode(Node):
         self.get_logger().debug(f"Approaching wall for turn... Dist: {front_dist:.2f}m", throttle_duration_sec=0.2)
         
         if self.last_avoidance_path_was_outer:
+            # Determine the correct target distance for the outer wall
+            target_outer_dist = None # Let _execute_pid_alignment use its default
+            if self.wall_segment_index == 0:
+                target_outer_dist = self.align_target_outer_dist_start_area_m
+
             self._execute_pid_alignment(
-                msg, self.approach_base_yaw_deg, is_outer_wall=True, speed=approach_speed
+                msg=msg, 
+                base_angle_deg=self.approach_base_yaw_deg, 
+                is_outer_wall=True, 
+                speed=approach_speed,
+                override_target_dist=target_outer_dist # Pass the specific distance if needed
             )
         else:
+            """
             override_dist = 1.0 - self.align_target_inner_dist_m
             self._execute_pid_alignment(
-                msg, self.approach_base_yaw_deg, is_outer_wall=True,
-                speed=approach_speed, override_target_dist=override_dist
+                msg=msg, 
+                base_angle_deg=self.approach_base_yaw_deg, 
+                is_outer_wall=True,
+                speed=approach_speed, 
+                override_target_dist=override_dist
+            )
+            """
+            self._execute_pid_alignment(
+                msg=msg, 
+                base_angle_deg=self.approach_base_yaw_deg, 
+                is_outer_wall=False,
+                speed=approach_speed, 
             )
 
     def _handle_turning_sub_execute_pivot_turn(self, msg: LaserScan):
@@ -2464,8 +2486,13 @@ class ObstacleNavigatorNode(Node):
                 self.get_logger().error("Final approach lane flag was not set! Defaulting to OUTER lane.")
                 self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
             elif self.final_approach_lane_is_outer:
-                self.get_logger().info("-> Executing plan: Align with OUTER wall.")
-                self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+                if self.direction == 'ccw':
+                    self.get_logger().info("Final turn (CCW, Outer lane) complete. Skipping final straight section and transitioning directly to PARKING APPROACH.")
+                    self.state = State.PARKING
+                    self.parking_sub_state = ParkingSubState.APPROACH_PARKING_START
+                else:
+                    self.get_logger().info("-> Executing plan: Align with OUTER wall.")
+                    self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
             else: # self.final_approach_lane_is_outer is False
                 self.get_logger().info("-> Executing plan: Align with INNER wall.")
                 self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
@@ -2621,25 +2648,51 @@ class ObstacleNavigatorNode(Node):
 
     def _handle_parking_sub_approach_parking_start(self, msg: LaserScan):
         """
-        Sub-state: Moves the robot to a precise starting position for parking
-        by proportionally slowing down as it approaches the front wall.
+        Sub-state: Moves the robot to a precise starting position for parking,
+        using a stability counter to prevent false completion triggers.
         """
         base_angle_deg = self._calculate_base_angle()
         front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
 
-        # --- Check for completion with multiple safety conditions ---
+        # --- Check if the completion conditions are met in this cycle ---
         yaw_deviation_deg = abs(self._angle_diff(self.current_yaw_deg, base_angle_deg))
         
-        # Condition 1: Robot is sufficiently aligned with the wall
-        is_aligned = yaw_deviation_deg < self.parking_approach_yaw_tolerance_deg
-        
-        # Condition 2: Front distance is within the valid target window
-        is_dist_in_window = (not math.isnan(front_dist) and
-                             self.parking_approach_min_front_dist_m < front_dist < self.parking_approach_final_stop_dist_m)
+        cond_counter = self.parking_approach_stability_counter >= self.parking_approach_stability_threshold
+        cond_aligned = yaw_deviation_deg < self.parking_approach_yaw_tolerance_deg
+        cond_dist_in_window = (not math.isnan(front_dist) and
+                               self.parking_approach_min_front_dist_m < front_dist < self.parking_approach_final_stop_dist_m)
 
-        if is_aligned and is_dist_in_window:
+        # --- NEW: Detailed debug logging ---
+        self.get_logger().debug(
+            f"[ApproachCheck] "
+            f"FrontDist: {front_dist:.2f}m | "
+            f"Counter: {self.parking_approach_stability_counter}/{self.parking_approach_stability_threshold} ({cond_counter}) | "
+            f"YawOK: {cond_aligned} | "
+            f"DistOK: {cond_dist_in_window}",
+            throttle_duration_sec=0.2
+        )
+
+        # --- Update stability counter based on track geometry ---
+        # Get side wall distances to calculate course width.
+        inner_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
+        outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
+        inner_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
+        outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+
+        is_stable_geometry = False
+        if not math.isnan(inner_dist) and not math.isnan(outer_dist) and not math.isnan(front_dist):
+            course_width = inner_dist + outer_dist
+            # Condition: Course width is normal AND front is reasonably close.
+            if (0.9 < course_width < 1.1) and (front_dist < 1.5):
+                is_stable_geometry = True
+
+        if is_stable_geometry:
+            self.parking_approach_stability_counter += 1
+
+        # --- Check for final completion based on ALL conditions ---
+        if cond_counter and cond_aligned and cond_dist_in_window:
             self.get_logger().warn(
-                f"Approach Parking: Final position reached (Dist: {front_dist:.3f}m, YawDev: {yaw_deviation_deg:.1f}deg)."
+                f"Approach Parking: Stable completion confirmed (Dist: {front_dist:.3f}m, YawDev: {yaw_deviation_deg:.1f}deg)."
             )
             self.publish_twist_with_gain(0.0, 0.0)
 
@@ -2647,10 +2700,11 @@ class ObstacleNavigatorNode(Node):
             self.parking_base_yaw_deg = self.current_yaw_deg
             
             self.get_logger().info("Transitioning to EXECUTE_PARKING_MANEUVER.")
-            self.approach_step = None # Reset for next time
+            self.approach_step = None
+            self.parking_approach_stability_counter = 0 # Reset counter for next time
             self.parking_sub_state = ParkingSubState.EXECUTE_PARKING_MANEUVER
             return
-
+            
         # --- Proportional Speed Control ---
         fast_speed = self.forward_speed * 0.7
         slow_speed = self.parking_approach_slow_speed
@@ -2676,16 +2730,12 @@ class ObstacleNavigatorNode(Node):
         # --- Safety Checks (use_imu_only) ---
         use_imu_only = False
         # If we are in the slowdown zone, it's safer to use IMU only for alignment.
-        if not math.isnan(front_dist) and 0.97 < front_dist < 1.05: 
+        if not math.isnan(front_dist) and 0.97 < front_dist < 1.05: # self.parking_approach_slowdown_dist_m:
             use_imu_only = True
         
         # Additional safety check for abnormal course width
         if not use_imu_only:
-            inner_wall_angle = self._angle_normalize(base_angle_deg + 90.0)
-            outer_wall_angle = self._angle_normalize(base_angle_deg - 90.0)
-            inner_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
-            outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
-
+            # inner_wall_angle, outer_wall_angle, inner_dist, outer_dist are already calculated above
             if not math.isnan(inner_dist) and not math.isnan(outer_dist):
                 course_width = inner_dist + outer_dist
                 if not (0.9 < course_width < 1.1):
@@ -2907,26 +2957,36 @@ class ObstacleNavigatorNode(Node):
         self.publish_twist_with_gain(self.parking_step4_forward_speed, 0.0)
 
         # Start a one-shot timer on the first entry into this state.
-        if not self.parking_step4_timer_started:
-            self.parking_step4_timer_started = True
+        if self.parking_step4_timer is None:
             self.get_logger().info(
                 f"Parking Step 4: Moving forward for {self.parking_step4_duration_sec} seconds to align wheels."
             )
-            
-            # This timer will call the callback function once after the specified duration.
-            self.create_timer(self.parking_step4_duration_sec, self._finish_parking_maneuver)
+            # Create and store the timer object in the instance variable.
+            self.parking_step4_timer = self.create_timer(
+                self.parking_step4_duration_sec, self._finish_parking_maneuver
+            )
 
     def _finish_parking_maneuver(self):
         """
         Callback function triggered by the timer in step 4.
-        Safely transitions the state to FINISHED.
+        This function only sets the state to FINISHED. The main control loop
+        will handle the actual stopping command.
         """
-        # Acquire lock to prevent race conditions with the main control loop.
+        # Acquire lock to prevent race conditions.
         with self.state_lock:
-            # Check if we are still in the final adjustment step to avoid unintended state changes.
+            # Check if we are still in the final adjustment step.
             if self.parking_maneuver_step == ParkingManeuverStep.STEP4_FINAL_ADJUST:
                 self.get_logger().warn("--- PARKING MANEUVER COMPLETE ---")
+                
+                # Simply set the final state. Do NOT publish any commands from here.
                 self.state = State.FINISHED
+                # We can also reset the sub-state to be clean.
+                self.parking_maneuver_step = None
+
+            # Clean up the timer regardless.
+            if self.parking_step4_timer is not None and not self.parking_step4_timer.is_canceled():
+                self.parking_step4_timer.cancel()
+            self.parking_step4_timer = None
 
     def _execute_parking_initial_forward(self, msg: LaserScan, target_dist: float, is_outer: bool, next_step: Enum):
         """
@@ -3284,19 +3344,38 @@ class ObstacleNavigatorNode(Node):
         if not math.isnan(wall_dist):
             dist_error = target_dist - wall_dist
         
-        # --- NEW: Special logic for inner wall avoidance alignment ---
-        if not is_outer_wall and self.is_in_avoidance_alignment and (math.isnan(wall_dist) or wall_dist > 1.0):
-            # If the inner wall is lost during avoidance, try to estimate from the outer wall.
-            outer_wall_angle = self._angle_normalize(base_angle_deg - wall_offset_deg) # Opposite side
-            outer_wall_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+        if not is_outer_wall:
+            front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
+            outer_wall_angle = self._angle_normalize(base_angle_deg - wall_offset_deg)
+            outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+            inner_dist = wall_dist # For clarity in the condition
             
-            if not math.isnan(outer_wall_dist):
-                effective_inner_dist = 1.0 - outer_wall_dist
-                dist_error = target_dist - effective_inner_dist
-                log_mode = f"ESTIMATED(O:{outer_wall_dist:.2f})"
-            else:
-                dist_error = 0.0 # No walls visible, rely on IMU only for heading.
-                log_mode = "IMU_ONLY"
+            course_width = (inner_dist if not math.isnan(inner_dist) else 0) + \
+                           (outer_dist if not math.isnan(outer_dist) else 0)
+
+            # New conditions to enter ESTIMATED/IMU_ONLY block
+            is_front_in_range = not math.isnan(front_dist) and 1.1 < front_dist < 1.90
+            is_width_normal = not math.isnan(course_width) and 0.9 < course_width < 1.1
+            is_inner_far = not math.isnan(inner_dist) and inner_dist > 0.8
+
+            if (not is_front_in_range) or (not is_width_normal) or is_inner_far:
+                # Inside this block, we decide between ESTIMATED or IMU_ONLY
+
+                # Check for new front distance conditions
+                is_front_in_imu_zone1 = not math.isnan(front_dist) and 0.90 < front_dist < 1.1
+                is_front_in_imu_zone2 = not math.isnan(front_dist) and 1.90 < front_dist < 2.1
+
+                if (not math.isnan(course_width) and course_width < 0.9 ) or \
+                   is_front_in_imu_zone1 or is_front_in_imu_zone2:
+                    dist_error = 0.0
+                    log_mode = "IMU_ONLY"
+                elif not math.isnan(outer_dist):
+                    effective_inner_dist = 1.0 - outer_dist
+                    dist_error = target_dist - effective_inner_dist
+                    log_mode = f"ESTIMATED(O:{outer_dist:.2f})"
+                else:
+                    dist_error = 0.0
+                    log_mode = "IMU_ONLY"
         
         
         # If the corner detection counter has started, prioritize heading control over distance control

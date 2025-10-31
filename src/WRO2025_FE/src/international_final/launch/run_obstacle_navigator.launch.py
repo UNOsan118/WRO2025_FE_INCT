@@ -47,7 +47,7 @@ def generate_launch_description():
     # --- Define the State Machine Wall Follower Node ---
     # This is the main change from the reference file
     obstacle_navigator_node = Node(
-        package='chassis_v2_maneuver',
+        package='international_final',
         executable='run_obstacle_navigator',  # Use the executable name from setup.py
         name='obstacle_navigator_node',   # Define a unique name for this node
         output='screen',
