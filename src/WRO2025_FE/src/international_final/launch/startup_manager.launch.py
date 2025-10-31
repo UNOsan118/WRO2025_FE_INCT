@@ -74,7 +74,7 @@ def generate_launch_description():
     return LaunchDescription([
         # Start these immediately
         controller_launch,
-        imu_launch,
+        # imu_launch,
         lidar_launch,
         cam_launch,
         run_manager_node,
