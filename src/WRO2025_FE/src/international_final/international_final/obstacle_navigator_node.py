@@ -169,9 +169,9 @@ class ObstacleNavigatorNode(Node):
         self.start_from_parking = True
         self.correct_mirrored_scan = True
         self.save_debug_images = True
-        self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/chassis_v2_maneuver/images'
+        self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/international_final/images'
         self.max_valid_range_m = 3.0
-        self.max_turns = 4 #12
+        self.max_turns = 12 #12
         
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
