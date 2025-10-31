@@ -36,7 +36,7 @@ class OpenNavigatorNode(Node):
         self.start_time = self.get_clock().now()
         self.cmd_pub_interval_ms = 33
 
-        self.declare_parameter('log_level_str', 'INFO')
+        self.declare_parameter('log_level_str', 'DEBUG')
         log_level_str = self.get_parameter('log_level_str').get_parameter_value().string_value
         log_level_map = {
             'DEBUG': rclpy.logging.LoggingSeverity.DEBUG,
@@ -295,7 +295,7 @@ class OpenNavigatorNode(Node):
             self._execute_pid_alignment(
                 msg=msg,
                 base_angle_deg=0.0, # Assume we want to go straight from the start
-                speed=0.1,
+                speed=0.17,
                 disable_dist_control=True # IMU_ONLY
             )
 
@@ -462,10 +462,9 @@ class OpenNavigatorNode(Node):
         log_mode = "NORMAL"
 
         if not disable_dist_control:
-            if self.inner_wall_far_counter > 0:
-                dist_steer = 0.0
-                log_mode += "_CORNER_APPROACH"
-            elif not math.isnan(wall_dist) and abs(target_dist - wall_dist) > self.align_dist_tolerance_m:
+            # The 'inner_wall_far_counter' check is now removed.
+            # Distance control will remain active even when approaching a corner.
+            if not math.isnan(wall_dist) and abs(target_dist - wall_dist) > self.align_dist_tolerance_m:
                 dist_error = target_dist - wall_dist
                 dist_steer_multiplier = 1.0 if self.direction == 'ccw' else -1.0
                 dist_steer = self.align_kp_dist * dist_error * dist_steer_multiplier
