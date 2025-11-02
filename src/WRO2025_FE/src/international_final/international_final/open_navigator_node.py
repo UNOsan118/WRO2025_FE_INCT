@@ -59,7 +59,7 @@ class OpenNavigatorNode(Node):
         # --- General & Debug ---
         self.correct_mirrored_scan = True
         self.max_valid_range_m = 3.0
-        self.max_turns = 12
+        self.max_turns = 4 # 12
         
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
@@ -266,38 +266,39 @@ class OpenNavigatorNode(Node):
 
     def _handle_preparation_sub_determine_direction(self, msg: LaserScan):
         """
-        Determines course direction based on which side is open.
-        This assumes the robot starts roughly in the middle of a straight section.
+        Determines course direction, then continues to move forward using IMU only
+        until the first corner is detected.
         """
-        left_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg + 90.0)
-        right_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg - 90.0)
+        # --- Direction Determination Logic (runs only once) ---
+        if self.direction is None:
+            left_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg + 90.0)
+            right_dist = self.get_distance_at_world_angle(msg, self.current_yaw_deg - 90.0)
+            open_threshold = 1.5
 
-        # A simple threshold to consider a side "open"
-        open_threshold = 1.5
+            if not math.isnan(left_dist) and left_dist > open_threshold:
+                self.direction = "ccw"
+            elif not math.isnan(right_dist) and right_dist > open_threshold:
+                self.direction = "cw"
+            
+            if self.direction is not None:
+                self.get_logger().warn(f"Direction determined: {self.direction.upper()}. Proceeding to first corner with IMU only.")
+        
+        # --- Check for the first corner ---
+        # Once direction is set, _calculate_base_angle works, so we can check for a corner.
+        if self.direction is not None:
+            is_turning, _ = self._check_for_corner(msg, base_angle_deg=0.0)
+            if is_turning:
+                # If a corner is found, the state transition is handled by _check_for_corner.
+                return
 
-        direction_determined = False
-        if not math.isnan(left_dist) and left_dist > open_threshold:
-            self.direction = "ccw"
-            direction_determined = True
-        elif not math.isnan(right_dist) and right_dist > open_threshold:
-            self.direction = "cw"
-            direction_determined = True
-
-        if direction_determined:
-            self.get_logger().warn(f"Direction determined: {self.direction.upper()}. Transitioning to STRAIGHT.")
-            self.state = State.STRAIGHT
-            # Now that direction is known, alignment will work correctly.
-            self.publish_twist_with_gain(0.0, 0.0)
-        else:
-            # If direction is not yet clear, move forward slowly using IMU only
-            # to get a better vantage point.
-            self.get_logger().debug("Direction not yet determined. Moving forward slowly with IMU only.", throttle_duration_sec=1.0)
-            self._execute_pid_alignment(
-                msg=msg,
-                base_angle_deg=0.0, # Assume we want to go straight from the start
-                speed=0.17,
-                disable_dist_control=True # IMU_ONLY
-            )
+        # --- Continuous Action: Move forward with IMU ONLY ---
+        self.get_logger().debug("In PREPARATION, moving forward with IMU only.", throttle_duration_sec=1.0)
+        self._execute_pid_alignment(
+            msg=msg,
+            base_angle_deg=0.0, # Target is to go straight
+            speed=0.17,
+            disable_dist_control=True # IMU_ONLY
+        )
 
     # --- Straight Sub-State ---
     def _handle_straight_sub_align_with_outer_wall(self, msg: LaserScan):
@@ -311,11 +312,11 @@ class OpenNavigatorNode(Node):
         if is_turning:
             return
 
-        speed = self.forward_speed * 0.7 if self.turn_count == 0 else self.forward_speed
+        # Speed is now always the standard forward speed.
         self._execute_pid_alignment(
             msg=msg, 
             base_angle_deg=base_angle_deg, 
-            speed=speed
+            speed=self.forward_speed
         )
 
     # --- Turning Sub-States ---
@@ -352,13 +353,16 @@ class OpenNavigatorNode(Node):
             self.publish_twist_with_gain(0.0, 0.0)
             return
 
-        target_outer_dist = None
+        # Determine if IMU_ONLY mode should be forced
+        is_first_turn = self.turn_count == 0
+        
+        self.get_logger().debug(f"Approaching corner for turn {self.turn_count + 1}. IMU_ONLY: {is_first_turn}", throttle_duration_sec=0.5)
 
         self._execute_pid_alignment(
             msg=msg, 
             base_angle_deg=self.approach_base_yaw_deg, 
             speed=approach_speed,
-            override_target_dist=target_outer_dist
+            disable_dist_control=is_first_turn # Force IMU_ONLY for the first turn
         )
 
     def _handle_turning_sub_execute_pivot_turn(self, msg: LaserScan):
