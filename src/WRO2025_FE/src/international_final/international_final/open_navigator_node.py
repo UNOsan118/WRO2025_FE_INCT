@@ -59,7 +59,7 @@ class OpenNavigatorNode(Node):
         # --- General & Debug ---
         self.correct_mirrored_scan = True
         self.max_valid_range_m = 3.0
-        self.max_turns = 4 # 12
+        self.max_turns = 12 # 12
         
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
@@ -72,8 +72,8 @@ class OpenNavigatorNode(Node):
         self.max_angular_acceleration_rad = 7000.0
 
         # --- Alignment (PID) ---
-        self.align_kp_angle = 0.02
-        self.align_kp_dist = 7.5
+        self.align_kp_angle = 0.015
+        self.align_kp_dist = 5.0
         self.align_target_outer_dist_m = 0.2
         self.align_dist_tolerance_m = 0.005
 
@@ -302,7 +302,7 @@ class OpenNavigatorNode(Node):
         self._execute_pid_alignment(
             msg=msg,
             base_angle_deg=0.0, # Target is to go straight
-            speed=0.17,
+            speed=self.forward_speed,
             disable_dist_control=True # IMU_ONLY
         )
 
