@@ -88,6 +88,9 @@ class OpenNavigatorNode(Node):
         self.inner_wall_disappear_threshold = 1.3
         self.inner_wall_disappear_count = 3
         
+        # --- Finish Condition ---
+        self.finish_stability_threshold = 50
+
         # 4. INTERNAL STATE VARIABLES
         # ===========================
         self.current_yaw_deg = 0.0
@@ -129,6 +132,7 @@ class OpenNavigatorNode(Node):
         self.can_start_new_turn = True
         self.inner_wall_far_counter = 0
         self.stable_alignment_counter = 0
+        self.finish_stability_counter = 0
         self.last_state = self.state 
 
         # State-specific variables
@@ -499,7 +503,7 @@ class OpenNavigatorNode(Node):
         
         self.get_logger().debug(f"[CornerCheck] Turn:{self.turn_count} | I_Dist:{inner_wall_dist:.2f} | Counter:{self.inner_wall_far_counter}/{self.inner_wall_disappear_count} | CanTurn:{self.can_start_new_turn}", throttle_duration_sec=0.5)
 
-        if self.turn_count >= self.max_turns:
+        if self.turn_count > self.max_turns:
             self.get_logger().warn(f"BACKUP TRIGGER: Exceeded max_turns ({self.max_turns}). Forcing finish.")
             self.state = State.FINISHED
             self.publish_twist_with_gain(0.0, 0.0)
@@ -521,13 +525,54 @@ class OpenNavigatorNode(Node):
         return False, inner_wall_dist
 
     def _check_for_finish_condition(self, msg: LaserScan) -> bool:
-        if self.turn_count >= self.max_turns:
-            base_angle_deg = self._calculate_base_angle()
-            front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
-            if not math.isnan(front_dist) and front_dist < 1.5:
-                self.get_logger().warn(f"FINISH: Completed {self.turn_count} turns and front dist is {front_dist:.2f}m.")
-                self.state = State.FINISHED
-                return True
+        """
+        Checks if the robot has completed the required laps and is in a stable
+        straight section before finishing.
+        """
+        # Only check for finish condition on the final lap.
+        if self.turn_count < self.max_turns:
+            return False
+
+        base_angle_deg = self._calculate_base_angle()
+        
+        # --- Get sensor data for condition checking ---
+        front_dist = self.get_distance_at_world_angle(msg, base_angle_deg)
+        inner_offset = 90.0 if self.direction == 'ccw' else -90.0
+        outer_offset = -inner_offset
+        inner_dist = self.get_distance_at_world_angle(msg, self._angle_normalize(base_angle_deg + inner_offset))
+        outer_dist = self.get_distance_at_world_angle(msg, self._angle_normalize(base_angle_deg + outer_offset))
+        
+        # --- Check if stability conditions for finishing are met ---
+        is_stable_for_finish = False
+        if not math.isnan(inner_dist) and not math.isnan(outer_dist) and not math.isnan(front_dist):
+            course_width = inner_dist + outer_dist
+            # Condition: Course width is normal AND front is reasonably close.
+            if (0.9 < course_width < 1.1) and (front_dist < 1.75):
+                is_stable_for_finish = True
+
+        # --- Update the counter ---
+        if is_stable_for_finish:
+            self.finish_stability_counter += 1
+        else:
+            # If conditions are ever not met on the final lap, reset the counter.
+            self.finish_stability_counter = 0
+
+        self.get_logger().debug(
+            f"[FinishCheck] Counter: {self.finish_stability_counter}/{self.finish_stability_threshold} "
+            f"Stable: {is_stable_for_finish}",
+            throttle_duration_sec=0.5
+        )
+
+        # --- Check for final completion ---
+        if self.finish_stability_counter >= self.finish_stability_threshold:
+            self.get_logger().warn(
+                f"FINISH: Stable final straight detected after {self.turn_count} turns. "
+                f"Front dist: {front_dist:.2f}m. Halting."
+            )
+            self.state = State.FINISHED
+            self.publish_twist_with_gain(0.0, 0.0) # Send immediate stop command
+            return True
+            
         return False
 
     def _update_turn_permission_counter(self, msg: LaserScan, base_angle_deg: float):
