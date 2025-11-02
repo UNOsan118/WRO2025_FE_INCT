@@ -82,14 +82,16 @@ class OpenNavigatorNode(Node):
         self.turn_angle_deg = 40.0
         self.turn_approach_speed = 0.20
         self.turn_speed = 0.20
-        self.turn_positioning_reverse_speed = -0.14 # Corrected to be negative
+        self.turn_positioning_reverse_speed = 0.14 # Corrected to be negative
         
         # --- Corner Detection ---
         self.inner_wall_disappear_threshold = 1.3
         self.inner_wall_disappear_count = 3
+        self.corner_emergency_reverse_trigger_dist_m = 0.5
+        self.corner_emergency_reverse_target_dist_m = 0.7
         
         # --- Finish Condition ---
-        self.finish_stability_threshold = 50
+        self.finish_stability_threshold = 40
 
         # 4. INTERNAL STATE VARIABLES
         # ===========================
@@ -547,7 +549,7 @@ class OpenNavigatorNode(Node):
         if not math.isnan(inner_dist) and not math.isnan(outer_dist) and not math.isnan(front_dist):
             course_width = inner_dist + outer_dist
             # Condition: Course width is normal AND front is reasonably close.
-            if (0.9 < course_width < 1.1) and (front_dist < 1.75):
+            if (0.5 < course_width < 1.1) and (front_dist < 1.75):
                 is_stable_for_finish = True
 
         # --- Update the counter ---
