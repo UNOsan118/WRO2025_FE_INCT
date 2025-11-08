@@ -139,6 +139,11 @@ The original base vehicle utilized a two-motor drive system for the rear wheels.
   <br>
   <em>Our custom single-motor and differential gearbox assembly.</em>
 </p>
+<p align="center">
+  <img src="https://via.placeholder.com/500x300.png?text=Placeholder:+Final+Assembly+Photo" alt="[TODO: Replace with final assembly photo]">
+  <br>
+  <em><strong>[TODO: Replace with a photo of the final custom single-motor and differential gearbox assembly.]</strong></em>
+</p>
 
 **Motor Selection Rationale:**
 We selected this specific motor for three key reasons:
@@ -240,12 +245,18 @@ To fully unleash the potential of our base vehicle and physically support our na
     
     We developed a tall tower structure that elevates the camera, providing a top-down, "bird's-eye" perspective of the obstacles. This prevents the robot's own chassis from blocking the camera's line of sight, which is crucial for the reliable object recognition performed in our `PLAN_NEXT_AVOIDANCE` phase.
 
-These custom modifications form the critical physical foundation that enables our software to perform at its peak. All 3D models for these parts, including our custom chassis and gearbox components, are available in the [`models`](models) directory. To facilitate the reproduction of our design, we have also provided **detailed blueprints and assembly diagrams** for these custom parts in the [`models\blueprints`](models/blueprints) directory.
+These custom modifications form the critical physical foundation that enables our software to perform at its peak. To ensure full reproducibility of our design, all engineering files are organized in the [`models`](models) directory as follows:
+
+*   **[`models/custom_parts/cad_files/`](models/custom_parts/cad_files/):** Contains all the source `.SLDPRT` and printable `.stl` files for our custom-designed components.
+*   **[`models/custom_parts/blueprints/`](models/custom_parts/blueprints/):** Provides detailed manufacturing blueprints (`.pdf`) for each individual custom part.
+*   **[`models/assemblies/`](models/assemblies/):** Includes assembly diagrams (`.pdf`) showing how the custom and commercial parts fit together, along with the complete CAD assembly model of the robot.
+
+This structured approach ensures that another team can effortlessly reproduce our mechanical design.
 
 <p align="center">
-  <img src="assets\cad_assembly_sensor_tower.jpg" alt="Custom 3D-Printed Mounts" width="200">
+  <img src="assets/cad_full_assembly.png" alt="Full Robot CAD Assembly" width="500">
   <br>
-  <em>Our custom-designed LiDAR mount and camera tower, engineered for optimal sensor performance.</em>
+  <em>A CAD render of the full robot assembly, showcasing the integration of our custom 3D-printed parts with the commercial components.</em>
 </p>
 
 ---
@@ -820,109 +831,83 @@ These planned improvements show that our current design is not an endpoint, but 
 
 ---
 
-## 8. 3D Models & Custom Parts
+### 8. Engineering Design & Manufacturing
 
-All custom components for our robot were designed in SOLIDWORKS. We focused on creating parts that were not only functional but also lightweight, durable, and optimized for 3D printing. This section showcases our key custom-designed components.
+#### 8.1. Design Philosophy: From Kit to Custom Vehicle
 
-All design files, including `.SLDPRT` source files, `.stl` files for printing, and `.pdf` blueprints, are available in our [`models`](models) directory to ensure full reproducibility.
+Our journey in the WRO Future Engineers category began with the Hiwonder MentorPi A1 kit, which provided a solid foundation. However, we believe that true engineering lies not in assembling a kit, but in **reimagining and re-engineering** it to conquer specific challenges. Our philosophy was to transform the base vehicle into a highly specialized machine, meticulously optimized for the WRO course through our own design and manufacturing capabilities.
 
-### 8.1. Main Assemblies
+Every custom component on our robot is the answer to a specific problem we identified during testing. From redesigning the core drive system to comply with competition rules, to engineering sensor mounts for optimal data acquisition, our approach has been one of **purpose-driven design**.
 
-Our robot's unique structure is composed of two primary custom-designed assemblies, which were modeled in SOLIDWORKS and 3D-printed. This modular design allows for easy maintenance and precise component alignment.
+This section details our key engineering decisions and showcases the custom-designed components that define our robot's unique performance. All parts were designed in SOLIDWORKS and manufactured using 3D printing, demonstrating a complete design-to-fabrication cycle. All design files, including source CAD files, printable `.stl` files, blueprints, and assembly diagrams, are available in our [`models`](models) directory to ensure full reproducibility.
+
+### 8.2. Core System Redesign: A Custom Drive with a Mechanical Differential
+
+#### 8.2.1. The Initial Challenge: Ensuring Rule Compliance
+
+The stock MentorPi A1 chassis featured a dual-motor drive system for its rear wheels. This configuration, where two independent motors are controlled by software, constitutes an "electronic differential," which is explicitly **not permitted** under the WRO Future Engineers rules. Our first and most critical engineering challenge was to completely redesign the drive system to be **unambiguously compliant** with the regulations by implementing a purely mechanical solution.
+
+#### 8.2.2. Our Solution: A Custom Drive with a Mechanical Differential
+
+We replaced the dual-motor setup with a **single DC motor**. To distribute power to both wheels and allow them to rotate at different speeds during turns, we engineered a system that combines a **standard LEGO Technic differential gear set** for its proven reliability, with our own **custom-designed and 3D-printed gearbox housing and bevel gears** to integrate it seamlessly into our chassis.
 
 <p align="center">
-  <img src="./assets/cad_assembly_drive_system.jpg" alt="Drive System Assembly Render" width="300">
+<img src="https://via.placeholder.com/600x350.png?text=Placeholder:+Photo+of+Initial+vs+Final+Drive+System" alt="[TODO: Replace with a comparison photo of the initial dual-motor setup and the final single-motor differential assembly]">
+<br>
+<em><strong>[TODO: A comparison photo showing the original dual-motor setup (left) and our custom differential assembly (right) would be highly effective here.]</strong></em>
+</p>
+
+### 8.3. Key Component Design & Manufacturing 
+
+Beyond the core drive system, we designed and 3D-printed a suite of custom components to optimize our robot's performance, stability, and sensor integration. Each part was modeled in SOLIDWORKS with specific functional goals in mind, addressing challenges we discovered during testing and assembly. This section highlights the design rationale behind some of our most critical custom parts.
+
+*(Note: Details regarding our custom-designed drivetrain and steering components, such as the gearbox and bevel gears, are covered in **Section 5: Mobility Management**.)*
+
+#### 8.3.1. LiDAR Mount Assembly
+
+**Objective:** To achieve comprehensive and accurate environmental data acquisition while minimizing the risk of physical interference.
+
+**Design & Rationale:**
+We engineered a multi-part mount assembly with two primary features. First, it positions the LiDAR at an optimal height and slightly forward, ensuring its lasers reliably capture both the course walls and obstacles for the highest quality data. This forward placement also enables the sensor to measure obstacles located diagonally behind the robot. Second, the mount supports the LiDAR from above, allowing it to be **installed in an inverted position**. This orientation reduces the risk of the mount itself colliding with obstacles.
+
+This inverted mounting concept was inspired by the design of [**last year's Future Engineers world champion team**](https://github.com/MoCsabi/WRO2024-FE-StormsNGR), demonstrating our commitment to learning from and building upon the best practices in the WRO community.
+
+<p align="center">
+  <img src="https://via.placeholder.com/500x350.png?text=Placeholder:+Photo+of+LiDAR+Mount" alt="[TODO: Replace with a photo showing the LiDAR mounted on the robot]">
   <br>
-  <strong>Rear Drive System Assembly</strong>
+  <em><strong>[TODO: A close-up photo of the final LiDAR mount assembly installed on the robot.]</strong></em>
 </p>
 
-This assembly houses our custom single-motor drive system. It includes the 3D-printed gearbox, the differential gears, and the entire rear axle assembly, forming the core of our robot's propulsion.
+#### 8.3.2. Camera Tower Assembly
 
----
+**Objective:** To elevate the camera for a clear, unobstructed view, while retaining its full range of motion.
+
+**Design & Rationale:**
+To ensure reliable obstacle detection, a high vantage point is essential. We designed a tall tower structure to lift the camera well above the chassis. This "bird's-eye" perspective prevents the robot's own frame from blocking the view, allowing our software to capture a complete image of the entire upcoming segment.
+
+A key design requirement was to **fully preserve the 2-axis (pan and tilt) functionality** of the original MentorPi A1 camera system. Our custom mount seamlessly integrates with the stock servo motors, allowing the elevated camera to retain its ability to pan side-to-side for scanning and tilt up-and-down. This retained mobility is critical for our `PLAN_NEXT_AVOIDANCE` strategy, where the camera must precisely aim down the upcoming track segment. The tower itself is designed to be lightweight yet rigid to ensure a stable image, even while the servos are in motion.
 
 <p align="center">
-  <img src="./assets/cad_assembly_sensor_tower.jpg" alt="Sensor Tower Assembly Render" width ="300">
+  <img src="https://via.placeholder.com/500x350.png?text=Placeholder:+Photo+of+Camera+Tower" alt="[TODO: Replace with a photo showing the camera tower on the robot]">
   <br>
-  <strong>Sensor Tower & Base Assembly</strong>
+  <em><strong>[TODO: A photo showing the tall camera tower and how it provides a clear view.]</strong></em>
 </p>
 
-This assembly serves as the main structural backbone. It combines the base plate that mounts to the chassis, the LiDAR mount, and the tall tower for the camera, ensuring all sensors are held in their optimal, rigid positions.
+#### 8.3.3. Custom Main Chassis
 
-### 8.2. Key Individual Components
+**Objective:** To create a foundational platform perfectly tailored to our custom drive/steering systems and optimized component layout.
 
-Below are the blueprints for some of our most critical custom-designed parts, which define our robot's performance. All components have been designed with functionality, strength, and ease of 3D printing in mind.
+**Design & Rationale:**
+As our custom-designed components evolved, we reached the limits of what the stock chassis could accommodate. To break through these limitations, we made the pivotal decision to **redesign the main chassis from the ground up**.
 
----
-
-#### 8.2.1. Base Mounting Plate
-
-**Role:** This plate serves as the foundation for attaching all sensor mounts. It ensures precise positioning and rigid fixation to the main chassis.
+Our primary goal was to create a platform that would seamlessly integrate our redesigned drive and steering mechanisms. The new chassis was meticulously modeled in SOLIDWORKS to ensure optimal placement for every component, preventing any physical interference between the single drive motor, the differential gearbox, the steering servo, and the wheels during their full range of motion. This redesign provided us with the architectural freedom to perfect our component layout for improved stability and easier maintenance, marking the final step in the evolution of our vehicle from a modified kit to a truly custom robot.
 
 <p align="center">
-  <img src="./assets/blueprint_bottom-plate.png" alt="Blueprint of Base Mounting Plate" width="300">
+<img src="https://via.placeholder.com/500x350.png?text=Placeholder:+Photo+of+Custom+Chassis" alt="[TODO: Replace with a photo or CAD render of the custom chassis]">
+<br>
+<em><strong>[TODO: A photo of the 3D-printed custom chassis, perhaps placed next to the original one for comparison.]</strong></em>
 </p>
 
----
-
-#### 8.2.2. Camera Tower
-
-**Role:** This component provides the necessary height for the camera. It features a lightweight truss structure to minimize weight at the top of the robot.
-
-<p align="center">
-  <img src="./assets/blueprint_cam-side.png" alt="Blueprint of Camera Tower" width="200">
-</p>
-
----
-
-#### 8.2.3. Camera Mount
-
-**Role:** This part securely holds the camera and is designed to integrate with the tilt servo, enabling vertical camera movement.
-
-<p align="center">
-  <img src="./assets/blueprint_cam-upper.png" alt="Blueprint of Camera Mount" width="300">
-</p>
-
----
-
-#### 8.2.4. LiDAR Mount (Mid Frame)
-
-**Role:** This component positions the LiDAR sensor at the optimal height to reliably detect both the course walls and the obstacles on the track.
-
-<p align="center">
-  <img src="./assets/blueprint_lidar-mid.png" alt="Blueprint of LiDAR Mid Frame" width="300">
-</p>
-
----
-
-#### 8.2.5. LiDAR Mount (Upper Frame)
-
-**Role:** This part suspends the LiDAR sensor in an inverted position. Its shape is designed to hold the LiDAR stably while minimizing the risk of the mount itself interfering with obstacles.
-
-<p align="center">
-  <img src="./assets/blueprint_lidar-upper.png" alt="Blueprint of LiDAR Upper Frame" width="300">
-</p>
-
----
-
-#### 8.2.6. Differential Gearbox
-
-**Role:** This housing protects the drive motor and differential gears. It is designed with high dimensional accuracy to maintain precise gear mesh.
-
-<p align="center">
-  <img src="./assets/blueprint_gearbox.png" alt="Blueprint of Differential Gearbox" width="300">
-</p>
-
----
-
-#### 8.2.7. Bevel Gear
-
-**Role:** As one of the most critical gears in the drive system, it translates the motor's rotation by 90 degrees to transfer power to the differential mechanism. The tooth profile is optimized for smooth power transmission.
-
-<p align="center">
-  <img src="./assets/blueprint_bevel-gear.png" alt="Blueprint of Bevel Gear" width="300">
-</p>
-
----
 
 ## 9. Performance Videos
 
