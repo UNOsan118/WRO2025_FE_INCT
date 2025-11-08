@@ -84,17 +84,25 @@ The table below lists all the major electrical and mechanical components used to
 | Differential Gears | <img src="assets/bom_differential_gears.png" width="150"> | 1 | [Product Page](https://www.aliexpress.com/i/3256803487389220.html?gatewayAdapt=4itemAdapt) |
 | Wheels & Tires | <img src="assets/bom_wheel.png" width="150"> | 4 | *[Product Page](https://www.hiwonder.com/products/mecanum-omnidirectional-wheel-metal-coupling-motor-ros-robot-universal-wheel-smart-car-tire?_pos=3&_sid=f4084b157&_ss=r&variant=40446400659543) <br> (Part of [MentorPi A1 kit](https://www.hiwonder.com/products/mentorpi-a1-monocular-camera-version?variant=41370001244247))* |
 | **Custom 3D-Printed Parts** | | | |
-| Base Mounting Plate | <img src="assets/bom_bottom-plate.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/bottom-plate.SLDPRT) / [Blueprint](models/blueprints/bottom-plate.pdf) |
-| LiDAR Mount (Mid Frame) | <img src="assets/bom_LiDAR-mid.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/LiDAR-mid.SLDPRT) / [Blueprint](models/blueprints/LiDAR-mid.pdf) |
-| LiDAR Mount (Upper Frame)| <img src="assets/bom_LiDAR-upper.png" width="150">| 1 | [3D Model](models/3D_CAD_data/LiDAR-upper.SLDPRT) / [Blueprint](models/blueprints/LiDAR-upper.pdf) |
-| Camera Tower (Side Frames)| <img src="assets/bom_cam-side-short.png" width="150">| 2 | [3D Model](models/3D_CAD_data/cam-side-short.SLDPRT) / [Blueprint](models/blueprints/cam-side-short.pdf) |
-| Camera Mount (Upper) | <img src="assets/bom_cam-upper.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/cam-upper.SLDPRT) / [Blueprint](models/blueprints/cam-upper.pdf) |
-| Differential Gearbox | <img src="assets/bom_gearbox.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/gearbox.SLDPRT) / [Blueprint](models/blueprints/gearbox.pdf) |
-| Bevel Gear | <img src="assets/bom_Bevel_Gear.png" width="150"> | 1 | [3D Model](models/3D_CAD_data/Bevel_Gear.SLDPRT) / [Blueprint](models/blueprints/Bevel_Gear.pdf) |
-| Wheel Hub | <img src="assets/bom_hub.png" width="150"> | 2 | [3D Model](models/3D_CAD_data/hub.SLDPRT) / [Blueprint](models/blueprints/hub.pdf) |
-| Wheel Sleeve | <img src="assets/bom_sleeve.png" width="150"> | 2 | [3D Model](models/3D_CAD_data/sleeve.SLDPRT) / [Blueprint](models/blueprints/sleeve.pdf) |
-
-*(Note: This list covers the main components. A complete list including smaller parts like wires, screws, and bearings is omitted for brevity.)*
+| Battery Holder (Front) | <img src="assets/bom_battery_holder_front.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/battery_holder_front.SLDPRT) / [Blueprint](models/custom_parts/blueprints/battery_holder_front.PDF) |
+| Battery Holder (Rear) | <img src="assets/bom_battery_holder_rear.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/battery_holder_rear.SLDPRT) / [Blueprint](models/custom_parts/blueprints/battery_holder_rear.PDF) |
+| Bevel Gear | <img src="assets/bom_Bevel_Gear.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/Bevel_Gear.SLDPRT) / [Blueprint](models/custom_parts/blueprints/Bevel_Gear.pdf) |
+| Breadboard Mount | <img src="assets/bom_breadboard_mount.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/breadboard_mount.SLDPRT) / [Blueprint](models/custom_parts/blueprints/breadboard_mount.PDF) |
+| Camera Mount (Side) | <img src="assets/bom_camera_mount_side.png" width="150"> | 2 | [3D Model](models/custom_parts/cad_files/camera_mount_side.SLDPRT) / [Blueprint](models/custom_parts/blueprints/camera_mount_side.PDF) |
+| Camera Mount (Upper) | <img src="assets/bom_camera_mount_upper.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/camera_mount_upper.SLDPRT) / [Blueprint](models/custom_parts/blueprints/camera_mount_upper.PDF) |
+| Chassis | <img src="assets/bom_chassis.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/chassis.SLDPRT) / [Blueprint](models/custom_parts/blueprints/chassis.PDF) |
+| Front Hub | <img src="assets/bom_front_hub.png" width="150"> | 2 | [3D Model](models/custom_parts/cad_files/front_hub.SLDPRT) / *Blueprint N/A* |
+| Gearbox Bearing (Inner) | <img src="assets/bom_gearbox_bearing_inner.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/gearbox_bearing_inner.SLDPRT) / [Blueprint](models/custom_parts/blueprints/gearbox_bearing_inner.pdf) |
+| Gearbox Bearing (Outer) | <img src="assets/bom_gearbox_bearing_outer.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/gearbox_bearing_outer.SLDPRT) / [Blueprint](models/custom_parts/blueprints/gearbox_bearing_outer.pdf) |
+| Gearbox (Front End) | <img src="assets/bom_gearbox_frontend.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/gearbox_frontend.SLDPRT) / [Blueprint](models/custom_parts/blueprints/gearbox_frontend.PDF) |
+| Gearbox Mount (Front) | <img src="assets/bom_gearbox_mount_front.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/gearbox_mount_front.SLDPRT) / [Blueprint](models/custom_parts/blueprints/gearbox_mount_front.PDF) |
+| Gearbox Mount (Rear) | <img src="assets/bom_gearbox_mount_rear.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/gearbox_mount_rear.SLDPRT) / [Blueprint](models/custom_parts/blueprints/gearbox_mount_rear.PDF) |
+| Gearbox (Rear End) | <img src="assets/bom_gearbox_rearend.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/gearbox_rearend.SLDPRT) / [Blueprint](models/custom_parts/blueprints/gearbox_rearend.PDF) |
+| Hub (Rear) | <img src="assets/bom_hub_rear.png" width="150"> | 2 | [3D Model](models/custom_parts/cad_files/hub_rear.SLDPRT) / [Blueprint](models/custom_parts/blueprints/hub_rear.pdf) |
+| LiDAR Mount (Back) | <img src="assets/bom_LiDAR_mount_back.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/LiDAR_mount_back.SLDPRT) / [Blueprint](models/custom_parts/blueprints/LiDAR_mount_back.PDF) |
+| LiDAR Mount (Upper) | <img src="assets/bom_LiDAR_mount_upper.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/LiDAR_mount_upper.SLDPRT) / [Blueprint](models/custom_parts/blueprints/LiDAR_mount_upper.PDF) |
+| Sleeve | <img src="assets/bom_sleeve.png" width="150"> | 2 | [3D Model](models/custom_parts/cad_files/sleeve.SLDPRT) / [Blueprint](models/custom_parts/blueprints/sleeve.pdf) |
+| Steering Link Mount | <img src="assets/bom_steering_link_mount.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/steering_link_mount.SLDPRT) / [Blueprint](models/custom_parts/blueprints/steering_link_mount.pdf) |
 
 ---
 
