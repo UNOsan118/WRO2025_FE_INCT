@@ -537,6 +537,26 @@ Based on these factors, the robot adjusts its behavior, allowing for tighter, fa
     <img src="schemes\if_entrance_is_clear.jpg" alt="Unparking Strategies" width="600">
 </p>
 
+#### 7.3.5. Parking Preparation Strategy (3 Patterns)
+
+**The Challenge:** The final parking maneuver requires the robot to be in a specific state: approaching the parking area from the **outer lane** in the **counter-clockwise (CCW)** direction. However, after completing its final lap, the robot could be in one of several states (e.g., traveling clockwise, or on the inner lane). A "one-size-fits-all" approach to parking would be inefficient and unreliable.
+
+**Our Solution:** Upon completing the required number of laps, our robot enters the `PREPARE_PARKING` sub-state. Here, it analyzes its final state (direction and lane) and dynamically selects one of three distinct preparation strategies to ensure it always enters the final parking approach from the optimal starting condition.
+
+| Final Lap State | Selected Strategy | Maneuver Description |
+| :--- | :--- | :--- |
+| **CW, Outer/Inner Lane** | `REORIENT_FOR_PARKING` | Executes a precise U-turn (either a 3-point or S-curve turn depending on the lane) to reverse its direction to CCW on the outer lane. |
+| **CCW, Inner Lane** | `LANE_CHANGE_FOR_PARKING`| Performs a specialized S-curve reverse maneuver to safely move from the inner lane to the outer lane. |
+| **CCW, Outer Lane** | **(Direct Proceed)** | This is the ideal state. No special maneuver is needed, and the robot transitions directly to the final `APPROACH_PARKING_START` phase. |
+
+This dynamic selection ensures that, no matter how the final lap ends, the robot is perfectly positioned to execute a consistent and highly reliable final parking sequence.
+
+<p align="center">
+  <img src="schemes/Parking_Preparation_Strategies.png" alt="Parking Preparation Strategies Diagram" width="600">
+  <br>
+  <em>Visual diagram of the dynamic parking preparation strategies. The top row shows the U-turn maneuvers for a Clockwise finish, while the bottom row shows the maneuvers for a Counter-Clockwise finish.</em>
+</p>
+
 
 ### 7.4. Key Algorithms & Engineering Decisions
 
@@ -720,12 +740,15 @@ This state executes a precise, multi-step maneuver to navigate the 90-degree cor
 
 ##### Parking (`PARKING` State)
 
-This final set of maneuvers is responsible for bringing the robot to a safe and accurate stop in the designated parking area.
+This state manages the entire end-of-mission sequence, from preparing for the final approach to executing the parallel parking maneuver.
 
 | Sub-State | Handler Function | Functionality |
 | :--- | :--- | :--- |
-| **`PRE_PARKING_ADJUST`** | `_handle_parking_sub_pre_parking_adjust()` | Precisely approaches the final pre-parking position, using an overshoot-and-reverse technique for CW to improve accuracy. |
-| **`REVERSE_INTO_SPACE`** | `_handle_parking_sub_reverse_into_space()` | Executes the final reverse turn into the parking space until the target angle is reached. |
+| **`PREPARE_PARKING`** | `_handle_parking_sub_prepare_parking()` | Analyzes the robot's final state (direction/lane) and selects the appropriate preparation strategy (U-turn, lane change, or direct proceed). |
+| **`REORIENT_FOR_PARKING`**| `_handle_parking_sub_reorient_for_parking()` | (CW Strategy) Executes a multi-step U-turn to reverse the robot's direction. |
+| **`LANE_CHANGE_FOR_PARKING`**|`_handle_parking_sub_lane_change_for_parking()` | (CCW/Inner Strategy) Executes a maneuver to move from the inner to the outer lane. |
+| **`APPROACH_PARKING_START`**| `_handle_parking_sub_approach_parking_start()` | Precisely moves the robot to the exact starting position for the final parking maneuver, using a stability counter to ensure accuracy. |
+| **`EXECUTE_PARKING_MANEUVER`**| `_handle_parking_sub_execute_parking_maneuver()`| Executes the final four-step parallel parking sequence (reverse-turn, reverse-straight, align-turn, final-adjust) to park the vehicle. |
 
 ##### Mission End (`FINISHED` State)
 The `FINISHED` state is the simplest of all. Its handler, `_handle_state_finished()`, has only one job: to publish a zero-velocity command, bringing the robot to a complete and safe stop. It also calculates and logs the total run time.
