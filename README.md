@@ -126,23 +126,32 @@ This section details our robot's mechanical framework, its propulsion system, an
 
 Our robot's development began with the **Hiwonder MentorPi A1** as a base platform, which we selected for its robust initial structure. However, through extensive testing and iteration, our design has evolved into a **unique, custom chassis** that, while inspired by the original, is now tailored specifically to our strategic needs.
 
-### 5.2. Drive Mechanism: Single Motor with Differential Gearbox
+### 5.2. Drive Mechanism: A Custom Monoshock Differential System
 
-**Development Story:**
-The original base vehicle utilized a two-motor drive system for the rear wheels. However, we identified that this configuration could be interpreted as an electronic "differential," which is not permitted under the competition rules. To ensure full compliance while maintaining high performance, we engineered a significant modification: a **single-motor drive system** that transmits power through a mechanical **differential gearbox**.
+#### 5.2.1. Development Story: Integrating Propulsion, Suspension, and Rule Compliance
 
-*   **Role of the Differential Gearbox:** This crucial mechanical component distributes power from the single motor to both rear wheels. It allows the wheels to rotate at different speeds during a turn, which is essential for smooth and stable cornering and works in perfect harmony with our steering system.
-*   **Motor and Encoder:** The heart of our propulsion is a **DC geared motor with an integrated Hall-effect encoder**. This encoder outputs A/B phase pulse signals, which our system decodes to precisely determine the motor's direction and rotational speed. This high-resolution feedback is the foundation of our accurate PID speed control.
+The stock MentorPi A1 chassis featured a dual-motor drive system, which is not permitted under WRO rules as it constitutes an "electronic differential." Our primary engineering goal was to not only achieve rule compliance with a mechanical solution but to **seize this opportunity to innovate**. We decided to design a completely new rear assembly that would integrate three critical functions into one compact unit: **propulsion, differential action, and suspension**.
+
+Our solution is a custom-designed and 3D-printed gearbox that houses a **single DC motor** and a reliable **LEGO Technic differential gear set**. Most importantly, the entire gearbox assembly is mounted to the chassis via a pivot and acts as a swingarm, effectively creating a **monoshock suspension system** for the rear axle.
+
+#### 5.2.2. Functional Deep Dive: The Integrated Gearbox and Suspension
+
+This integrated design offers significant performance advantages:
+
+*   **Mechanical Differential:** The combination of our custom bevel gear and the LEGO differential ensures rule compliance while providing smooth power distribution for stable cornering. The 3D-printed housing was meticulously designed in SOLIDWORKS to guarantee a perfect and reliable gear mesh.
+*   **Monoshock Suspension:** As shown in the images below, the gearbox pivots vertically, allowing the rear wheels to absorb imperfections on the track surface. This ensures that the robot can continue its run reliably even if there are unexpected bumps or irregularities on the course.
 
 <p align="center">
-  <img src="assets/motor_and_differential.jpg" alt="Motor and Differential Gearbox Assembly" width="500">
+  <img src="assets/drive_system_top_view.jpg" alt="Top-down view of the custom differential gearbox" width="400">
   <br>
-  <em>Our custom single-motor and differential gearbox assembly.</em>
+  <em>Top-down view showcasing the custom bevel gear (top, black) meshing with the LEGO differential gear set (center, gold/grey).</em>
 </p>
+
 <p align="center">
-  <img src="https://via.placeholder.com/500x300.png?text=Placeholder:+Final+Assembly+Photo" alt="[TODO: Replace with final assembly photo]">
+  <img src="assets/suspension_neutral.jpg" alt="Rear suspension in neutral position" width="400">
+  <img src="assets/suspension_compressed.jpg" alt="Rear suspension in compressed position" width="400">
   <br>
-  <em><strong>[TODO: Replace with a photo of the final custom single-motor and differential gearbox assembly.]</strong></em>
+  <em>The integrated monoshock suspension system in action. The entire gearbox assembly pivots to absorb surface irregularities, maximizing traction.</em>
 </p>
 
 **Motor Selection Rationale:**
@@ -219,45 +228,6 @@ To mathematically model our robot's motion and ensure pure rolling without later
         </p>
 
 This mathematical model is fundamental to how our `ros_robot_controller` translates high-level velocity commands into precise, differential wheel speeds, enabling accurate path following.
-
-
-### 5.4. Optimization via Custom 3D-Printed Parts
-
-To fully unleash the potential of our base vehicle and physically support our navigation strategy, we designed and 3D-printed several custom mounts using CAD software. These parts are not mere accessories; they are the result of careful engineering decisions aimed at maximizing sensor data quality and overall performance.
-
-*   **LiDAR Mount:**
-
-    **Objective:** 
-    
-    To achieve accurate wall detection while minimizing physical interference.
-
-    **Design:** 
-    
-    We engineered a multi-purpose mount with two key features. First, it positions the LiDAR at an optimal low height and slightly forward, ensuring its lasers are perfectly aligned with the course walls for the highest quality data. Second, the mount supports the LiDAR from above, allowing it to be **installed in an inverted position**. This orientation reduces the risk of the mount itself colliding with obstacles. This inverted mounting concept was **inspired by the design of last year's Future Engineers world champion team**, demonstrating our commitment to learning from the best.
-
-*   **Camera Tower:**
-
-    **Objective:**
-    
-    To ensure a clear, unobstructed view of all obstacles.
-
-    **Design:**
-    
-    We developed a tall tower structure that elevates the camera, providing a top-down, "bird's-eye" perspective of the obstacles. This prevents the robot's own chassis from blocking the camera's line of sight, which is crucial for the reliable object recognition performed in our `PLAN_NEXT_AVOIDANCE` phase.
-
-These custom modifications form the critical physical foundation that enables our software to perform at its peak. To ensure full reproducibility of our design, all engineering files are organized in the [`models`](models) directory as follows:
-
-*   **[`models/custom_parts/cad_files/`](models/custom_parts/cad_files/):** Contains all the source `.SLDPRT` and printable `.stl` files for our custom-designed components.
-*   **[`models/custom_parts/blueprints/`](models/custom_parts/blueprints/):** Provides detailed manufacturing blueprints (`.pdf`) for each individual custom part.
-*   **[`models/assemblies/`](models/assemblies/):** Includes assembly diagrams (`.pdf`) showing how the custom and commercial parts fit together, along with the complete CAD assembly model of the robot.
-
-This structured approach ensures that another team can effortlessly reproduce our mechanical design.
-
-<p align="center">
-  <img src="assets/cad_full_assembly.png" alt="Full Robot CAD Assembly" width="500">
-  <br>
-  <em>A CAD render of the full robot assembly, showcasing the integration of our custom 3D-printed parts with the commercial components.</em>
-</p>
 
 ---
 
@@ -931,6 +901,21 @@ Our primary goal was to create a platform that would seamlessly integrate our re
 <em><strong>[TODO: A photo of the 3D-printed custom chassis, perhaps placed next to the original one for comparison.]</strong></em>
 </p>
 
+This section details our key engineering decisions and showcases the custom-designed components that define our robot's unique performance. All parts were designed in SOLIDWORKS and manufactured using 3D printing, demonstrating a complete design-to-fabrication cycle.
+
+To ensure full reproducibility of our design, all engineering files are organized in our [`models`](models) directory as follows:
+
+*   **[`models/custom_parts/`](models/custom_parts/):** Contains the CAD source files (`.SLDPRT`) and manufacturing blueprints (`.pdf`) for every part we designed and 3D-printed.
+*   **[`models/commercial_parts/`](models/commercial_parts/):** Includes CAD models of the off-the-shelf components we integrated, such as motors and sensors.
+*   **[`models/assemblies/`](models/assemblies/):** Provides the complete CAD assembly model of the robot, along with detailed assembly diagrams (`.pdf`) that show how all custom and commercial parts fit together.
+
+This structured approach ensures that another team can effortlessly reproduce our entire mechanical design from scratch.
+
+<p align="center">
+  <img src="assets/cad_full_assembly.png" alt="Full Robot CAD Assembly" width="500">
+  <br>
+  <em>A CAD render of the full robot assembly, showcasing the integration of our custom 3D-printed parts with the commercial components.</em>
+</p>
 
 ## 9. Performance Videos
 
