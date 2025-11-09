@@ -17,28 +17,33 @@ This is the official repository for **Team Ishikawa KOSEN**, representing Japan 
 
 ## 1.1 Team Introduction
 
-We are Team Ishikawa KOSEN, the representatives of Japan for the WRO 2025 Future Engineers category. After winning the highly competitive national competition, we are deeply honored to have the opportunity to compete on the world's highest stage. Our team consists of two students and one coach from Ishikawa National College of Technology (KOSEN), a unique educational institution that fuses deep theory with practical craftsmanship, known as "Monozukuri." It is in this environment that we have continuously honed our skills. We are determined to win first place in this international competition!
+We are Team Ishikawa KOSEN, the representatives of Japan for the WRO 2025 Future Engineers category. After winning a highly competitive national competition, we are deeply honored to compete on the world's highest stage. Our team consists of two students and one coach from the National Institute of Technology (KOSEN), Ishikawa College, an institution renowned for its rigorous, project-based engineering curriculum. It is through this hands-on approach—where theoretical knowledge is immediately applied to solve complex, real-world challenges—that we have honed the skills necessary to excel. We are fully prepared and determined to claim first place in this international competition!
 
 <p align="center">
   <img src="t-photos\team_members_photo.png" alt="Team members photo" width="500">
   <br>
 </p>
 
-*   **Shinichi Uno :** Lead Programmer & Strategist
+*   **Shinichi Uno:** Lead Programmer, Strategist & Co-Mechanical Designer
+    *   *Major: Advanced Electronic and Mechanical Engineering, 2nd Year*
+    *   *Born: January 18, 2004*
 
 <p align="center">
   <img src="t-photos\Shinichi Uno_photo.png" alt="Team members photo" width="500">
   <br>
 </p>
 
-*   **Kosei Takano :** Mechanical Designer & Systems Integrator
+*   **Kosei Takano:** Lead Mechanical Designer & Systems Integrator
+    *   *Major: Advanced Electronic and Mechanical Engineering, 2nd Year*
+    *   *Born: [Month] [Day], 2003*
 
 <p align="center">
   <img src="t-photos\Kosei Takano.png" alt="Team members photo" width="500">
   <br>
 </p>
 
-*   **Makoto Koshino :** Mechanical Designer & Systems Integrator
+*   **Makoto Koshino:** Team Coach
+    *   *Professor, Department of Electronics and Information Engineering*
 
 <p align="center">
   <img src="t-photos\Makoto Koshino.png" alt="Team members photo" width="500">
@@ -104,9 +109,9 @@ A high-level introduction to our robot's design philosophy and key features.
 
 | Front_View | Right_View | Rear_View |
 | :--: | :--: | :--: |
-| <img src="v-photos\Front_View.jpg" alt="Front_View" style=" height: 250px; object-fit: contain;"> | <img src="v-photos\Right_View.jpg" alt="Right_View" style=" height: 250px; object-fit: contain;"> | <img src="v-photos\Rear_View.jpg" alt="Rear_View" style=" height: 250px; object-fit: contain;"> |
+| <img src="v-photos\Front_View.jpg" alt="Front_View" style="  object-fit: contain;"> | <img src="v-photos\Right_View.jpg" alt="Right_View" style="  object-fit: contain;"> | <img src="v-photos\Rear_View.jpg" alt="Rear_View" style="  object-fit: contain;"> |
 | Left_View | Top_View | Bottom_View |
-| <img src="v-photos\Left_View.jpg" alt="Left_View" style=" height: 250px; object-fit: contain;"> | <img src="v-photos\Top_View.jpg" alt="Top_View" style=" height: 250px; object-fit: contain;"> | <img src="v-photos\Bottom_View.jpg" alt="Bottom_View" style=" height: 250px; object-fit: contain;"> |
+| <img src="v-photos\Left_View.jpg" alt="Left_View" style="  object-fit: contain;"> | <img src="v-photos\Top_View.jpg" alt="Top_View" style="  object-fit: contain;"> | <img src="v-photos\Bottom_View.jpg" alt="Bottom_View" style="  object-fit: contain;"> |
 
 ---             
 
