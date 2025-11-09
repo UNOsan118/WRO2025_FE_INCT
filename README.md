@@ -169,6 +169,32 @@ We selected this specific motor for three key reasons:
 
 ### 5.3. Steering Mechanism: Modified Ackermann Geometry
 
+#### 5.3.1. The Challenge: A Turning Radius Unsuitable for Parking
+
+While the stock Ackermann steering was functional for basic navigation, its limited steering angle resulted in a minimum turning radius of approximately **65 cm**. This was a critical flaw, making it physically impossible to perform the precise maneuvers required for parallel parking within a 45 cm wide space. To overcome this, a radical redesign of the entire front steering assembly was not just an optimization—it was a necessity.
+
+#### 5.3.2. Our Solution: Vertical Motor Mount and Angled Linkage
+
+Our solution involved redesigning the custom chassis to accommodate an innovative steering layout. By reorienting the steering servo to a **vertical position** and using an **angled transmission axis** when the wheels are straight, we achieved two critical goals simultaneously:
+
+1.  **Space Optimization:** This compact vertical layout freed up significant space, allowing for a much greater range of motion for the steering linkage without mechanical interference.
+2.  **Maximized Steering Angle:** The new geometry dramatically increased the maximum steering angle.
+
+This redesign, while reusing most of the original mechanical linkage components, was only made possible by our custom 3D-printed chassis and mounts. The result is a steering system that achieves an incredible **minimum turning radius of just 15 cm**—a reduction of over 75%. This exceptional agility is the key enabler for our successful unparking and parking strategies.
+
+*(Note: The evolution of our custom chassis to support this mechanism is detailed in **Section 8: Engineering Design & Manufacturing**.)*
+
+<p align="center">
+  <img src="assets/steering_straight.jpg" alt="Steering mechanism in neutral position" width="250">
+  <img src="assets/steering_left.jpg" alt="Steering mechanism at full left lock" width="250">
+  <img src="assets/steering_right.jpg" alt="Steering mechanism at full right lock" width="250">
+  <br>
+  <em>Our custom steering assembly. From left to right: Neutral position showing the angled linkage, and the significantly increased maximum steering angles at full left and right lock.</em>
+</p>
+
+
+#### 5.3.3. Actuator and Kinematic Model
+
 To maximize our robot's agility, we modified the stock **Ackermann steering mechanism** provided by the base vehicle. Our primary goals were to **increase the maximum steering angle** and improve overall turning precision.
 
 *   **Principle:** The Ackermann geometry is designed so that during a turn, the inner front wheel pivots at a sharper angle than the outer wheel. This ensures that the normal lines of all four wheels intersect at a single Instantaneous Center of Rotation (ICR), minimizing tire slippage.
@@ -824,9 +850,9 @@ These planned improvements show that our current design is not an endpoint, but 
 
 ---
 
-### 8. Engineering Design & Manufacturing
+## 8. Engineering Design & Manufacturing
 
-#### 8.1. Design Philosophy: From Kit to Custom Vehicle
+### 8.1. Design Philosophy: From Kit to Custom Vehicle
 
 Our journey in the WRO Future Engineers category began with the Hiwonder MentorPi A1 kit, which provided a solid foundation. However, we believe that true engineering lies not in assembling a kit, but in **reimagining and re-engineering** it to conquer specific challenges. Our philosophy was to transform the base vehicle into a highly specialized machine, meticulously optimized for the WRO course through our own design and manufacturing capabilities.
 
