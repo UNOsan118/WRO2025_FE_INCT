@@ -871,9 +871,10 @@ The stock MentorPi A1 chassis featured a dual-motor drive system for its rear wh
 We replaced the dual-motor setup with a **single DC motor**. To distribute power to both wheels and allow them to rotate at different speeds during turns, we engineered a system that combines a **standard LEGO Technic differential gear set** for its proven reliability, with our own **custom-designed and 3D-printed gearbox housing and bevel gears** to integrate it seamlessly into our chassis.
 
 <p align="center">
-<img src="https://via.placeholder.com/600x350.png?text=Placeholder:+Photo+of+Initial+vs+Final+Drive+System" alt="[TODO: Replace with a comparison photo of the initial dual-motor setup and the final single-motor differential assembly]">
-<br>
-<em><strong>[TODO: A comparison photo showing the original dual-motor setup (left) and our custom differential assembly (right) would be highly effective here.]</strong></em>
+  <img src="assets/stock_chassis_dual_motor.png" alt="Stock MentorPi A1 chassis with dual-motor drive" width="600">
+  <img src="assets/drive_system_top_view.jpg" alt="Stock MentorPi A1 chassis with dual-motor drive" width="300">
+  <br>
+  <em>The stock MentorPi A1 chassis, which features the original dual-motor drive system (left) that we replaced. Our custom single-motor differential assembly (a photo of which is in Section 5.2.2) was engineered to fit this frame while complying with competition rules. Image sourced from <a href="https://www.hiwonder.com/products/ackermann-steering-chassis?variant=40382428348503">Hiwonder's official product page</a>.</em>
 </p>
 
 ### 8.3. Key Component Design & Manufacturing 
@@ -892,9 +893,9 @@ We engineered a multi-part mount assembly with two primary features. First, it p
 This inverted mounting concept was inspired by the design of [**last year's Future Engineers world champion team**](https://github.com/MoCsabi/WRO2024-FE-StormsNGR), demonstrating our commitment to learning from and building upon the best practices in the WRO community.
 
 <p align="center">
-  <img src="https://via.placeholder.com/500x350.png?text=Placeholder:+Photo+of+LiDAR+Mount" alt="[TODO: Replace with a photo showing the LiDAR mounted on the robot]">
+  <img src="assets/lidar_mount_installed.jpg" alt="Close-up of the custom LiDAR mount assembly" width="500">
   <br>
-  <em><strong>[TODO: A close-up photo of the final LiDAR mount assembly installed on the robot.]</strong></em>
+  <em>A close-up view of our custom LiDAR mount assembly. The 3D-printed upper frame suspends the LiDAR in an inverted position for optimal data acquisition and collision avoidance.</em>
 </p>
 
 #### 8.3.2. Camera Tower Assembly
@@ -907,9 +908,9 @@ To ensure reliable obstacle detection, a high vantage point is essential. We des
 A key design requirement was to **fully preserve the 2-axis (pan and tilt) functionality** of the original MentorPi A1 camera system. Our custom mount seamlessly integrates with the stock servo motors, allowing the elevated camera to retain its ability to pan side-to-side for scanning and tilt up-and-down. This retained mobility is critical for our `PLAN_NEXT_AVOIDANCE` strategy, where the camera must precisely aim down the upcoming track segment. The tower itself is designed to be lightweight yet rigid to ensure a stable image, even while the servos are in motion.
 
 <p align="center">
-  <img src="https://via.placeholder.com/500x350.png?text=Placeholder:+Photo+of+Camera+Tower" alt="[TODO: Replace with a photo showing the camera tower on the robot]">
+  <img src="assets/sensor_tower_assembly.jpg" alt="The integrated sensor tower assembly" width="500">
   <br>
-  <em><strong>[TODO: A photo showing the tall camera tower and how it provides a clear view.]</strong></em>
+  <em>Our integrated sensor tower. The custom 3D-printed structure elevates the camera for a clear "bird's-eye" view, while the LiDAR is mounted low and inverted beneath it for optimal wall detection.</em>
 </p>
 
 #### 8.3.3. Custom Main Chassis
@@ -922,9 +923,9 @@ As our custom-designed components evolved, we reached the limits of what the sto
 Our primary goal was to create a platform that would seamlessly integrate our redesigned drive and steering mechanisms. The new chassis was meticulously modeled in SOLIDWORKS to ensure optimal placement for every component, preventing any physical interference between the single drive motor, the differential gearbox, the steering servo, and the wheels during their full range of motion. This redesign provided us with the architectural freedom to perfect our component layout for improved stability and easier maintenance, marking the final step in the evolution of our vehicle from a modified kit to a truly custom robot.
 
 <p align="center">
-<img src="https://via.placeholder.com/500x350.png?text=Placeholder:+Photo+of+Custom+Chassis" alt="[TODO: Replace with a photo or CAD render of the custom chassis]">
-<br>
-<em><strong>[TODO: A photo of the 3D-printed custom chassis, perhaps placed next to the original one for comparison.]</strong></em>
+  <img src="assets/custom_chassis_side_view.jpg" alt="Our custom 3D-printed main chassis" width="500">
+  <br>
+  <em>Our final 3D-printed chassis, which provides dedicated mounting points for the battery (low center) and the IMU breadboard (rear), solving the packaging challenges of the previous generation.</em>
 </p>
 
 This section details our key engineering decisions and showcases the custom-designed components that define our robot's unique performance. All parts were designed in SOLIDWORKS and manufactured using 3D printing, demonstrating a complete design-to-fabrication cycle.
@@ -941,6 +942,92 @@ This structured approach ensures that another team can effortlessly reproduce ou
   <img src="assets/cad_full_assembly.png" alt="Full Robot CAD Assembly" width="500">
   <br>
   <em>A CAD render of the full robot assembly, showcasing the integration of our custom 3D-printed parts with the commercial components.</em>
+</p>
+
+### 8.4. Design Evolution: A Visual History
+
+Our final robot design is not the result of a single brilliant idea, but of a rigorous **iterative development process**. We went through multiple generations of prototypes, with each version addressing the weaknesses of its predecessor. This cycle of **design, build, test, and improve** was fundamental to achieving the high level of performance and reliability our robot demonstrates today.
+
+This section provides a visual timeline of our robot's key evolutionary stages, from the initial stock kit to our final custom-engineered vehicle.
+
+#### 8.4.1. Generation 1: The Stock Platform
+
+Our starting point was the unmodified MentorPi A1 kit. Early tests with this platform were crucial for understanding the basic dynamics of the vehicle and for identifying its inherent limitations. We quickly discovered several critical issues that needed to be addressed:
+
+*   **Non-Compliant Drive System:** The dual-motor drive constituted a rule-breaking "electronic differential."
+*   **Restrictive Steering:** The stock steering mechanism had a very large turning radius, making it unsuitable for precise maneuvers.
+*   **Suboptimal Sensor Placement:** The LiDAR was mounted too high to accurately detect low-profile course walls, while the camera was mounted too low.
+*   **Inadequate IMU Accuracy:** The onboard IMU lacked the precision and stability required for our IMU-fused navigation algorithms.
+
+These foundational problems made it clear that a simple modification would not be enough; a significant re-engineering effort was required.
+
+<p align="center">
+  <img src="assets/evolution_gen1_overall_view.jpg" alt="Generation 1: The stock MentorPi A1 platform" width="400">
+  <img src="assets/ackermann_principle_stock.png" alt="Ackermann steering mechanism of the stock chassis" width="400">
+  <br>
+  <em><b>Generation 1: The stock MentorPi A1 platform.</b><br>
+  Left: The initial assembled kit. Right: The standard Ackermann steering structure, which had a limited turning angle. (Right image sourced from <a href="https://www.hiwonder.com/products/ackermann-steering-chassis?variant=40382428348503">Hiwonder</a>).<br>
+  Early tests with this version revealed fundamental limitations in its drive system, steering agility, and sensor layout.</em>
+</p>
+
+#### 8.4.2. Generation 2: The First Custom Drive System
+
+This generation represents our first major engineering leap to address the core issues of the stock platform. Our primary focus was to achieve rule compliance and begin optimizing the sensor layout.
+
+*   **Drive System Overhaul:** We replaced the non-compliant dual-motor setup with our **custom single-motor mechanical differential drive**. This fundamental change, detailed in Section 8.2, brought our vehicle into full compliance with WRO rules.
+*   **Initial Sensor Mounts:** We introduced the first versions of our custom **LiDAR and camera mounts**. The LiDAR was lowered to improve wall detection, and the camera was elevated to gain a better perspective.
+*   **External IMU Integration:** The low-precision onboard IMU was replaced with the high-accuracy **BNO055 external IMU**, enabling our robust IMU-fused navigation.
+
+While this version was a significant improvement, testing revealed a new bottleneck: the stock chassis itself. It physically limited the potential of our new steering geometry and prevented an ideal layout for our custom gearbox and other components. This led us to the final stage of our evolution.
+
+<p align="center">
+  <img src="assets/evolution_gen2_overall_view.jpg" alt="Generation 2: Overall view with initial custom parts" width="400">
+  <img src="assets/evolution_gen2_drive_detail.jpg" alt="Close-up of the first custom differential drive" width="400">
+  <br>
+  <em><b>Generation 2: The first major modification.</b><br>
+  Left: The overall vehicle with initial custom sensor mounts. Right: A close-up of our first-generation custom differential drive, which achieved rule compliance.<br>
+  This version, while functional, highlighted the physical limitations of the stock chassis for further optimization.</em>
+</p>
+
+#### 8.4.3. Generation 3: The First Custom Chassis
+
+This generation marked our transition toward a truly custom vehicle. To overcome the physical limitations of the stock chassis identified in Gen 2, we designed and 3D-printed our **first iteration of a fully custom chassis**.
+
+*   **Custom Chassis Integration:** The new chassis was our first attempt at a ground-up design, created to better accommodate our single-motor drive system and to provide the architectural freedom needed for a radically new steering geometry.
+*   **Path to Agility:** This platform enabled the initial implementation of our innovative vertical servo layout. While it did not yet achieve our final performance target, this redesign **significantly improved the steering angle** compared to the stock version and proved that a dramatically smaller turning radius was achievable.
+
+However, this prototype also revealed several key areas for improvement:
+*   **Chassis Width:** The vehicle's overall width was **close to the 20 cm limit**, leaving a dangerously small margin for error during parking.
+*   **Suboptimal Component Layout:** The mounting position for the breadboard (holding the IMU) was an afterthought, and there was no dedicated, secure location for the battery.
+
+The successes and shortcomings of this generation provided the critical data needed to design our final, fully optimized vehicle.
+
+<p align="center">
+  <img src="assets/evolution_gen3_overall_view.jpg" alt="Generation 3: Overall view of the first custom chassis" width="400">
+  <img src="assets/evolution_gen3_steering_detail.jpg" alt="Close-up of the innovative steering geometry" width="400">
+  <br>
+  <em><b>Generation 3: The first custom chassis.</b><br>
+  Left: The first fully custom-designed and printed chassis. Right: A close-up of the innovative vertical servo layout, which proved a smaller turning radius was achievable.<br>
+  This prototype successfully validated our design direction but also revealed new challenges in component packaging and overall width.</em>
+</p>
+
+#### 8.4.4. Generation 4: The Final Integrated Vehicle
+
+This is the current, competition-ready version of our robot, representing the culmination of our iterative design process. Leveraging the insights gained from the previous generation, we performed a final series of targeted redesigns to create a fully optimized and integrated vehicle.
+
+*   **Optimized Chassis and Component Layout:** We designed a new, slightly narrower chassis that provides a greater margin for error during parking. This final chassis includes dedicated, secure mounting points for all components, including a purpose-built battery holder and a stable platform for the IMU's breadboard, resulting in a cleaner and more robust assembly.
+*   **Achieved Ultimate Agility:** With the perfected chassis providing the necessary space, we finalized our steering geometry. This ultimate version achieves our target **minimum turning radius of just 15 cm**, granting our robot the exceptional agility required for all competition maneuvers.
+*   **Integrated Suspension System:** This final design also fully realizes our **integrated monoshock suspension system** (as detailed in Section 5.2), maximizing traction and stability during high-speed runs.
+
+This final generation is not just a collection of parts, but a single, cohesive system where every component has been custom-designed to work in harmony.
+
+<p align="center">
+  <img src="assets/evolution_gen4_overall_view.jpg" alt="Generation 4: The final integrated vehicle" width="400">
+  <img src="assets/evolution_gen4_suspension_detail.jpg" alt="Close-up of the final monoshock differential system" width="400">
+  <br>
+  <em><b>Generation 4: The final integrated vehicle.</b><br>
+  Left: The competition-ready robot, featuring an optimized, narrower chassis. Right: The perfected monoshock differential system, which integrates propulsion, differential action, and suspension.<br>
+  This final form represents the culmination of our iterative engineering process, achieving all our performance goals.</em>
 </p>
 
 ## 9. Performance Videos
