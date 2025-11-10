@@ -91,7 +91,7 @@ The table below lists all the major electrical and mechanical components used to
 | Camera Mount (Side) | <img src="assets/bom_camera_mount_side.png" width="150"> | 2 | [3D Model](models/custom_parts/cad_files/camera_mount_side.SLDPRT) / [Blueprint](models/custom_parts/blueprints/camera_mount_side.PDF) |
 | Camera Mount (Upper) | <img src="assets/bom_camera_mount_upper.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/camera_mount_upper.SLDPRT) / [Blueprint](models/custom_parts/blueprints/camera_mount_upper.PDF) |
 | Chassis | <img src="assets/bom_chassis.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/chassis.SLDPRT) / [Blueprint](models/custom_parts/blueprints/chassis.PDF) |
-| Front Hub | <img src="assets/bom_front_hub.png" width="150"> | 2 | [3D Model](models/custom_parts/cad_files/front_hub.SLDPRT) / *Blueprint N/A* |
+| Front Hub | <img src="assets/bom_front_hub.png" width="150"> | 2 | [3D Model](models/custom_parts/cad_files/front_hub.SLDPRT) / [Blueprint](models/custom_parts/cad_files/front_hub.SLDPRT) |
 | Gearbox Bearing (Inner) | <img src="assets/bom_gearbox_bearing_inner.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/gearbox_bearing_inner.SLDPRT) / [Blueprint](models/custom_parts/blueprints/gearbox_bearing_inner.pdf) |
 | Gearbox Bearing (Outer) | <img src="assets/bom_gearbox_bearing_outer.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/gearbox_bearing_outer.SLDPRT) / [Blueprint](models/custom_parts/blueprints/gearbox_bearing_outer.pdf) |
 | Gearbox (Front End) | <img src="assets/bom_gearbox_frontend.png" width="150"> | 1 | [3D Model](models/custom_parts/cad_files/gearbox_frontend.SLDPRT) / [Blueprint](models/custom_parts/blueprints/gearbox_frontend.PDF) |
