@@ -1,5 +1,9 @@
-Video
-====
+# Performance Videos
 
-This directory must contain the video.md file with a URL to YouTube (should be either public or accessible by link) showing the vehicle driving autonomously.
-That part of the video where driving demonstration exists must be at least 30 seconds in length.
+This directory contains the video files demonstrating our robot's performance.
+
+---
+
+### Related Documentation
+
+For direct viewing links, thumbnails, and descriptions of these videos, please see **[Section 9: Performance Videos](../../README.md#9-performance-videos)** in the main project README.
