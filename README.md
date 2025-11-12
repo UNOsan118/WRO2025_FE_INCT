@@ -1040,11 +1040,11 @@ This section provides video evidence of our robot's performance, demonstrating t
 
 This video demonstrates our robot navigating the complex obstacle course. Key moments, such as the proactive corner scanning, dynamic turning strategies, and smooth two-phase avoidance maneuvers, are highlighted.
 
-> **[Click to watch the Obstacle Challenge video on YouTube](https://youtu.be/rJHoL39SJ84)**
+> **[Click to watch the Obstacle Challenge video on YouTube](https://youtu.be/YpugnEih1NA)**
 
-<a href="https://youtu.be/rJHoL39SJ84">
+<a href="https://youtu.be/YpugnEih1NA">
   <p align="center">
-    <img src="https://img.youtube.com/vi/動画ID/maxresdefault.jpg" alt="Obstacle Challenge Video Thumbnail" width="500">
+    <img src="assets\video_image_obstacle.png" alt="Obstacle Challenge Video Thumbnail" width="500">
   </p>
 </a>
 
@@ -1054,11 +1054,11 @@ This video demonstrates our robot navigating the complex obstacle course. Key mo
 
 This video showcases the robot's pure speed and cornering ability on the course without obstacles. It highlights the stability of our PID wall-following algorithm and the efficiency of our chassis and drive system at high speed.
 
-> **[Click to watch the Open Challenge video on YouTube](https://youtu.be/WeeWG6k68Qk)**
+> **[Click to watch the Open Challenge video on YouTube](https://youtu.be/kJocLs0_ztE)**
 
-<a href="https://youtu.be/WeeWG6k68Qk">
+<a href="https://youtu.be/kJocLs0_ztE">
   <p align="center">
-    <img src="https://img.youtube.com/vi/動画ID/maxresdefault.jpg" alt="Open Challenge Video Thumbnail" width="500">
+    <img src="assets\video_image_open.png" alt="Open Challenge Video Thumbnail" width="500">
   </p>
 </a>
 
