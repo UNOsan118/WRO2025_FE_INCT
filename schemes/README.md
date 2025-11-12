@@ -1,3 +1,26 @@
+# Schemes and Diagrams
+
+This directory contains all diagrams that visually explain our robot's architecture and logic.
+
+## Contents
+
+*   **`ackermann_kinematics.png`**: Illustrates the kinematic model.
+*   **`ros2_node_diagram.png`**: Shows the ROS 2 node communication flow.
+*   **`state_flowchart.png`**: Provides a high-level overview of the state machine.
+*   **`wiring_diagram.png`**: Details the robot's electrical connections.
+*   ... *(and other diagrams)*
+
+---
+
+### Related Documentation
+
+These diagrams are embedded within the main project README. For detailed context and explanations for each diagram, please refer to the following sections:
+
+- **Wiring Diagram:** [Section 6.3. Wiring Diagram](../../README.md#63-wiring-diagram)
+- **State Flowchart & ROS 2 Diagram:** [Section 7.1 & 7.2](../../README.md#71-overall-strategy-a-hierarchical-state-machine)
+- **Kinematic Model:** [Section 5.3. Steering Mechanism](../../README.md#kinematic-model)
+
+
 # System Schematics and Design Diagrams
 
 This directory contains all the schematics, flowcharts, and diagrams that visually represent the design and logic of our robot. These diagrams are essential companions to the main project `README.md` and provide a deeper insight into our engineering process.
