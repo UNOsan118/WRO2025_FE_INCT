@@ -41,6 +41,7 @@ class UnparkingSubState(Enum):
     AVOIDANCE_REVERSE = auto()
     EXIT_STRAIGHT = auto()
     EXIT_STRAIGHT_FOR_OUTER = auto()
+    ALIGN_AFTER_EXIT = auto()
 
 class UnparkingStrategy(Enum):
     STANDARD_EXIT_TO_OUTER_LANE = auto()
@@ -1062,6 +1063,8 @@ class ObstacleNavigatorNode(Node):
             self._handle_unparking_sub_exit_straight(msg)
         elif self.unparking_sub_state == UnparkingSubState.EXIT_STRAIGHT_FOR_OUTER:
             self._handle_unparking_sub_exit_straight_for_outer(msg)
+        elif self.unparking_sub_state == UnparkingSubState.ALIGN_AFTER_EXIT:
+            self._handle_unparking_sub_align_after_exit(msg)
 
     def _handle_state_determine_course(self, msg: LaserScan):
         """Dispatches to the correct handler based on the determine_course_sub_state."""
@@ -1472,9 +1475,8 @@ class ObstacleNavigatorNode(Node):
                 is_complete = True
 
         if is_complete:
-            self.get_logger().info(f"Unparking Straight (Outer): Condition met ({completion_log_info}).")
-            self.state = State.STRAIGHT
-            self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+            self.get_logger().info(f"Unparking Straight (Outer): Condition met ({completion_log_info}). Transitioning to final alignment.")
+            self.unparking_sub_state = UnparkingSubState.ALIGN_AFTER_EXIT
             self.publish_twist_with_gain(0.0, 0.0)
             return
 
@@ -1493,6 +1495,32 @@ class ObstacleNavigatorNode(Node):
         )
 
         self.publish_twist_with_gain(final_speed, final_steer)
+
+    def _handle_unparking_sub_align_after_exit(self, msg: LaserScan):
+        """
+        Sub-state: After exiting the parking space, this performs a final turn
+        to align the robot parallel with the course wall.
+        """
+        # --- 1. Determine the target yaw (parallel to the wall) ---
+        # The target is the orientation of the first straight segment.
+        target_yaw_deg = 0.0
+        
+        # --- 2. Execute the P-controlled turn using the helper function ---
+        is_complete = self._execute_p_controlled_turn(
+            target_yaw_deg=target_yaw_deg,
+            tolerance_deg=5.0, # A tighter tolerance for final alignment
+            # The starting angle is the one from the previous step
+            base_yaw_deg=self._angle_normalize(self.unparking_base_yaw_deg + self.unparking_initial_turn_deg if self.direction == 'ccw' else self.unparking_base_yaw_deg - self.unparking_initial_turn_deg),
+            turn_angle_deg=self.unparking_initial_turn_deg,
+            base_speed=self.unparking_speed # Use the same slow speed
+        )
+
+        # --- 3. Handle completion ---
+        if is_complete:
+            self.get_logger().info("Unparking final alignment complete. Transitioning to STRAIGHT.")
+            self.state = State.STRAIGHT
+            self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
+            self.publish_twist_with_gain(0.0, 0.0)
 
     # --- Determine Course Sub-States (Legacy) ---
     def _handle_determine_sub_waiting_for_controller(self):
