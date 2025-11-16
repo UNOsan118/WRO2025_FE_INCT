@@ -205,6 +205,7 @@ class ObstacleNavigatorNode(Node):
         self.tilt_position_cw = 530
         self.tilt_position_ccw = 2500
         self.tilt_update_interval_ms = 100 # Update tilt every 100ms (10Hz)
+        self.image_acquisition_timeout_sec = 180.0
         self.image_width = 640
         # Color Thresholds
         self.red_lower1 = [0, 100, 80]
@@ -382,6 +383,8 @@ class ObstacleNavigatorNode(Node):
         self.raw_yaw_deg = 0.0
         self.latest_scan_msg = None
         self.latest_frame = None
+        self.latest_frame_stamp = None 
+        self.analysis_start_time = None
         self.force_start_debug_mode = False
 
         # Rate Limiter state
@@ -787,11 +790,11 @@ class ObstacleNavigatorNode(Node):
             self.current_yaw_deg = self._angle_normalize(self.raw_yaw_deg - self.imu_drift_offset_deg)
 
     def image_callback(self, msg):
-        """Callback to receive and store the latest camera frame."""
+        """Callback to receive and store the latest camera frame and its timestamp."""
         with self.state_lock:
             try:
                 self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "rgb8")
-
+                self.latest_frame_stamp = msg.header.stamp
             except CvBridgeError as e:
                 self.get_logger().error(f'CV Bridge Error: {e}')
 
@@ -1249,7 +1252,7 @@ class ObstacleNavigatorNode(Node):
         """
         # --- Step 0: Aim the camera and start the wait timer ---
         if self.pre_detection_step == 0:
-            self.get_logger().info("PRE-UNPARKING DETECT (Step 0): Aiming camera 45 deg...")
+            self.get_logger().info("PRE-UNPARKING DETECT (Step 0): Aiming camera and setting freshness timestamp...")
 
             # Determine target camera angle
             angle_offset_deg = 45.0
@@ -3281,108 +3284,125 @@ class ObstacleNavigatorNode(Node):
 
     def _process_pre_unparking_image_callback(self):
         """
-        Callback for pre-unparking detection. Processes the image, logs the result,
-        and transitions to the next sub-state (INITIAL_TURN).
-        Now includes an INFINITE retry mechanism for image acquisition.
+        Waits for a fresh camera frame (post-tilt), processes it, and decides
+        the unparking strategy. Includes a timeout for safety.
         """
         with self.state_lock:
-            # Clean up the primary timer if it exists.
+            # --- Clean up the timer that might have called this function ---
             if self.pre_detection_timer:
                 self.pre_detection_timer.destroy()
                 self.pre_detection_timer = None
 
+            # --- Safety checks before proceeding ---
             if self.unparking_sub_state != UnparkingSubState.PRE_UNPARKING_DETECTION:
                 return
-            
             if self.pre_detection_step != 1:
                 return
 
-            # --- Frame acquisition check with INFINITE retries ---
-            if self.latest_frame is None:
-                self.image_acquisition_retries += 1
-                self.get_logger().warn(
-                    f"Frame not available yet. Retrying in 200ms... (Attempt #{self.image_acquisition_retries})",
-                    throttle_duration_sec=1.0 # Log once per second to avoid spam
-                )
-                # Create a timer to try again. The interval is slightly longer
-                # to give the camera node more time to respawn if it has died.
-                self.pre_detection_timer = self.create_timer(
-                    0.2, # 200ms
-                    self._process_pre_unparking_image_callback
-                )
-                return # Exit the function and wait for the retry timer
+            if self.analysis_start_time is None:
+                self.get_logger().info("Camera move complete. Now waiting for a fresh image frame.")
+                self.analysis_start_time = self.get_clock().now()
 
-            self.get_logger().info("PRE-UNPARKING DETECT (Step 1): Image acquired successfully. Processing image...")
-            
-            # Reset retry counter for the next time
-            self.image_acquisition_retries = 0
-            
-            dominant_color, max_red_area, max_green_area = self._find_and_save_dominant_blob(
-                frame_rgb=self.latest_frame,
-                turn_count=0,
-                base_name="pre_unparking_detection"
+            # --- Condition 1: Check if a fresh image is available ---
+            # A fresh image is one that arrived AFTER we started moving the camera.
+            is_fresh_image_available = (
+                self.latest_frame is not None and 
+                self.latest_frame_stamp is not None and
+                self.analysis_start_time is not None and
+                (self.latest_frame_stamp.sec > self.analysis_start_time.seconds_nanoseconds()[0] or
+                 (self.latest_frame_stamp.sec == self.analysis_start_time.seconds_nanoseconds()[0] and
+                  self.latest_frame_stamp.nanosec > self.analysis_start_time.seconds_nanoseconds()[1]))
             )
-            
-            close_obstacle_threshold = 3500.0
-            # Check if EITHER red or green blob is larger than the threshold
-            largest_blob_size = max(max_red_area, max_green_area)
 
-            if largest_blob_size >= close_obstacle_threshold:
-                self.has_obstacle_at_parking_exit = True
-                self.get_logger().error( # Use ERROR level for high importance
-                    f"!!! SPECIAL AVOIDANCE REQUIRED !!! Obstacle is very close (Max Blob: {largest_blob_size:.0f})."
+            if is_fresh_image_available:
+                # --- SUCCESS: A fresh image was found, proceed with analysis ---
+                self.get_logger().info("Fresh image acquired. Processing for unparking strategy.")
+                
+                # --- Original image processing logic starts here ---
+                dominant_color, max_red_area, max_green_area = self._find_and_save_dominant_blob(
+                    frame_rgb=self.latest_frame,
+                    turn_count=0,
+                    base_name="pre_unparking_detection"
                 )
+                
+                close_obstacle_threshold = 3500.0
+                largest_blob_size = max(max_red_area, max_green_area)
+
+                if largest_blob_size >= close_obstacle_threshold:
+                    self.has_obstacle_at_parking_exit = True
+                    self.get_logger().error(
+                        f"!!! SPECIAL AVOIDANCE REQUIRED !!! Obstacle is very close (Max Blob: {largest_blob_size:.0f})."
+                    )
+                else:
+                    self.has_obstacle_at_parking_exit = False
+                    self.get_logger().info(
+                        f"Standard unparking procedure. Obstacle is at a safe distance (Max Blob: {largest_blob_size:.0f})."
+                    )
+
+                # --- Original strategy decision logic ---
+                strategy = UnparkingStrategy.UNDEFINED
+                
+                is_pattern1_case1 = self.direction == 'cw' and dominant_color == 'green'
+                is_pattern1_case2 = self.direction == 'ccw' and dominant_color == 'red'
+                is_pattern1_case3 = self.direction == 'ccw' and dominant_color == 'green' and not self.has_obstacle_at_parking_exit
+                if is_pattern1_case1 or is_pattern1_case2 or is_pattern1_case3:
+                    strategy = UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE
+
+                is_pattern2 = self.direction == 'cw' and dominant_color == 'red' and not self.has_obstacle_at_parking_exit
+                if is_pattern2:
+                    strategy = UnparkingStrategy.STANDARD_EXIT_TO_INNER_LANE
+
+                is_pattern3 = self.direction == 'cw' and dominant_color == 'red' and self.has_obstacle_at_parking_exit
+                if is_pattern3:
+                    strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW
+
+                is_pattern4 = self.direction == 'ccw' and dominant_color == 'green' and self.has_obstacle_at_parking_exit
+                if is_pattern4:
+                    strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW
+
+                self.unparking_strategy = strategy
+                
+                log_message = (
+                    f"--- PRE-UNPARKING DETECTION RESULT ---\n"
+                    f"      Direction: {self.direction.upper()}\n"
+                    f"      Dominant Color Detected: '{dominant_color}'\n"
+                    f"      Has Obstacle at Exit: {self.has_obstacle_at_parking_exit}\n"
+                    f"      >> Decided Strategy: {self.unparking_strategy.name} <<\n"
+                    f"----------------------------------------"
+                )
+                self.get_logger().warn(log_message)
+
+                # Reset for next time and transition to the next state
+                self.analysis_start_time = None
+                self.pre_detection_step = 0
+                self.unparking_sub_state = UnparkingSubState.INITIAL_TURN
+                return # Processing is complete
+
+            # --- Condition 2: Check for timeout ---
+            elapsed_time = (self.get_clock().now() - self.analysis_start_time).nanoseconds / 1e9
+            if elapsed_time > self.image_acquisition_timeout_sec:
+                # --- FAILURE: Timed out waiting for a fresh frame ---
+                self.get_logger().error(
+                    f"Timeout ({self.image_acquisition_timeout_sec}s) waiting for a fresh camera frame after tilt. Halting."
+                )
+                self.analysis_start_time = None
+                self.pre_detection_step = 0
+                self.unparking_sub_state = UnparkingSubState.INITIAL_TURN
+                return
             else:
-                self.has_obstacle_at_parking_exit = False
-                self.get_logger().info(
-                    f"Standard unparking procedure. Obstacle is at a safe distance (Max Blob: {largest_blob_size:.0f})."
+                # --- Condition 3: Still waiting, no timeout yet ---
+                # Reschedule this check again shortly.
+                latest_stamp_sec = -1.0
+                if self.latest_frame_stamp:
+                    latest_stamp_sec = self.latest_frame_stamp.sec + self.latest_frame_stamp.nanosec / 1e9
+                
+                start_sec = self.analysis_start_time.seconds_nanoseconds()[0] + self.analysis_start_time.seconds_nanoseconds()[1] / 1e9
+
+                self.get_logger().debug(
+                    f"Waiting for fresh frame: Latest stamp {latest_stamp_sec:.2f}s is not yet newer than start time {start_sec:.2f}s.",
+                    throttle_duration_sec=0.5
                 )
-
-            # --- ADDED: Determine Unparking Strategy based on the 3 conditions ---
-            strategy = UnparkingStrategy.UNDEFINED # Default to undefined
-
-            # --- Pattern 1 Logic ---
-            is_pattern1_case1 = self.direction == 'cw' and dominant_color == 'green'
-            is_pattern1_case2 = self.direction == 'ccw' and dominant_color == 'red'
-            is_pattern1_case3 = self.direction == 'ccw' and dominant_color == 'green' and not self.has_obstacle_at_parking_exit
-            if is_pattern1_case1 or is_pattern1_case2 or is_pattern1_case3:
-                strategy = UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE
-
-            # --- Pattern 2 Logic ---
-            is_pattern2 = self.direction == 'cw' and dominant_color == 'red' and not self.has_obstacle_at_parking_exit
-            if is_pattern2:
-                strategy = UnparkingStrategy.STANDARD_EXIT_TO_INNER_LANE
-
-            # --- Pattern 3 Logic ---
-            is_pattern3 = self.direction == 'cw' and dominant_color == 'red' and self.has_obstacle_at_parking_exit
-            if is_pattern3:
-                strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW
-
-            # --- Pattern 4 Logic ---
-            is_pattern4 = self.direction == 'ccw' and dominant_color == 'green' and self.has_obstacle_at_parking_exit
-            if is_pattern4:
-                strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW
-
-            # Store the decided strategy in the class variable for later use
-            self.unparking_strategy = strategy
-            # --- END OF ADDED SECTION ---
-
-            log_message = (
-                f"--- PRE-UNPARKING DETECTION RESULT ---\n"
-                f"      Direction: {self.direction.upper()}\n"
-                f"      Dominant Color Detected: '{dominant_color}'\n"
-                f"      Has Obstacle at Exit: {self.has_obstacle_at_parking_exit}\n"
-                f"      >> Decided Strategy: {self.unparking_strategy.name} <<\n" # Log the decided strategy
-                f"----------------------------------------"
-            )
-            self.get_logger().warn(log_message)
-
-            # Reset step counter for next time this state is entered (good practice)
-            self.pre_detection_step = 0
-
-            # --- Transition to the next step of the unparking sequence ---
-            self.get_logger().info("PRE-UNPARKING DETECT: Detection complete. Transitioning to INITIAL_TURN.")
-            self.unparking_sub_state = UnparkingSubState.INITIAL_TURN
+                self.pre_detection_timer = self.create_timer(0.1, self._process_pre_unparking_image_callback)
 
     def _camera_initialization_complete_callback(self):
         """
