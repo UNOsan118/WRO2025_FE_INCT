@@ -224,6 +224,13 @@ class ObstacleNavigatorNode(Node):
         self.roi_planning_cw_outer_flat = [160, 15, 120, 260, 545, 260, 380, 15]
         self.roi_planning_cw_outer_start_area_flat = [280, 15, 150, 260, 545, 260, 380, 15]
         """
+        self.stale_frame_counter = 0
+        self.max_stale_frames = 7
+        self.early_scan_stale_check_frames = 4 # New: Number of initial frames to check
+        self.last_scanned_stamp = None
+        self.scan_retry_count = 0 # New retry counter
+        self.max_scan_retries = 5   # New retry limit
+        self.early_scan_check_has_run = False
         
         # --- Alignment (PID) ---
         self.align_kp_angle = 0.02 # 0.04
@@ -340,7 +347,7 @@ class ObstacleNavigatorNode(Node):
 
         # --- Approach ---
         self.parking_approach_kp_angle = 0.0075 # A gentler gain for approach
-        self.parking_approach_kp_dist = 4.0   # A gentler gain for approach
+        self.parking_approach_kp_dist = 5.0   #4.0  A gentler gain for approach
         self.parking_approach_stability_threshold = 30
         self.parking_approach_target_outer_dist_m = 0.325
         self.parking_approach_slowdown_dist_m = 1.3  # Distance to start slowing down
@@ -1926,6 +1933,16 @@ class ObstacleNavigatorNode(Node):
         """
         Sub-state: Reverses straight back to create space before the move-and-scan phase.
         """
+        # --- Determine target reverse distance dynamically ---
+        if self.scan_retry_count > 0:
+            # For retries, reverse just enough to get a small run-up to the scan start.
+            target_reverse_dist = self.planning_scan_start_dist_m + 0.05
+            log_prefix = "Retry Reverse"
+        else:
+            # For the first time, use the standard, longer reverse distance.
+            target_reverse_dist = self.post_planning_reverse_target_dist_m
+            log_prefix = "Pre-scan Reverse"
+
         front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
 
         if math.isnan(front_dist):
@@ -1933,16 +1950,14 @@ class ObstacleNavigatorNode(Node):
             self.publish_twist_with_gain(-self.forward_speed * 0.8, 0.0)
             return
 
-        # --- Reverted to check against a fixed absolute distance ---
-        if front_dist >= self.post_planning_reverse_target_dist_m:
-            self.get_logger().info(f"Reverse complete (Front Dist: {front_dist:.3f}m).")
-            self.get_logger().info("Transitioning to move-and-scan planning phase.")
+        if front_dist >= target_reverse_dist:
+            self.get_logger().info(f"{log_prefix} complete (Front Dist: {front_dist:.3f}m).")
             self.state = State.STRAIGHT
             self.straight_sub_state = StraightSubState.PLAN_NEXT_AVOIDANCE
             self.publish_twist_with_gain(0.0, 0.0)
         else:
             self.get_logger().debug(
-                f"Reversing... Target: > {self.post_planning_reverse_target_dist_m:.2f}m, "
+                f"{log_prefix}: Reversing... Target: > {target_reverse_dist:.2f}m, "
                 f"Current: {front_dist:.3f}m",
                 throttle_duration_sec=0.2
             )
@@ -2156,6 +2171,8 @@ class ObstacleNavigatorNode(Node):
             self.max_red_blob_sample_num = 0
             self.max_green_blob_sample_num = 0
             self.scan_frame_count = 0
+            self.stale_frame_counter = 0
+            self.last_scanned_stamp = None
 
             # Instead of setting a static center position, calculate the correct
             # initial viewing angle and set it immediately.
@@ -2268,9 +2285,30 @@ class ObstacleNavigatorNode(Node):
                                             speed=scan_speed,
                                             override_target_dist=override_dist)
 
-            # Conditionally perform scanning only when close enough to the corner
+            # --- Conditionally perform scanning ---
+            scan_failed = False
             if not math.isnan(front_dist) and front_dist < self.planning_scan_start_dist_m:
-                self._scan_and_collect_data()
+                scan_failed = self._scan_and_collect_data()
+
+            # --- NEW: Handle scan failure and retries here ---
+            if scan_failed:
+                self.scan_retry_count += 1
+                if self.scan_retry_count > self.max_scan_retries:
+                    # FINAL ATTEMPT: We are already on the last attempt.
+                    # Do nothing here, just let the scan finish with whatever data it has.
+                    self.get_logger().fatal(
+                        f"Scan failed on final attempt ({self.scan_retry_count}). "
+                        "Proceeding with potentially incomplete data."
+                    )
+                else:
+                    # RETRY: Go back to the pre-scan reverse state.
+                    self.get_logger().error(
+                        f"Scan failed. Reversing to restart (Retry #{self.scan_retry_count})."
+                    )
+                    self.state = State.STRAIGHT
+                    self.straight_sub_state = StraightSubState.PRE_SCANNING_REVERSE
+                    self.publish_twist_with_gain(0.0, 0.0)
+                    return
             
             # --- LiDAR-based Entrance Blockage Detection (starts earlier) ---
             if not math.isnan(front_dist) and front_dist < self.lidar_entrance_scan_start_dist_m:
@@ -2592,6 +2630,8 @@ class ObstacleNavigatorNode(Node):
         self.has_achieved_stability_this_segment = False
         self.estimated_mode_stability_counter = 0
         self.turning_sub_state = None
+        self.scan_retry_count = 0
+        self.early_scan_check_has_run = False
 
         # --- NEW: Reset the correction flag at the start of a new lap ---
         if self.wall_segment_index == 0:
@@ -3930,28 +3970,70 @@ class ObstacleNavigatorNode(Node):
 
     def _scan_and_collect_data(self):
         """
-        Performs a single instance of image scanning. It finds the largest
-        contiguous blob of each color within a defined polygon ROI and updates
-        the maximum area found so far.
+        Performs image scanning with a failsafe for stale frames, including a retry mechanism.
         """
 
         # Increment frame counter first
         self.scan_frame_count += 1
         # Check if this frame should be processed
         if self.scan_frame_count % self.planning_scan_interval != 0:
-            return # Skip processing for this frame
+            return False # Skip processing for this frame
 
         # If we process this frame, use the total count as the sample number
         current_sample_num = self.scan_frame_count // self.planning_scan_interval
 
-        if self.latest_frame is None:
-            self.get_logger().warn("In scanning range but latest_frame is None.", throttle_duration_sec=1.0)
-            return
+        if self.latest_frame is None or self.latest_frame_stamp is None:
+            self.get_logger().warn("In scanning range but latest_frame or stamp is None.", throttle_duration_sec=1.0)
+            return True
+
+        # --- Freshness Check with Early Scan Detection ---
+        is_stale = (
+            self.last_scanned_stamp is not None and
+            self.latest_frame_stamp.sec == self.last_scanned_stamp.sec and
+            self.latest_frame_stamp.nanosec == self.last_scanned_stamp.nanosec
+        )
+
+        if is_stale:
+            self.stale_frame_counter += 1
+        else:
+            self.stale_frame_counter = 0
+
+        # --- Check for Failure Conditions ---
+        scan_failed = False
+
+        # Rule 1: Standard check
+        if self.stale_frame_counter >= self.max_stale_frames:
+            self.get_logger().error(f"Stale frame limit reached ({self.max_stale_frames}). Reporting scan failure.")
+            scan_failed = True
+        
+        # Rule 2: Early scan check, which is active only at the beginning of a scan
+        if not self.early_scan_check_has_run:
+            # This block is active as long as the early check hasn't "passed" yet.
+            
+            if self.stale_frame_counter >= (self.early_scan_stale_check_frames - 1):
+                # We have detected a failure condition within the early period.
+                self.get_logger().error(
+                    f"Initial scan failed: first {self.early_scan_stale_check_frames} frames were likely stale. Reporting failure."
+                )
+                scan_failed = True
+            
+            # --- NEW: Check if we have PASSED the early scan period successfully ---
+            if current_sample_num > self.early_scan_stale_check_frames:
+                # We have successfully processed more than 4 frames without triggering the early check.
+                # Disable the early check for the rest of this scan sequence.
+                self.get_logger().debug("Early scan period passed successfully. Disabling early check for this segment.")
+                self.early_scan_check_has_run = True
+        
+        if scan_failed:
+            return True
+
+        # --- If checks pass, proceed with the normal scan processing ---
+        self.last_scanned_stamp = self.latest_frame_stamp
 
         # 1. Get color masks
         detection_data = self._detect_obstacle_color_in_frame(self.latest_frame)
         if not detection_data:
-            return
+            return True
             
         red_mask = detection_data['masks']['RED']
         green_mask = detection_data['masks']['GREEN']
@@ -4004,6 +4086,8 @@ class ObstacleNavigatorNode(Node):
                 rois=rois_to_visualize,
                 sample_num=sample_num
             )
+        
+        return False
 
     # --- ROI Manipulation Helpers ---
     def _reshape_roi_points(self, flat_points: list[int]) -> list[list[int]]:
