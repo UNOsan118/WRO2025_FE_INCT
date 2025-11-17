@@ -96,6 +96,8 @@ class ReorientStep(Enum):
 
     # Steps for Outer Lane 3-Point Turn
     OUTER_TURN_1 = auto()
+    OUTER_STRAIGHT1 = auto()
+    OUTER_STRAIGHT2 = auto()
     OUTER_REVERSE_TURN = auto()
 
     # --- Steps for CCW Inner-to-Outer Lane Change ---
@@ -172,7 +174,7 @@ class ObstacleNavigatorNode(Node):
         self.save_debug_images = True
         self.debug_image_path = '/home/ubuntu/WRO2025_FE_Japan/src/international_final/images'
         self.max_valid_range_m = 3.0
-        self.max_turns = 12 #12
+        self.max_turns = 4 #12
         
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
@@ -230,14 +232,7 @@ class ObstacleNavigatorNode(Node):
         self.roi_planning_cw_outer_flat = [160, 15, 120, 260, 545, 260, 380, 15]
         self.roi_planning_cw_outer_start_area_flat = [280, 15, 150, 260, 545, 260, 380, 15]
         """
-        self.stale_frame_counter = 0
-        self.max_stale_frames = 7
-        self.early_scan_stale_check_frames = 4 # New: Number of initial frames to check
-        self.last_scanned_stamp = None
-        self.scan_retry_count = 0 # New retry counter
-        self.max_scan_retries = 5   # New retry limit
-        self.early_scan_check_has_run = False
-        
+
         # --- Alignment (PID) ---
         self.align_kp_angle = 0.02 # 0.04
         self.align_kp_dist = 5.0 # 3.75 # 7.5
@@ -246,6 +241,7 @@ class ObstacleNavigatorNode(Node):
         self.align_target_inner_dist_m = 0.2
         self.align_dist_tolerance_m = 0.005
         self.estimated_stability_threshold = 10
+        self.course_detection_slow_speed = 0.15
 
         # --- IMU Drift Correction ---
         self.enable_drift_correction = True
@@ -350,7 +346,6 @@ class ObstacleNavigatorNode(Node):
         self.reorient_turn_kp = 0.02
         self.reorient_forward_speed = 0.15
         self.reorient_reverse_speed = -0.15
-        self.reorient_inner_s_turn_straight_dist_m = 0.1
         # --- Reorientation (Lane Change) Maneuver ---
         self.reorient_s_turn_fwd_dist_m = 0.2 # Distance for the first straight part of S-turn/LaneChange
         self.reorient_s_turn_rev_dist_m = 0.21 # Distance for the second straight (reverse) part
@@ -527,6 +522,18 @@ class ObstacleNavigatorNode(Node):
         self.max_green_blob_area = 0.0
         self.max_red_blob_sample_num = 0
         self.max_green_blob_sample_num = 0
+
+        self.stale_frame_counter = 0
+        self.max_stale_frames = 6
+        self.early_scan_stale_check_frames = 4 # New: Number of initial frames to check
+        self.last_scanned_stamp = None
+        self.scan_retry_count = 0 # New retry counter
+        self.max_scan_retries = 100   # New retry limit
+        self.early_scan_check_has_run = False
+
+        self.is_in_retry_mode = False
+        self.last_successful_scan_front_dist = self.planning_scan_start_dist_m
+        self.last_successful_sample_num = 0
 
         # 5. CORE COMPONENTS
         # ==================
@@ -1970,12 +1977,13 @@ class ObstacleNavigatorNode(Node):
     def _handle_straight_sub_pre_scanning_reverse(self, msg: LaserScan):
         """
         Sub-state: Reverses straight back to create space before the move-and-scan phase.
+        Supports smart retry by reversing to the last known good position.
         """
-        # --- Determine target reverse distance dynamically ---
-        if self.scan_retry_count > 0:
-            # For retries, reverse just enough to get a small run-up to the scan start.
-            target_reverse_dist = self.planning_scan_start_dist_m + 0.05
-            log_prefix = "Retry Reverse"
+        # --- Determine target reverse distance dynamically based on retry mode ---
+        if self.is_in_retry_mode:
+            # For smart retries, reverse to the last successful scan position + margin
+            target_reverse_dist = self.last_successful_scan_front_dist # + 0.03
+            log_prefix = "Smart Retry Reverse"
         else:
             # For the first time, use the standard, longer reverse distance.
             target_reverse_dist = self.post_planning_reverse_target_dist_m
@@ -2226,15 +2234,27 @@ class ObstacleNavigatorNode(Node):
         if not self.planning_initiated:
             self.get_logger().warn(">>> PLAN_NEXT_AVOIDANCE: Initiating move-and-scan sequence. <<<")
             self.planning_initiated = True
-            self.detection_results.clear()
+            
+            # Reset data only if it's a new corner (NOT in retry mode)
+            if not self.is_in_retry_mode:
+                self.get_logger().info("New corner: Performing full reset of all scan data.")
+                self.detection_results.clear()
+                self.max_red_blob_area = 0.0
+                self.max_green_blob_area = 0.0
+                self.max_red_blob_sample_num = 0
+                self.max_green_blob_sample_num = 0
+                self.last_successful_sample_num = 0
+            else:
+                self.get_logger().warn(
+                    f"Retry mode: Resuming scan from sample #{self.last_successful_sample_num + 1}. "
+                    "Keeping existing blob data."
+                )
 
-            self.max_red_blob_area = 0.0
-            self.max_green_blob_area = 0.0
-            self.max_red_blob_sample_num = 0
-            self.max_green_blob_sample_num = 0
+            # These are always reset at the start of any scan attempt (initial or retry)
             self.scan_frame_count = 0
             self.stale_frame_counter = 0
             self.last_scanned_stamp = None
+            self.early_scan_check_has_run = False
 
             # Instead of setting a static center position, calculate the correct
             # initial viewing angle and set it immediately.
@@ -2350,9 +2370,10 @@ class ObstacleNavigatorNode(Node):
             # --- Conditionally perform scanning ---
             scan_failed = False
             if not math.isnan(front_dist) and front_dist < self.planning_scan_start_dist_m:
-                scan_failed = self._scan_and_collect_data()
+                # Pass the current front_dist to the scanning function
+                scan_failed = self._scan_and_collect_data(front_dist)
 
-            # --- NEW: Handle scan failure and retries here ---
+            # --- Handle scan failure and retries here ---
             if scan_failed:
                 self.scan_retry_count += 1
                 if self.scan_retry_count > self.max_scan_retries:
@@ -2363,10 +2384,33 @@ class ObstacleNavigatorNode(Node):
                         "Proceeding with potentially incomplete data."
                     )
                 else:
-                    # RETRY: Go back to the pre-scan reverse state.
-                    self.get_logger().error(
-                        f"Scan failed. Reversing to restart (Retry #{self.scan_retry_count})."
+                    # --- SIMPLE REWIND LOGIC: Rewind by the number of stale frames ---
+                    num_samples_to_rewind = self.stale_frame_counter
+                    
+                    self.get_logger().warn(
+                        f"Scan failed due to {self.stale_frame_counter} stale frames. "
+                        f"Rewinding sample counter by {num_samples_to_rewind} samples."
                     )
+                    
+                    # Rewind the sample counter to the last known good state.
+                    original_sample_num = self.last_successful_sample_num
+                    self.last_successful_sample_num -= num_samples_to_rewind
+                    
+                    # Ensure it doesn't go below zero.
+                    if self.last_successful_sample_num < 0:
+                        self.last_successful_sample_num = 0
+
+                    self.get_logger().warn(
+                        f"Rewound successful sample number from {original_sample_num} to {self.last_successful_sample_num}."
+                    )
+                    
+                    # RETRY: Reverse and restart the scan from the corrected sample number.
+                    self.get_logger().error(
+                        f"Reversing for smart retry (Attempt #{self.scan_retry_count})."
+                    )
+                    
+                    self.is_in_retry_mode = True
+                    self.planning_initiated = False # This will trigger re-initialization
                     self.state = State.STRAIGHT
                     self.straight_sub_state = StraightSubState.PRE_SCANNING_REVERSE
                     self.publish_twist_with_gain(0.0, 0.0)
@@ -2729,6 +2773,10 @@ class ObstacleNavigatorNode(Node):
         self.scan_retry_count = 0
         self.early_scan_check_has_run = False
 
+        self.is_in_retry_mode = False
+        self.last_successful_scan_front_dist = self.planning_scan_start_dist_m
+        self.last_successful_sample_num = 0
+
         # --- NEW: Reset the correction flag at the start of a new lap ---
         if self.wall_segment_index == 0:
             self.get_logger().info("New lap started. Re-enabling IMU drift correction for this lap.")
@@ -2784,7 +2832,7 @@ class ObstacleNavigatorNode(Node):
         elif self.reorient_step in [ReorientStep.INNER_TURN_1, ReorientStep.INNER_STRAIGHT1, ReorientStep.INNER_STRAIGHT2, ReorientStep.INNER_TURN_2]:
             self._reorient_inner_lane_maneuver(msg)
         
-        elif self.reorient_step in [ReorientStep.OUTER_TURN_1, ReorientStep.OUTER_REVERSE_TURN]:
+        elif self.reorient_step in [ReorientStep.OUTER_TURN_1, ReorientStep.OUTER_STRAIGHT1, ReorientStep.OUTER_STRAIGHT2, ReorientStep.OUTER_REVERSE_TURN]:
             self._reorient_outer_lane_maneuver(msg)
 
         # --- Handle Completion ---
@@ -3087,7 +3135,14 @@ class ObstacleNavigatorNode(Node):
             )
             if is_turn_done:
                 self.get_logger().info("Reorientation (Outer): Forward turn complete.")
-                self.reorient_step = ReorientStep.OUTER_REVERSE_TURN
+                self.reorient_step = ReorientStep.OUTER_STRAIGHT1
+
+        elif self.reorient_step in [ReorientStep.OUTER_STRAIGHT1, ReorientStep.OUTER_STRAIGHT2]:
+            self._execute_s_turn_straight_leg(
+                msg=msg,
+                base_yaw_for_wall_angle=(self.reorient_base_yaw_deg - 90.0),
+                next_step_on_completion=ReorientStep.OUTER_REVERSE_TURN
+            )
 
         elif self.reorient_step == ReorientStep.OUTER_REVERSE_TURN:
             reverse_base_yaw = self._angle_normalize(self.reorient_base_yaw_deg - 90.0)
@@ -3379,20 +3434,22 @@ class ObstacleNavigatorNode(Node):
         wall_dist = self.get_distance_at_world_angle(msg, wall_angle)
 
         # STEP 1: Move forward until very close to the wall
-        if self.reorient_step in [ReorientStep.INNER_STRAIGHT1, ReorientStep.LC_STRAIGHT_1]:
+        if self.reorient_step in [ReorientStep.INNER_STRAIGHT1, ReorientStep.LC_STRAIGHT_1, ReorientStep.OUTER_STRAIGHT1]: # ADD OUTER_STRAIGHT1
             if not math.isnan(wall_dist) and wall_dist < self.reorient_s_turn_fwd_dist_m:
                 self.get_logger().info(f"S-Turn Straight: Forward leg complete (Dist: {wall_dist:.2f}m).")
                 self.publish_twist_with_gain(0.0, 0.0)
                 # Transition to the reverse part of this straight leg
                 if self.reorient_step == ReorientStep.INNER_STRAIGHT1:
                     self.reorient_step = ReorientStep.INNER_STRAIGHT2
-                else: # LC_STRAIGHT_1
+                elif self.reorient_step == ReorientStep.LC_STRAIGHT_1: 
                     self.reorient_step = ReorientStep.LC_STRAIGHT_2
+                else:
+                    self.reorient_step = ReorientStep.OUTER_STRAIGHT2 
             else:
                 self.publish_twist_with_gain(self.forward_speed * 0.7, 0.0)
         
         # STEP 2: Reverse until a bit further from the wall
-        elif self.reorient_step in [ReorientStep.INNER_STRAIGHT2, ReorientStep.LC_STRAIGHT_2]:
+        elif self.reorient_step in [ReorientStep.INNER_STRAIGHT2, ReorientStep.LC_STRAIGHT_2, ReorientStep.OUTER_STRAIGHT2]: # ADD OUTER_STRAIGHT2
             if not math.isnan(wall_dist) and wall_dist > self.reorient_s_turn_rev_dist_m:
                 self.get_logger().info(f"S-Turn Straight: Reverse leg complete (Dist: {wall_dist:.2f}m).")
                 self.publish_twist_with_gain(0.0, 0.0)
@@ -3998,10 +4055,9 @@ class ObstacleNavigatorNode(Node):
             
         return final_mask
 
-    def _save_annotated_image(self, base_name: str, turn_count: int, frame_bgr, masks, rois, sample_num: int = 1):
+    def _save_annotated_image(self, base_name: str, turn_count: int, frame_bgr, masks, rois, sample_num: int = 1, robot_state: dict = None):
         """
-        Saves annotated debug images for color detection, organizing planning
-        images into corner-specific subfolders.
+        Saves annotated debug images and logs detailed robot state at the moment of capture.
         """
         if not self.save_debug_images:
             return
@@ -4010,8 +4066,8 @@ class ObstacleNavigatorNode(Node):
             # --- Determine the save path dynamically ---
             save_path = self.debug_image_path
             # For planning images, create and use a corner-specific subfolder
-            if base_name == 'planning_detection' and turn_count > 0:
-                corner_folder_name = f"corner{turn_count}"
+            if base_name == 'planning_detection': # Note: 'and turn_count > 0' removed to handle turn 1 correctly
+                corner_folder_name = f"corner{(turn_count % 4) + 1}" # Use modulo for safety
                 save_path = os.path.join(self.debug_image_path, corner_folder_name)
                 # Create the directory if it doesn't exist; exist_ok=True prevents errors
                 os.makedirs(save_path, exist_ok=True)
@@ -4048,6 +4104,16 @@ class ObstacleNavigatorNode(Node):
             if sample_num == 1:
                 self.get_logger().info(f"Saved debug images for {base_name} turn {turn_count} to: {save_path}")
 
+            state_log = (
+                f"[Image Save] "
+                f"File: {base_name}_{filename_suffix}.jpg | "
+                f"State: {self.state.name}:{self._get_current_sub_state_str()}"
+            )
+            if robot_state:
+                state_log += " | " + " | ".join([f"{k}: {v}" for k, v in robot_state.items()])
+            
+            self.get_logger().info(state_log)
+
         except Exception as e:
             self.get_logger().error(f"Failed to save debug image: {e}")
 
@@ -4070,19 +4136,20 @@ class ObstacleNavigatorNode(Node):
         else:
             return 'none'
 
-    def _scan_and_collect_data(self):
+    def _scan_and_collect_data(self, current_front_dist: float):
         """
         Performs image scanning with a failsafe for stale frames, including a retry mechanism.
         """
 
         # Increment frame counter first
         self.scan_frame_count += 1
-        # Check if this frame should be processed
+        # Check if this frame should be processed based on the interval
         if self.scan_frame_count % self.planning_scan_interval != 0:
             return False # Skip processing for this frame
 
-        # If we process this frame, use the total count as the sample number
-        current_sample_num = self.scan_frame_count // self.planning_scan_interval
+        # --- CORRECTED: Simple and robust sample number increment ---
+        # The next sample number is always the last successful one + 1.
+        current_sample_num = self.last_successful_sample_num + 1
 
         if self.latest_frame is None or self.latest_frame_stamp is None:
             self.get_logger().warn("In scanning range but latest_frame or stamp is None.", throttle_duration_sec=1.0)
@@ -4099,6 +4166,13 @@ class ObstacleNavigatorNode(Node):
             self.stale_frame_counter += 1
         else:
             self.stale_frame_counter = 0
+            # --- Save the state on successful scan ---
+            # This is a fresh frame, so update the last known good physical position.
+            self.last_successful_scan_front_dist = current_front_dist
+            self.get_logger().debug(
+                f"Fresh frame detected. Updated last_successful_scan_front_dist to {current_front_dist:.3f}m "
+                f"at sample #{current_sample_num}."
+            )
 
         # --- Check for Failure Conditions ---
         scan_failed = False
@@ -4177,17 +4251,28 @@ class ObstacleNavigatorNode(Node):
             # --- MODIFIED: Use a single dictionary for ROIs to pass to the save function ---
             rois_to_visualize = {'scan_roi': scan_roi_points} if scan_roi_points else None
 
-            self.detection_results.append(1) # Frame counter
-            sample_num = len(self.detection_results)
+            # --- NEW: Prepare detailed state dictionary for logging ---
+            state_data_for_log = {
+                'front_dist': f"{current_front_dist:.3f}",
+                'yaw': f"{self.current_yaw_deg:.2f}",
+                'linear_vel': f"{self.last_published_linear:.3f}",
+                'angular_vel': f"{self.last_published_angular:.3f}",
+                'stale_count': self.stale_frame_counter
+            }
 
             self._save_annotated_image(
                 base_name="planning_detection",
-                turn_count=self.turn_count + 1,
+                turn_count=self.turn_count, # Use current turn_count for folder name consistency
                 frame_bgr=detection_data['frame_bgr'],
                 masks={'RED': red_mask_roi, 'GREEN': green_mask_roi},
                 rois=rois_to_visualize,
-                sample_num=sample_num
+                sample_num=current_sample_num,
+                robot_state=state_data_for_log
             )
+
+        # After a successful processing of a sample, update the success counter.
+        # This is the crucial update.
+        self.last_successful_sample_num = current_sample_num
         
         return False
 
