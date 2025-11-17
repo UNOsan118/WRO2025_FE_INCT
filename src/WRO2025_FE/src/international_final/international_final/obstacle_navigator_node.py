@@ -128,7 +128,7 @@ class ObstacleNavigatorNode(Node):
         self.start_time = self.get_clock().now()
         # Only publish commands at a maximum rate of ~30Hz (33ms interval)
         # to avoid flooding the serial port of the controller.
-        self.cmd_pub_interval_ms = 80 # 33
+        self.cmd_pub_interval_ms = 90 # 33
 
         self.declare_parameter('log_level_str', 'DEBUG') # Options: 'DEBUG', 'INFO', 'WARN', 'ERROR'
         # Load log_level immediately to affect subsequent logs
@@ -261,8 +261,8 @@ class ObstacleNavigatorNode(Node):
         # For Outer -> Outer 
         self.turn_outer_to_outer_dist_m = 0.29 # 0.55
         self.turn_outer_to_outer_angle_deg = 90.0 # 40.0
-        self.turn_outer_to_outer_approach_speed = 0.18
-        self.turn_outer_to_outer_turn_speed = 0.18
+        self.turn_outer_to_outer_approach_speed = 0.20
+        self.turn_outer_to_outer_turn_speed = 0.20
 
         # For Outer -> Outer (Clear) 
         self.turn_outer_to_outer_clear_dist_m = 0.29 # 0.55
@@ -274,13 +274,13 @@ class ObstacleNavigatorNode(Node):
         self.turn_outer_to_inner_dist_m = 0.85
         self.turn_outer_to_inner_angle_deg = 90.0
         self.turn_outer_to_inner_approach_speed = 0.18
-        self.turn_outer_to_inner_turn_speed = 0.18
+        self.turn_outer_to_inner_turn_speed = 0.20
 
         # For Outer -> Inner (Clear) 
         self.turn_outer_to_inner_clear_dist_m = 0.85
         self.turn_outer_to_inner_clear_angle_deg = 90.0 
         self.turn_outer_to_inner_clear_approach_speed = 0.18
-        self.turn_outer_to_inner_clear_turn_speed = 0.18
+        self.turn_outer_to_inner_clear_turn_speed = 0.20
 
         # For Inner -> Outer 
         self.turn_inner_to_outer_dist_m = 0.29
@@ -291,14 +291,14 @@ class ObstacleNavigatorNode(Node):
         # For Inner -> Outer (Clear) : Like Outer to Outer
         self.turn_inner_to_outer_clear_dist_m =  0.29 # 0.5
         self.turn_inner_to_outer_clear_angle_deg = 90.0 # 40.0
-        self.turn_inner_to_outer_clear_approach_speed = 0.18
-        self.turn_inner_to_outer_clear_turn_speed = 0.18
+        self.turn_inner_to_outer_clear_approach_speed = 0.20
+        self.turn_inner_to_outer_clear_turn_speed = 0.20
 
         # For Inner -> Inner 
         self.turn_inner_to_inner_dist_m = 0.85
         self.turn_inner_to_inner_angle_deg = 90.0
-        self.turn_inner_to_inner_approach_speed = 0.13
-        self.turn_inner_to_inner_turn_speed = 0.15
+        self.turn_inner_to_inner_approach_speed = 0.15
+        self.turn_inner_to_inner_turn_speed = 0.17
 
         # For Inner -> Inner (Clear)
         self.turn_inner_to_inner_clear_dist_m = 0.85
@@ -310,7 +310,12 @@ class ObstacleNavigatorNode(Node):
         self.turn_final_ccw_outer_dist_m = 0.23
         self.turn_final_ccw_outer_angle_deg = 90.0
         self.turn_final_ccw_outer_approach_speed = 0.18
-        self.turn_final_ccw_outer_turn_speed = 0.18
+        self.turn_final_ccw_outer_turn_speed = 0.20
+
+        # --- Dynamic speed control for corner approach ---
+        self.turn_approach_slowdown_start_offset_m = 0.5
+        self.turn_approach_slowdown_end_offset_m = 0.2
+        self.turn_approach_max_added_speed = 0.05
 
         # Additional offset for the first corner (approaching start/finish line area)
         self.turn_start_area_dist_offset_m = 0.2
@@ -328,7 +333,7 @@ class ObstacleNavigatorNode(Node):
 
         self.lc_turn_angle_deg = 65.0  # Lane Change turn angle
         self.lc_turn_kp = 0.02         # P-gain for turning during lane change
-        self.lc_step1_speed = 0.2
+        self.lc_step1_speed = 0.25
         self.lc_step2_speed = 0.2
         self.lc_step3_speed = 0.2
         # Target distances for the straight part of the lane change
@@ -2119,32 +2124,56 @@ class ObstacleNavigatorNode(Node):
 
     def _lane_change_step2_straight(self, msg: LaserScan):
         """Lane Change Step 2: Drive straight until target wall is close."""
-        # Determine which wall to measure and its angle
+        # This function has special logic for inner-to-outer changes in the start area
+        # to avoid misinterpreting the parking lot markers as the outer wall.
+
+        # Determine target wall and distance based on the maneuver type
         if self.lane_change_target_is_outer:
             is_measuring_outer_wall = True
-            if self.wall_segment_index == 0:
-                target_dist = self.lc_target_dist_outer_start_area_m
-            else:
-                target_dist = self.lc_target_dist_outer_m
+            target_dist = self.lc_target_dist_outer_start_area_m if self.wall_segment_index == 0 else self.lc_target_dist_outer_m
         else: # Target is Inner
             is_measuring_outer_wall = False
             target_dist = self.lc_target_dist_inner_m
-            
-        # Get wall angle based on the base yaw of the straight segment
-        if is_measuring_outer_wall:
-             wall_offset = -90.0 if self.direction == 'ccw' else 90.0
-        else: # Inner
-             wall_offset = 90.0 if self.direction == 'ccw' else -90.0
-        wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg + wall_offset)
-        wall_dist = self.get_distance_at_world_angle(msg, wall_angle)
 
-        # Check for completion
+        # --- Distance Measurement ---
+        # Get angles for both inner and outer walls
+        if self.direction == 'ccw':
+            outer_wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg - 90.0)
+            inner_wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg + 90.0)
+        else: # cw
+            outer_wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg + 90.0)
+            inner_wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg - 90.0)
+
+        # Measure distances to both walls
+        measured_outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
+        measured_inner_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
+
+        # --- Approximation Logic for Start Area ---
+        # Determine the final distance to be used for the completion check
+        wall_dist = measured_outer_dist if is_measuring_outer_wall else measured_inner_dist
+        log_mode = "Direct"
+
+        # Check if the special approximation should be applied
+        use_approximation = (
+            self.lane_change_target_is_outer and
+            self.wall_segment_index == 0 and
+            not math.isnan(measured_inner_dist) and
+            measured_inner_dist > 0.2
+        )
+
+        if use_approximation:
+            # Override wall_dist with the approximated value
+            wall_dist = 1.0 - measured_inner_dist
+            log_mode = f"Approx(I:{measured_inner_dist:.2f})"
+
+        # --- Completion Check ---
         if not math.isnan(wall_dist) and wall_dist < target_dist:
-            self.get_logger().info(f"LC Step 2 (Straight): Complete (WallDist: {wall_dist:.2f}m).")
+            self.get_logger().info(f"LC Step 2 ({log_mode}): Complete (WallDist: {wall_dist:.2f}m).")
             self.lane_change_step = LaneChangeStep.TURN_2_ALIGN_LANE
             self.publish_twist_with_gain(0.0, 0.0)
             return
-            
+
+        # --- Driving Logic (Unchanged) ---
         # Drive straight at the angle from Step 1
         turn_direction = 1.0 if self.lane_change_target_is_outer else -1.0
         if self.direction == 'ccw':
@@ -2511,6 +2540,7 @@ class ObstacleNavigatorNode(Node):
         """
         Sub-state: Moves forward towards the corner wall until the dynamically
         determined trigger distance for turning is reached.
+        Speed is proportionally controlled based on the distance to the wall.
         """
         front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
         if math.isnan(front_dist):
@@ -2518,8 +2548,8 @@ class ObstacleNavigatorNode(Node):
             self.publish_twist_with_gain(0.0, 0.0)
             return
 
-        # --- MODIFIED: Get trigger distance dynamically from the helper ---
-        trigger_dist, _, approach_speed, _ = self._get_turn_strategy()
+        # Get base strategy parameters (trigger distance and base speed)
+        trigger_dist, _, base_approach_speed, _ = self._get_turn_strategy()
 
         # Check for completion of this sub-state
         if front_dist <= trigger_dist:
@@ -2528,12 +2558,47 @@ class ObstacleNavigatorNode(Node):
             self.publish_twist_with_gain(0.0, 0.0) # Stop briefly before turning
             return
 
-        # --- Continue approaching the wall ---
-        self.get_logger().debug(f"Approaching wall for turn... Dist: {front_dist:.2f}m", throttle_duration_sec=0.2)
+        # --- Proportional Speed Control for Approach ---
+        # Calculate the next segment index to apply special logic for the start area.
+        next_segment_index = (self.wall_segment_index + 1) % 4
+        final_approach_speed = base_approach_speed
+        
+        # Only apply dynamic speed boost if the next segment is NOT the start area.
+        if next_segment_index != 0:
+            # Define the start and end points for speed reduction
+            slowdown_start_dist = trigger_dist + self.turn_approach_slowdown_start_offset_m
+            slowdown_end_dist = trigger_dist + self.turn_approach_slowdown_end_offset_m
+
+            if front_dist > slowdown_start_dist:
+                # Far from the slowdown zone, use maximum speed
+                final_approach_speed += self.turn_approach_max_added_speed
+            elif front_dist > slowdown_end_dist:
+                # Inside the slowdown zone, calculate speed proportionally
+                slowdown_range = slowdown_start_dist - slowdown_end_dist
+                if slowdown_range <= 0.01: 
+                    slowdown_range = 0.01 # Avoid division by zero
+
+                # This ratio goes from 0.0 (at start) to 1.0 (at end)
+                progress_ratio = (slowdown_start_dist - front_dist) / slowdown_range
+                progress_ratio = np.clip(progress_ratio, 0.0, 1.0)
+                
+                # Linearly interpolate the added speed from max down to zero
+                added_speed = self.turn_approach_max_added_speed * (1.0 - progress_ratio)
+                final_approach_speed += added_speed
+        else:
+            # Approaching the start area, do not apply speed boost for safety.
+            self.get_logger().debug("Approaching start area, speed boost disabled.", throttle_duration_sec=2.0)
+
+        # --- Continue approaching the wall with the calculated speed ---
+        self.get_logger().debug(f"Approaching wall... Dist: {front_dist:.2f}m, Speed: {final_approach_speed:.3f}", throttle_duration_sec=0.2)
+        
+        # If front_dist is <= slowdown_end_dist, final_approach_speed remains base_approach_speed
+
+        # --- Continue approaching the wall with the calculated speed ---
+        self.get_logger().debug(f"Approaching wall... Dist: {front_dist:.2f}m, Speed: {final_approach_speed:.3f}", throttle_duration_sec=0.2)
         
         if self.last_avoidance_path_was_outer:
-            # Determine the correct target distance for the outer wall
-            target_outer_dist = None # Let _execute_pid_alignment use its default
+            target_outer_dist = None
             if self.wall_segment_index == 0:
                 target_outer_dist = self.align_target_outer_dist_start_area_m
 
@@ -2541,19 +2606,17 @@ class ObstacleNavigatorNode(Node):
                 msg=msg, 
                 base_angle_deg=self.approach_base_yaw_deg, 
                 is_outer_wall=True, 
-                speed=approach_speed,
-                override_target_dist=target_outer_dist # Pass the specific distance if needed
+                speed=final_approach_speed,
+                override_target_dist=target_outer_dist
             )
         else:
-            # When approaching from the inner lane, the inner wall is about to
-            # disappear, so it's safer to use IMU_ONLY mode.
             self.get_logger().debug("Approaching corner from inner lane, using IMU_ONLY.", throttle_duration_sec=1.0)
             self._execute_pid_alignment(
                 msg=msg, 
                 base_angle_deg=self.approach_base_yaw_deg, 
-                is_outer_wall=False, # This argument is now effectively ignored
-                speed=approach_speed,
-                disable_dist_control=True # Force IMU_ONLY mode
+                is_outer_wall=False,
+                speed=final_approach_speed,
+                disable_dist_control=True
             )
 
     def _handle_turning_sub_execute_pivot_turn(self, msg: LaserScan):
