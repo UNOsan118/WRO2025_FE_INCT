@@ -176,6 +176,9 @@ class ObstacleNavigatorNode(Node):
         self.max_valid_range_m = 3.0
         self.max_turns = 4 #12
         
+        # --- Flag to enable early camera tilt setting for faster startup ---
+        self.enable_early_tilt_setting = True
+
         # --- Driving & Speed Control ---
         self.forward_speed = 0.2
         self.max_steer = 1.2 # 1.2
@@ -193,13 +196,17 @@ class ObstacleNavigatorNode(Node):
         self.green_presence_threshold = 1300.0 
         self.green_presence_threshold_cw = 1300.0 # Use in GREEN_ONLY Mode
         self.green_presence_threshold_ccw = 3500.0 # Use in GREEN_ONLY Mode
+        self.unparking_tilt_angle_deg_cw = 55.0
+        self.unparking_tilt_angle_deg_ccw = 70.0
+        self.roi_unparking_cw_flat = [65, 60, 65, 145, 430, 260, 430, 95]
+        self.roi_unparking_ccw_flat = [220, 70, 220, 240, 350, 240, 350, 70]
 
         self.unparking_speed = 0.15 #0.05
         self.unparking_initial_turn_deg = 55.0
         self.unparking_exit_straight_dist_m = 0.23
         self.unparking_exit_straight_speed = 0.15
-        self.unparking_cw_inner_dist_trigger_m = 0.55
-        self.unparking_ccw_front_dist_trigger_m = 1.06
+        self.unparking_cw_inner_dist_trigger_m = 0.58
+        self.unparking_ccw_front_dist_trigger_m = 1.04
 
         # --- Camera & Vision ---
         self.pan_servo_id = 1
@@ -222,16 +229,6 @@ class ObstacleNavigatorNode(Node):
         self.red_upper2 = [179, 255, 243]
         self.green_lower = [55, 100, 67]
         self.green_upper = [80, 255, 240]
-        """
-        self.roi_planning_ccw_inner_flat = [225, 30, 0, 480, 640, 480, 480, 30]
-        self.roi_planning_ccw_inner_start_area_flat = [225, 30, 0, 480, 560, 480, 320, 30]
-        self.roi_planning_ccw_outer_flat = [220, 15, 100, 260, 525, 260, 440, 15]
-        self.roi_planning_ccw_outer_start_area_flat = [220, 15, 100, 260, 425, 260, 300, 15]
-        self.roi_planning_cw_inner_flat = [160, 30, 0, 480, 640, 480, 400, 30]
-        self.roi_planning_cw_inner_start_area_flat = [320, 30, 80, 480, 640, 480, 400, 30]
-        self.roi_planning_cw_outer_flat = [160, 15, 120, 260, 545, 260, 380, 15]
-        self.roi_planning_cw_outer_start_area_flat = [280, 15, 150, 260, 545, 260, 380, 15]
-        """
 
         # --- Alignment (PID) ---
         self.align_kp_angle = 0.02 # 0.04
@@ -245,7 +242,7 @@ class ObstacleNavigatorNode(Node):
 
         # --- IMU Drift Correction ---
         self.enable_drift_correction = True
-        self.drift_correction_min_stable_count = 50 # Min stable loops before correcting
+        self.drift_correction_min_stable_count = 38 # Min stable loops before correcting
         self.imu_drift_offset_deg = 0.0
         self.has_corrected_this_lap = False
 
@@ -258,13 +255,13 @@ class ObstacleNavigatorNode(Node):
         self.turn_outer_to_outer_dist_m = 0.29 # 0.55
         self.turn_outer_to_outer_angle_deg = 90.0 # 40.0
         self.turn_outer_to_outer_approach_speed = 0.20
-        self.turn_outer_to_outer_turn_speed = 0.20
+        self.turn_outer_to_outer_turn_speed = 0.22
 
         # For Outer -> Outer (Clear) 
         self.turn_outer_to_outer_clear_dist_m = 0.29 # 0.55
         self.turn_outer_to_outer_clear_angle_deg = 90.0 # 40.0
         self.turn_outer_to_outer_clear_approach_speed = 0.20
-        self.turn_outer_to_outer_clear_turn_speed = 0.20
+        self.turn_outer_to_outer_clear_turn_speed = 0.2
 
         # For Outer -> Inner 
         self.turn_outer_to_inner_dist_m = 0.85
@@ -282,25 +279,25 @@ class ObstacleNavigatorNode(Node):
         self.turn_inner_to_outer_dist_m = 0.29
         self.turn_inner_to_outer_angle_deg = 90.0
         self.turn_inner_to_outer_approach_speed = 0.15
-        self.turn_inner_to_outer_turn_speed = 0.17
+        self.turn_inner_to_outer_turn_speed = 0.20
 
         # For Inner -> Outer (Clear) : Like Outer to Outer
         self.turn_inner_to_outer_clear_dist_m =  0.29 # 0.5
         self.turn_inner_to_outer_clear_angle_deg = 90.0 # 40.0
         self.turn_inner_to_outer_clear_approach_speed = 0.20
-        self.turn_inner_to_outer_clear_turn_speed = 0.20
+        self.turn_inner_to_outer_clear_turn_speed = 0.22
 
         # For Inner -> Inner 
         self.turn_inner_to_inner_dist_m = 0.85
         self.turn_inner_to_inner_angle_deg = 90.0
         self.turn_inner_to_inner_approach_speed = 0.15
-        self.turn_inner_to_inner_turn_speed = 0.17
+        self.turn_inner_to_inner_turn_speed = 0.18
 
         # For Inner -> Inner (Clear)
         self.turn_inner_to_inner_clear_dist_m = 0.85
         self.turn_inner_to_inner_clear_angle_deg = 90.0
         self.turn_inner_to_inner_clear_approach_speed = 0.17
-        self.turn_inner_to_inner_clear_turn_speed = 0.17
+        self.turn_inner_to_inner_clear_turn_speed = 0.18
 
         # --- Special strategy for the final CCW corner to outer lane ---
         self.turn_final_ccw_outer_dist_m = 0.23
@@ -354,23 +351,23 @@ class ObstacleNavigatorNode(Node):
         # --- Approach ---
         self.parking_approach_kp_angle = 0.0075 # A gentler gain for approach
         self.parking_approach_kp_dist = 5.0   #4.0  A gentler gain for approach
-        self.parking_approach_stability_threshold = 30
-        self.parking_approach_target_outer_dist_m = 0.325
+        self.parking_approach_stability_threshold = 23
+        self.parking_approach_target_outer_dist_m = 0.34
         self.parking_approach_slowdown_dist_m = 1.3  # Distance to start slowing down
         self.parking_approach_final_stop_dist_m = 0.83 # 0.81 Final target distance
         self.parking_approach_yaw_tolerance_deg = 10.0 # Max yaw deviation to complete approach
         self.parking_approach_min_front_dist_m = 0.6 # Min front dist to avoid false trigger
-        self.parking_approach_slow_speed = 0.05     # Slower speed for final approach
+        self.parking_approach_slow_speed = 0.075     # Slower speed for final approach
         self.parking_step4_duration_sec = 0.5 # Duration for the final forward adjustment
 
         # --- Final Parking ---
-        self.parking_step1_reverse_speed = -0.1
+        self.parking_step1_reverse_speed = -0.12
         self.parking_step1_target_angle_deg = 56.5
         self.parking_step1_dynamic_angle_gain = 70.0 # New gain for dynamic adjustment
         self.parking_step1_yaw_tolerance_deg = 2.0 
-        self.parking_step2_reverse_speed = -0.1
+        self.parking_step2_reverse_speed = -0.12
         self.parking_step2_front_dist_trigger_m = 0.97
-        self.parking_step3_reverse_speed = -0.1
+        self.parking_step3_reverse_speed = -0.12
         self.parking_step3_yaw_tolerance_deg = 10.0
         self.parking_step4_forward_speed = 0.02
 
@@ -509,11 +506,14 @@ class ObstacleNavigatorNode(Node):
         self.planning_detection_threshold = 570
         self.planning_detection_threshold_outer_path_multiplier = 0.7
         self.post_planning_reverse_target_dist_m = 0.7 
-        self.planning_scan_roi_flat = [200, 0, 120, 480, 440, 480, 360, 0] # [x, y, width, height]
+        # self.planning_scan_roi_flat = [200, 30, 120, 480, 440, 480, 360, 30] # : base
+        self.roi_planning_inner_flat = [195, 30, 120, 480, 440, 480, 365, 30]
+        self.roi_planning_outer_flat = [197, 15, 166, 200, 393, 200, 362, 15]
+        self.roi_planning_outer_start_area_flat = [196, 20, 163, 220, 396, 220, 363, 20]
         self.planning_scan_interval = 2
         self.planning_scan_stop_dist = 0.18
         self.planning_scan_stop_dist_start_area = 0.38
-        self.planning_scan_start_dist_m = 0.5
+        self.planning_scan_start_dist_m = 0.55
         self.lidar_entrance_scan_start_dist_m = 0.7
         self.planning_camera_wait_timer = None
         self.is_sampling_for_planning = False 
@@ -524,8 +524,8 @@ class ObstacleNavigatorNode(Node):
         self.max_green_blob_sample_num = 0
 
         self.stale_frame_counter = 0
-        self.max_stale_frames = 6
-        self.early_scan_stale_check_frames = 4 # New: Number of initial frames to check
+        self.max_stale_frames = 7
+        self.early_scan_stale_check_frames = 5 # New: Number of initial frames to check
         self.last_scanned_stamp = None
         self.scan_retry_count = 0 # New retry counter
         self.max_scan_retries = 100   # New retry limit
@@ -592,7 +592,7 @@ class ObstacleNavigatorNode(Node):
             self.start_from_parking = False
         # --- END OF DEBUGGING BLOCK ---
 
-        control_loop_rate = 20.0 # Hz 50
+        control_loop_rate = 15.0 # Hz 50
         self.control_loop_timer = self.create_timer(
             1.0 / control_loop_rate,
             self.control_loop_callback
@@ -1175,41 +1175,67 @@ class ObstacleNavigatorNode(Node):
             return
 
         # All services are ready, proceed to the next state.
-        self.get_logger().info("PREPARATION: All dependency services are ready. Transitioning to INITIALIZING_CAMERA.")
-        self.preparation_sub_state = PreparationSubState.INITIALIZING_CAMERA
+        self.get_logger().info("PREPARATION: All dependency services are ready. Transitioning to DETERMINE_DIRECTION.")
+        self.preparation_sub_state = PreparationSubState.DETERMINE_DIRECTION
 
     def _handle_preparation_sub_initializing_camera(self):
         """
-        Sub-state: Sends the command to move the camera to its initial angle
-        and waits for the movement to complete before proceeding to the UNPARKING state.
-        This function is a modified copy of _handle_determine_sub_initializing_camera.
+        Sub-state: Sends command(s) to move camera servos to their initial positions
+        and waits for the movement to complete.
+        If early tilt is enabled, it sets both pan and tilt simultaneously.
         """
-        # Publish the command periodically until the timer callback fires.
-        msg = SetPWMServoState()
-        msg.duration = self.camera_move_duration
-        
-        pan_state = PWMServoState()
-        pan_state.id = [self.pan_servo_id]
-        pan_state.position = [self.initial_pan_position]
-        msg.state = [pan_state]
-
-        self.servo_pub.publish(msg)
-        self.get_logger().debug("PREPARATION: Sending initial camera angle command...", throttle_duration_sec=0.2)
-
+        # --- This part runs only ONCE ---
         if not self.camera_init_sent:
-            self.get_logger().info("PREPARATION: Starting timer for initial camera movement.")
             self.camera_init_sent = True
+            self.get_logger().info("INITIALIZING_CAMERA: Sending servo command and starting wait timer.")
             
+            # --- Determine target servo positions ---
+            target_pan_pos = self.initial_pan_position
+            target_tilt_pos = self.tilt_center_position # Default to center
+
+            if self.enable_early_tilt_setting:
+                if self.direction == 'ccw':
+                    angle_offset_deg = self.unparking_tilt_angle_deg_ccw
+                    tilt_offset = angle_offset_deg * self.servo_units_per_degree
+                else: # cw
+                    angle_offset_deg = self.unparking_tilt_angle_deg_cw
+                    tilt_offset = -angle_offset_deg * self.servo_units_per_degree
+                
+                calculated_tilt = self.tilt_center_position + tilt_offset
+                target_tilt_pos = int(np.clip(calculated_tilt, self.tilt_min_position, self.tilt_max_position))
+                self.get_logger().info(f"-> Early tilt enabled. Setting Pan: {target_pan_pos}, Tilt: {target_tilt_pos}.")
+            else:
+                self.get_logger().info(f"-> Early tilt disabled. Setting Pan: {target_pan_pos} only.")
+            
+            # --- Publish Servo Command ---
+            msg = SetPWMServoState()
+            msg.duration = self.camera_move_duration
+            
+            pan_state = PWMServoState()
+            pan_state.id = [self.pan_servo_id]
+            pan_state.position = [target_pan_pos]
+            
+            tilt_state = PWMServoState()
+            tilt_state.id = [self.tilt_servo_id]
+            tilt_state.position = [target_tilt_pos]
+            
+            if self.enable_early_tilt_setting:
+                msg.state = [pan_state, tilt_state]
+            else:
+                msg.state = [pan_state]
+                
+            self.servo_pub.publish(msg)
+
+            # --- Start the wait timer ---
             wait_time = self.camera_move_duration + 1.5
-            
-            # This timer will call a new callback to transition out of the PREPARATION state.
             self.camera_wait_timer = self.create_timer(
                 wait_time, 
-                self._preparation_complete_callback # Use a new callback for clarity
+                self._preparation_complete_callback 
             )
-            self.get_logger().info(f"PREPARATION: Waiting {wait_time:.2f} seconds for camera to move...")
+            self.get_logger().info(f"Waiting {wait_time:.2f} seconds for camera to move...")
 
-        # Keep the robot stationary during this state.
+        # --- This part runs REPEATEDLY to keep the robot stationary ---
+        # Keep the robot stationary while waiting for the timer.
         self.publish_twist_with_gain(0.0, 0.0)
 
     def _handle_preparation_sub_determine_direction(self, msg: LaserScan):
@@ -1251,12 +1277,13 @@ class ObstacleNavigatorNode(Node):
             self.unparking_base_yaw_deg = self.current_yaw_deg
             self.get_logger().info(f"UNPARKING: Stored base yaw: {self.unparking_base_yaw_deg:.2f} deg")
 
-            self.get_logger().info("--- Transitioning to UNPARKING state ---")
-            self.state = State.UNPARKING
+            # --- Direction is set, now initialize the camera ---
+            self.get_logger().info("PREPARATION: Direction determined. Transitioning to INITIALIZING_CAMERA.")
+            self.preparation_sub_state = PreparationSubState.INITIALIZING_CAMERA # CHANGE THIS LINE
             self.publish_twist_with_gain(0.0, 0.0) # Stop the robot if it was moving
         else:
             # --- Insurance: If no valid data, move forward slowly ---
-            patience_threshold = 100 # Approx. 2 seconds at 50Hz
+            patience_threshold = 75 # Approx. 2 seconds at 50Hz
             if self.direction_detection_patience_counter < patience_threshold:
                 self.direction_detection_patience_counter += 1
                 self.get_logger().debug(
@@ -1275,46 +1302,49 @@ class ObstacleNavigatorNode(Node):
     # --- Unparking Sub-States ---
     def _handle_unparking_sub_pre_unparking_detection(self):
         """
-        Sub-state: Aims camera 45 degrees and starts a timer to wait for movement.
+        Sub-state: Aims camera 45 degrees (if not done already) and starts a timer 
+        to wait for a fresh image.
         """
-        # --- Step 0: Aim the camera and start the wait timer ---
+        # --- Step 0: Set camera angle and start wait timer ---
         if self.pre_detection_step == 0:
-            self.get_logger().info("PRE-UNPARKING DETECT (Step 0): Aiming camera and setting freshness timestamp...")
+            self.get_logger().info("PRE-UNPARKING DETECT (Step 0): Preparing for image acquisition...")
 
-            # Determine target camera angle
-            angle_offset_deg = 45.0
-            if self.direction == 'ccw':
-                target_world_angle_deg = self._angle_normalize(self.unparking_base_yaw_deg + angle_offset_deg)
-            else: # cw
-                target_world_angle_deg = self._angle_normalize(self.unparking_base_yaw_deg - angle_offset_deg)
+            wait_time_sec = 1.5 # Default wait time for image to become fresh
 
-            # Calculate servo position and command the move
-            camera_relative_angle_deg = self._angle_diff(target_world_angle_deg, self.current_yaw_deg)
-            tilt_offset = camera_relative_angle_deg * self.servo_units_per_degree
-            target_tilt_pos = self.tilt_center_position + tilt_offset
-            clamped_tilt = int(max(self.tilt_min_position, min(self.tilt_max_position, target_tilt_pos)))
+            # Only move the camera if early tilt setting was disabled (legacy mode)
+            if not self.enable_early_tilt_setting:
+                self.get_logger().info("Legacy mode: Aiming camera now.")
+                if self.direction == 'ccw':
+                    angle_offset_deg = self.unparking_tilt_angle_deg_ccw
+                    target_world_angle_deg = self._angle_normalize(self.unparking_base_yaw_deg + angle_offset_deg)
+                else: # cw
+                    angle_offset_deg = self.unparking_tilt_angle_deg_cw
+                    target_world_angle_deg = self._angle_normalize(self.unparking_base_yaw_deg - angle_offset_deg)
+                
+                camera_relative_angle_deg = self._angle_diff(target_world_angle_deg, self.current_yaw_deg)
+                tilt_offset = camera_relative_angle_deg * self.servo_units_per_degree
+                target_tilt_pos = self.tilt_center_position + tilt_offset
+                clamped_tilt = int(np.clip(target_tilt_pos, self.tilt_min_position, self.tilt_max_position))
+                
+                self._set_camera_angle(
+                    pan_position=self.initial_pan_position,
+                    tilt_position=clamped_tilt,
+                    duration_sec=self.camera_move_duration + 0.5
+                )
+                # Add the camera movement time to the total wait time
+                wait_time_sec += self.camera_move_duration + 0.5
             
-            self._set_camera_angle(
-                pan_position=self.initial_pan_position,
-                tilt_position=clamped_tilt,
-                duration_sec=self.camera_move_duration + 0.5
-            )
-
-            # --- Start a timer that waits for the camera move to complete ---
-            # Increase the buffer slightly to be safer
-            stabilization_buffer_sec = 1.5
-            wait_time_sec = self.camera_move_duration + 0.5 + stabilization_buffer_sec
-            self.get_logger().info(f"PRE-UNPARKING DETECT: Waiting {wait_time_sec:.2f} seconds for camera movement.")
+            self.get_logger().info(f"PRE-UNPARKING DETECT: Waiting {wait_time_sec:.2f} seconds for fresh image.")
 
             self.pre_detection_timer = self.create_timer(
                 wait_time_sec,
                 self._process_pre_unparking_image_callback 
             )
             
-            # Advance to the "waiting" step to prevent this block from running again
+            # Advance to the "waiting" step
             self.pre_detection_step = 1
 
-        # While step is 1 (waiting), do nothing but keep the robot still.
+        # While waiting, keep the robot still.
         self.publish_twist_with_gain(0.0, 0.0)
 
     def _handle_unparking_sub_initial_turn(self):
@@ -2641,17 +2671,21 @@ class ObstacleNavigatorNode(Node):
         # --- Continue approaching the wall with the calculated speed ---
         self.get_logger().debug(f"Approaching wall... Dist: {front_dist:.2f}m, Speed: {final_approach_speed:.3f}", throttle_duration_sec=0.2)
         
+        use_imu_only = False
         if self.last_avoidance_path_was_outer:
             target_outer_dist = None
             if self.wall_segment_index == 0:
                 target_outer_dist = self.align_target_outer_dist_start_area_m
+                if self.direction == 'ccw':
+                    use_imu_only = True
 
             self._execute_pid_alignment(
                 msg=msg, 
                 base_angle_deg=self.approach_base_yaw_deg, 
                 is_outer_wall=True, 
                 speed=final_approach_speed,
-                override_target_dist=target_outer_dist
+                override_target_dist=target_outer_dist,
+                disable_dist_control=use_imu_only
             )
         else:
             self.get_logger().debug("Approaching corner from inner lane, using IMU_ONLY.", throttle_duration_sec=1.0)
@@ -3462,17 +3496,25 @@ class ObstacleNavigatorNode(Node):
     def _preparation_complete_callback(self):
         """
         Called by a timer after the camera movement is complete.
-        Transitions the preparation sub-state to DETERMINE_DIRECTION.
+        Transitions the main state to UNPARKING.
         """
         with self.state_lock:
             if self.camera_wait_timer:
                 self.camera_wait_timer.destroy()
                 self.camera_wait_timer = None
 
-            if self.preparation_sub_state == PreparationSubState.INITIALIZING_CAMERA:
-                self.get_logger().info("PREPARATION: Camera initialization complete.")
-                self.get_logger().info("--- Transitioning to DETERMINE_DIRECTION sub-state ---")
-                self.preparation_sub_state = PreparationSubState.DETERMINE_DIRECTION
+            if self.state == State.PREPARATION:
+                self.get_logger().info("PREPARATION: All preparation steps complete.")
+
+                if self.enable_early_tilt_setting:
+                    self.analysis_start_time = self.get_clock().now()
+                    self.get_logger().info(f"Early tilt complete. Analysis start time set.")
+
+                self.unparking_base_yaw_deg = self.current_yaw_deg
+                self.get_logger().info(f"UNPARKING: Stored base yaw: {self.unparking_base_yaw_deg:.2f} deg")
+                
+                self.get_logger().info("--- Transitioning to UNPARKING state ---")
+                self.state = State.UNPARKING
                 self.camera_init_sent = False
 
     def _process_pre_unparking_image_callback(self):
@@ -3492,8 +3534,9 @@ class ObstacleNavigatorNode(Node):
             if self.pre_detection_step != 1:
                 return
 
+            # Set analysis start time only if it hasn't been set already (legacy mode)
             if self.analysis_start_time is None:
-                self.get_logger().info("Camera move complete. Now waiting for a fresh image frame.")
+                self.get_logger().info("Camera move complete (legacy mode). Now waiting for a fresh image frame.")
                 self.analysis_start_time = self.get_clock().now()
 
             # --- Condition 1: Check if a fresh image is available ---
@@ -3558,14 +3601,35 @@ class ObstacleNavigatorNode(Node):
 
                 self.unparking_strategy = strategy
                 
-                is_green_present_for_log = max_green_area >= self.green_presence_threshold if self.unparking_logic_mode == "GREEN_ONLY" else "N/A"
-                
+                # --- Build a detailed log message for debugging ---
+                log_details = ""
+                if self.unparking_logic_mode == "GREEN_ONLY":
+                    # For GREEN_ONLY mode, we only care about the green threshold
+                    threshold = self.green_presence_threshold_cw if self.direction == 'cw' else self.green_presence_threshold_ccw
+                    is_green_present = max_green_area >= threshold
+                    log_details = (
+                        f"      - Mode Logic     : GREEN_ONLY\n"
+                        f"      - Green Area     : {max_green_area:.1f}\n"
+                        f"      - Green Threshold: {threshold:.1f}\n"
+                        f"      - Green Present? : {is_green_present}"
+                    )
+                else: # RED_GREEN_DISTANCE mode
+                    # For this mode, the dominant color and a different threshold are key
+                    threshold = 3500.0 # This is the close_obstacle_threshold from the logic
+                    has_close_obstacle = max(max_red_area, max_green_area) >= threshold
+                    log_details = (
+                        f"      - Mode Logic       : RED_GREEN_DISTANCE\n"
+                        f"      - Dominant Color   : '{dominant_color}'\n"
+                        f"      - Red Area         : {max_red_area:.1f}\n"
+                        f"      - Green Area       : {max_green_area:.1f}\n"
+                        f"      - Obstacle Threshold: {threshold:.1f}\n"
+                        f"      - Close Obstacle?  : {has_close_obstacle}"
+                    )
+
                 log_message = (
-                    f"--- PRE-UNPARKING DETECTION RESULT ---\n"
-                    f"      Mode: {self.unparking_logic_mode}\n" # Added for clarity
-                    f"      Direction: {self.direction.upper()}\n"
-                    f"      Dominant Color: '{dominant_color}'\n"
-                    f"      Green Present Check: {is_green_present_for_log} (Area: {max_green_area:.0f}, threshold: {self.green_presence_threshold:.0f})\n"
+                    f"\n--- PRE-UNPARKING DETECTION RESULT ---\n"
+                    f"      - Direction      : {self.direction.upper()}\n"
+                    f"{log_details}\n"
                     f"      >> Decided Strategy: {self.unparking_strategy.name} <<\n"
                     f"----------------------------------------"
                 )
@@ -3907,12 +3971,7 @@ class ObstacleNavigatorNode(Node):
         """
         Processes a full image frame to find the dominant color blob (red or green),
         saves debug images, and returns the dominant color.
-
-        Returns:
-            A tuple (string, float, float):
-            - Dominant color ('red', 'green', or 'none')
-            - Max red blob area found
-            - Max green blob area found
+        For 'pre_unparking_detection', analysis is limited to a specific ROI.
         """
         if frame_rgb is None:
             return 'none', 0.0, 0.0
@@ -3921,28 +3980,48 @@ class ObstacleNavigatorNode(Node):
         detection_data = self._detect_obstacle_color_in_frame(frame_rgb)
         if not detection_data:
             return 'none', 0.0, 0.0
-
-        # --- 2. Find the largest blob for each color ---
+            
         red_mask = detection_data['masks']['RED']
         green_mask = detection_data['masks']['GREEN']
-        max_red_area = self._find_largest_blob_area(red_mask)
-        max_green_area = self._find_largest_blob_area(green_mask)
+        
+        # --- 2. Apply ROI mask only for pre-unparking detection ---
+        rois_for_saving = None
+        target_red_mask = red_mask
+        target_green_mask = green_mask
 
-        # --- 3. Save annotated debug images ---
+        if base_name == "pre_unparking_detection":
+            # Select the appropriate ROI and create a mask
+            active_roi_flat = self.roi_unparking_cw_flat if self.direction == 'cw' else self.roi_unparking_ccw_flat
+            roi_points = self._reshape_roi_points(active_roi_flat)
+            
+            if roi_points:
+                roi_mask = np.zeros(frame_rgb.shape[:2], dtype=np.uint8)
+                roi_corners = np.array([roi_points], dtype=np.int32)
+                cv2.fillPoly(roi_mask, roi_corners, 255)
+                
+                # Apply the ROI mask to the color masks
+                target_red_mask = cv2.bitwise_and(red_mask, roi_mask)
+                target_green_mask = cv2.bitwise_and(green_mask, roi_mask)
+                rois_for_saving = {'unparking_roi': roi_points}
+
+        # --- 3. Find the largest blob for each color ---
+        max_red_area = self._find_largest_blob_area(target_red_mask)
+        max_green_area = self._find_largest_blob_area(target_green_mask)
+
+        # --- 4. Save annotated debug images ---
         if self.save_debug_images:
-            # Since this is a full-frame detection, we don't need to draw an ROI.
-            # We pass `rois=None`.
             self._save_annotated_image(
                 base_name=base_name,
                 turn_count=turn_count,
                 frame_bgr=detection_data['frame_bgr'],
-                masks={'RED': red_mask, 'GREEN': green_mask},
-                rois=None, # No specific ROI for this full-frame detection
+                # Pass the ROI-applied masks for visualization, consistent with planning scan.
+                masks={'RED': target_red_mask, 'GREEN': target_green_mask},
+                rois=rois_for_saving,
                 sample_num=1
             )
             self.get_logger().info(f"Saved debug image for '{base_name}'")
 
-        # --- 4. Determine the dominant color ---
+        # --- 5. Determine the dominant color ---
         detection_threshold = 500  # This could be a parameter
         is_red_dominant = max_red_area > max_green_area and max_red_area > detection_threshold
         is_green_dominant = max_green_area > max_red_area and max_green_area > detection_threshold
@@ -4214,9 +4293,20 @@ class ObstacleNavigatorNode(Node):
         red_mask = detection_data['masks']['RED']
         green_mask = detection_data['masks']['GREEN']
 
-        # --- MODIFIED: Create a polygon ROI mask from the 4-point parameter ---
-        # 2. Reshape the flat points and create the scanning ROI mask
-        scan_roi_points = self._reshape_roi_points(self.planning_scan_roi_flat)
+        # --- DYNAMIC ROI SELECTION ---
+        # 2. Select and reshape the appropriate ROI based on the current situation
+        active_roi_flat = None
+        if not self.last_avoidance_path_was_outer:
+            # Case 1: Currently on the Inner lane
+            active_roi_flat = self.roi_planning_inner_flat
+        elif self.wall_segment_index == 0:
+            # Case 3: Currently on the Outer lane AND in the start area
+            active_roi_flat = self.roi_planning_outer_start_area_flat
+        else:
+            # Case 2: Currently on the Outer lane (normal segment)
+            active_roi_flat = self.roi_planning_outer_flat
+        
+        scan_roi_points = self._reshape_roi_points(active_roi_flat)
         scan_roi_mask = np.zeros(red_mask.shape[:2], dtype=np.uint8)
         
         if scan_roi_points: # Proceed only if the points are valid
@@ -4603,7 +4693,7 @@ class ObstacleNavigatorNode(Node):
             pass
 
         # --- 4. Return True if the counter reaches the threshold ---
-        stability_threshold = 15
+        stability_threshold = 13
         if self.lane_change_stability_counter >= stability_threshold:
             self.get_logger().info(
                 f"Lane change stability confirmed (counter reached {self.lane_change_stability_counter})."
