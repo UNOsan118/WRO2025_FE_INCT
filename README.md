@@ -35,7 +35,7 @@ We are Team Ishikawa KOSEN, the representatives of Japan for the WRO 2025 Future
 
 *   **Kosei Takano:** Lead Mechanical Designer & Systems Integrator
     *   *Major: Advanced Electronic and Mechanical Engineering, 2nd Year*
-    *   *Born: [Month] [Day], 2003*
+    *   *Born: May 29, 2003*
 
 <p align="center">
   <img src="t-photos\Kosei Takano.png" alt="Team members photo" width="500">
