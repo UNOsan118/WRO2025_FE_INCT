@@ -123,6 +123,10 @@ class ParkingManeuverStep(Enum):
     STEP2_REVERSE_STRAIGHT = auto()
     STEP3_ALIGN_TURN = auto()
     STEP4_FINAL_ADJUST = auto()
+    RECOVERY_PRE_TURN = auto()
+    RECOVERY_EXECUTE_TURN = auto()
+    RECOVERY_ADJUST_FORWARD = auto()
+    RECOVERY_ADJUST_REVERSE = auto()
 
 class ObstacleNavigatorNode(Node):
     # --- Initialization & Lifecycle ---
@@ -417,11 +421,35 @@ class ObstacleNavigatorNode(Node):
         
         self.parking_step3_turn_max_speed = -0.12 # Negative for reverse
         self.parking_step3_turn_min_speed = -0.05 # Negative for reverse
-        self.parking_step3_yaw_tolerance_deg = 10.0
+        self.parking_step3_yaw_tolerance_deg = 5.0
 
         self.parking_step3_completion_ratio = 0.92
+        self.parking_step3_timeout_sec = 5.0
 
         self.parking_step4_forward_speed = 0.02
+
+        self.enable_parking_recovery_on_fail = True
+        self.recovery_force_once = False             # =====True is DEBUG=====
+        self.parking_recovery_max_yaw_dev_deg = 5.0
+        self.parking_recovery_max_outer_dist_m = 0.115
+
+        self.recovery_pre_turn_duration_sec = 0.6 # Duration for pre-turning
+        self.recovery_pre_turn_fwd_speed = 0.02   # Slow speed to enable steering
+        self.recovery_turn_speed = 0.1
+        self.recovery_turn_kp = 0.03
+        self.recovery_turn_tolerance_deg = 5.0
+        # --- Parameters for recovery adjustment ---
+        self.recovery_adjust_fwd_speed = 0.1
+        self.recovery_adjust_pid_kp_angle = 0.0075
+        self.recovery_adjust_pid_kp_dist = 5.0
+        self.recovery_adjust_pid_target_dist_m = 1.17
+        self.recovery_adjust_pid_imu_fallback_dist_m = 1.0
+        self.recovery_adjust_fwd_target_dist_m = 0.15
+
+        self.recovery_adjust_rev_speed = -0.08
+        self.recovery_adjust_rev_max_speed = -0.12
+        self.recovery_adjust_rev_min_speed = -0.07
+        self.recovery_adjust_rev_target_dist_m = 0.46
 
         # --- Legacy Determine Course ---
         self.course_detection_threshold_m = 1.5
@@ -557,6 +585,10 @@ class ObstacleNavigatorNode(Node):
         self.parking_step2_phase = 0    # 0: entry, 1: stopping, 2: pre-turning
         self.is_recovering_from_bad_park = False
         self.parking_recovery_timer = None
+        self.parking_recovery_phase = 0 # 0: entry, 1: initial stop, 2: pre-turning
+        self.parking_recovery_base_yaw = None
+        self.parking_recovery_timer = None
+        self.parking_step3_timer = None
         self.parking_step4_timer = None # Will hold the timer object
 
 
@@ -634,7 +666,7 @@ class ObstacleNavigatorNode(Node):
         # ==================
 
         # --- FOR DEBUGGING: Force start from PARKING state ---
-        force_start_from_parking = True # True -> Parking Test mode
+        force_start_from_parking = False # True -> Parking Test mode
         if force_start_from_parking:
             self.get_logger().warn("############################################################")
             self.get_logger().warn("##  DEBUG MODE: Forcing start from PARKING in 5 seconds...  ##")
@@ -3231,7 +3263,7 @@ class ObstacleNavigatorNode(Node):
             self._parking_step0_pre_turn(msg)
         elif self.parking_maneuver_step == ParkingManeuverStep.STEP1_REVERSE_TURN:
             self._parking_step1_reverse_turn(msg)
-        elif self.parking_maneuver_step == ParkingManeuverStep.STEP_RECOVERY_FORWARD: # ADD THIS BLOCK
+        elif self.parking_maneuver_step == ParkingManeuverStep.STEP_RECOVERY_FORWARD:
             self._parking_recovery_forward(msg)
         elif self.parking_maneuver_step == ParkingManeuverStep.STEP2_REVERSE_STRAIGHT:
             self._parking_step2_reverse_straight(msg)
@@ -3239,6 +3271,14 @@ class ObstacleNavigatorNode(Node):
             self._parking_step3_align_turn(msg)
         elif self.parking_maneuver_step == ParkingManeuverStep.STEP4_FINAL_ADJUST:
             self._parking_step4_final_adjust(msg)
+        elif self.parking_maneuver_step == ParkingManeuverStep.RECOVERY_PRE_TURN:
+            self._parking_recovery_pre_turn(msg)
+        elif self.parking_maneuver_step == ParkingManeuverStep.RECOVERY_EXECUTE_TURN:
+            self._parking_recovery_execute_turn(msg)
+        elif self.parking_maneuver_step == ParkingManeuverStep.RECOVERY_ADJUST_FORWARD:
+            self._parking_recovery_adjust_forward(msg)
+        elif self.parking_maneuver_step == ParkingManeuverStep.RECOVERY_ADJUST_REVERSE:
+            self._parking_recovery_adjust_reverse(msg)
 
     # --- Reorientation Helper Functions ---
     def _reorient_step_initial_forward(self, msg: LaserScan):
@@ -3463,7 +3503,16 @@ class ObstacleNavigatorNode(Node):
             final_yaw = self.current_yaw_deg
             actual_angle_turned = self._angle_diff(final_yaw, self.parking_geom_step1_start_yaw)
             final_error = self._angle_diff(target_yaw, final_yaw)
-            # ... (Log final posture as before) ...
+
+            log_message = (
+                f"\n--- Parking Step 1 Final Posture ---\n"
+                f"  - Target Turn Angle: {self.parking_geom_step1_target_angle:.4f} deg\n"
+                f"  - Actual Turned    : {actual_angle_turned:.4f} deg\n"
+                f"  - Final Yaw        : {final_yaw:.4f} deg\n"
+                f"  - Final Error      : {final_error:.4f} deg\n"
+                f"------------------------------------"
+            )
+            self.get_logger().warn(log_message)
             
             self.parking_geom_step3_start_yaw = self.current_yaw_deg
             self.publish_twist_with_gain(0.0, 0.0)
@@ -3634,6 +3683,14 @@ class ObstacleNavigatorNode(Node):
         """
         
     def _parking_step3_align_turn(self, msg: LaserScan):
+        """Parking Step 3: Reverse while turning to become parallel to the base yaw."""
+        if self.parking_step3_timer is None:
+            self.get_logger().warn(f"Starting Step 3 timeout timer ({self.parking_step3_timeout_sec} seconds).")
+            self.parking_step3_timer = self.create_timer(
+                self.parking_step3_timeout_sec,
+                self._finish_step3_by_timeout
+            )
+
         if self.enable_geometric_parking:
             self._parking_step3_geometric_turn(msg)
         else:
@@ -3666,6 +3723,9 @@ class ObstacleNavigatorNode(Node):
             self.get_logger().warn(log_message)
 
             self.publish_twist_with_gain(0.0, 0.0)
+            if self.parking_step3_timer:
+                self.parking_step3_timer.cancel()
+                self.parking_step3_timer = None
             self.parking_maneuver_step = ParkingManeuverStep.STEP4_FINAL_ADJUST
             return
         
@@ -3699,6 +3759,9 @@ class ObstacleNavigatorNode(Node):
         if abs(yaw_error_deg) < self.parking_step3_yaw_tolerance_deg:
             self.get_logger().info("Parking Step 3 (Align Turn): Complete.")
             self.publish_twist_with_gain(0.0, 0.0)
+            if self.parking_step3_timer:
+                self.parking_step3_timer.cancel()
+                self.parking_step3_timer = None
             self.parking_maneuver_step = ParkingManeuverStep.STEP4_FINAL_ADJUST
             return
         
@@ -3742,6 +3805,251 @@ class ObstacleNavigatorNode(Node):
             self.parking_step4_timer = self.create_timer(
                 self.parking_step4_duration_sec, self._finish_parking_maneuver
             )
+
+    def _parking_recovery_pre_turn(self, msg: LaserScan):
+        """
+        Parking Recovery: Pre-turns the steering wheel to face inwards.
+        Uses a two-phase timer.
+        """
+        # --- Phase 0: Start the initial stop ---
+        if self.parking_recovery_phase == 0:
+            self.get_logger().info("Recovery Phase 1: Initial stop.")
+            self.parking_recovery_phase = 1
+            self.parking_recovery_timer = self.create_timer(
+                self.parking_step2_initial_stop_duration_sec, # Duration can be shared
+                self._transition_to_recovery_steer_adjust
+            )
+        
+        # --- Phase 1: Stopping ---
+        if self.parking_recovery_phase == 1:
+            self.publish_twist_with_gain(0.0, 0.0)
+
+        # --- Phase 2: Pre-turning ---
+        elif self.parking_recovery_phase == 2:
+            # For an inward turn, we need a left (positive) steer.
+            dynamic_max = self._get_dynamic_max_steer(abs(self.recovery_pre_turn_fwd_speed))
+            final_steer = dynamic_max
+
+            self.get_logger().debug(f"[Recovery Pre-turn] Commanding steer: {final_steer:.3f}", throttle_duration_sec=0.1)
+            self.publish_twist_with_gain(self.recovery_pre_turn_fwd_speed, final_steer)
+
+    def _parking_recovery_execute_turn(self, msg: LaserScan):
+        """
+        Parking Recovery: Executes a 90-degree turn inwards using P-control.
+        """
+        # --- On first entry, set the target yaw ---
+        if self.parking_geom_step1_start_yaw is None: # Use this variable to store the turn start yaw
+            self.parking_geom_step1_start_yaw = self.current_yaw_deg
+            
+            # Determine target yaw. CW approach means we are facing ~180deg.
+            # An inward turn is "left" relative to the course, so yaw decreases.
+            base_angle = self.parking_base_yaw_deg
+            self.parking_step1_absolute_target_yaw = self._angle_normalize(base_angle + 90.0)
+            
+            self.get_logger().info(
+                f"Recovery Turn: StartYaw={self.parking_geom_step1_start_yaw:.2f}, "
+                f"TargetYaw={self.parking_step1_absolute_target_yaw:.2f}"
+            )
+
+        target_yaw = self.parking_step1_absolute_target_yaw
+        yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
+
+        # --- Completion Check ---
+        if abs(yaw_error_deg) < self.recovery_turn_tolerance_deg:
+            self.get_logger().warn("Recovery 90-degree turn complete. Stopping for now.")
+            self.publish_twist_with_gain(0.0, 0.0)
+            # --- Transition to the new adjustment step ---
+            self.parking_maneuver_step = ParkingManeuverStep.RECOVERY_ADJUST_FORWARD
+            return
+
+        # --- Driving Logic (P-control) ---
+        final_speed = self.recovery_turn_speed
+        dynamic_max = self._get_dynamic_max_steer(final_speed)
+        
+        steer = np.clip(self.recovery_turn_kp * yaw_error_deg, -dynamic_max, dynamic_max)
+        
+        self.publish_twist_with_gain(final_speed, steer)
+
+    def _parking_recovery_adjust_forward(self, msg: LaserScan):
+        """
+        Parking Recovery: Moves forward using a dedicated PID controller to maintain
+        a fixed distance from the right-side wall (original front wall).
+        """
+        # --- On first entry, store the current yaw as the base for this maneuver ---
+        if self.parking_recovery_base_yaw is None:
+            self.parking_recovery_base_yaw = self.current_yaw_deg
+            self.get_logger().info(f"Recovery Adjust: Storing base yaw {self.parking_recovery_base_yaw:.2f} deg.")
+            
+        base_yaw = self.parking_recovery_base_yaw
+        
+        # --- Completion Check (based on the wall in front) ---
+        inner_wall_world_angle = self._angle_normalize(self.parking_base_yaw_deg + 90.0)
+        inner_dist = self.get_distance_at_world_angle(msg, inner_wall_world_angle)
+        target_dist_front = self.recovery_adjust_fwd_target_dist_m
+
+        # --- Completion Check ---
+        if not math.isnan(inner_dist) and inner_dist < target_dist_front:
+            self.get_logger().info(f"Recovery Adjust Fwd: Target distance reached ({inner_dist:.3f}m).")
+            
+            # --- NEW: Update IMU Drift Offset ---
+            # At this point, the robot should be perfectly perpendicular to the inner wall.
+            # The inner wall's world angle is 'parking_base_yaw_deg + 90.0'.
+            # Therefore, the robot's current yaw should be this value.
+            ideal_current_yaw = self._angle_normalize(self.parking_base_yaw_deg + 90.0)
+            
+            # The drift is the difference between what the IMU reads (raw) and what it should be.
+            current_drift_deg = self._angle_diff(self.raw_yaw_deg, ideal_current_yaw)
+            
+            self.get_logger().warn(
+                f"IMU Drift Correction (Parking Recovery): "
+                f"RawYaw={self.raw_yaw_deg:.2f}, IdealYaw={ideal_current_yaw:.2f}, "
+                f"New Drift Offset={current_drift_deg:.2f}"
+            )
+
+            # Update the global offset
+            self.imu_drift_offset_deg = current_drift_deg
+            # Recalculate the current yaw immediately with the new offset
+            self.current_yaw_deg = self._angle_normalize(self.raw_yaw_deg - self.imu_drift_offset_deg)
+
+            self.publish_twist_with_gain(0.0, 0.0)
+            self.parking_maneuver_step = ParkingManeuverStep.RECOVERY_ADJUST_REVERSE
+            return
+
+        # --- Driving Logic (Dedicated PID or Straight Fallback) ---
+        
+        # 1. Calculate components for PID control
+        # Angle Control (maintains heading)
+        angle_error_deg = self._angle_diff(base_yaw, self.current_yaw_deg)
+        angle_steer = self.recovery_adjust_pid_kp_angle * angle_error_deg
+
+        # Distance Control (maintains distance to the right wall)
+        right_wall_world_angle = self.parking_base_yaw_deg
+        right_wall_dist = self.get_distance_at_world_angle(msg, right_wall_world_angle)
+        target_dist_right = self.recovery_adjust_pid_target_dist_m
+        
+        dist_steer = 0.0 # Default to zero
+        if not math.isnan(right_wall_dist):
+            dist_error = target_dist_right - right_wall_dist
+            dist_steer_multiplier = 1.0 
+            dist_steer = self.recovery_adjust_pid_kp_dist * dist_error * dist_steer_multiplier
+        
+        # 2. Decide which control mode to use (PID or STRAIGHT_ONLY)
+        final_steer = 0.0
+        log_mode = ""
+        final_speed = self.recovery_adjust_fwd_speed
+
+        # Condition to use full PID control: the right wall must be visible and at a reasonable distance.
+        if not math.isnan(right_wall_dist) and right_wall_dist >= self.recovery_adjust_pid_imu_fallback_dist_m:
+            log_mode = "PID"
+            angular_z = angle_steer + dist_steer
+            dynamic_max = self._get_dynamic_max_steer(final_speed)
+            final_steer = np.clip(angular_z, -dynamic_max, dynamic_max)
+        else:
+            # Fallback condition: right wall is too close, missing, or unreliable.
+            # Use simple straight forward (steer = 0.0).
+            log_mode = "STRAIGHT_ONLY"
+            self.get_logger().debug("Recovery Fwd: Right wall not reliable, using STRAIGHT_ONLY (steer=0).", throttle_duration_sec=1.0)
+            final_steer = 0.0
+
+        # 3. Log and Publish
+        self.get_logger().debug(
+            f"[Recovery Fwd ({log_mode})] RightWallDist: {right_wall_dist:.2f} | " 
+            f"YawErr: {angle_error_deg:.1f} | DistSteer: {dist_steer:.2f} | "
+            f"FinalSteer: {final_steer:.3f}",
+            throttle_duration_sec=0.2
+        )
+        
+        self.publish_twist_with_gain(final_speed, final_steer)
+
+    def _parking_recovery_adjust_reverse(self, msg: LaserScan):
+        """
+        Parking Recovery: Moves reverse to a precise distance from the inner wall,
+        then re-attempts the turn from Step 3. Speed is dynamically controlled.
+        """
+        base_yaw = self.parking_recovery_base_yaw
+        inner_wall_world_angle = self._angle_normalize(self.parking_base_yaw_deg + 90.0)
+        inner_dist = self.get_distance_at_world_angle(msg, inner_wall_world_angle)
+        target_dist = self.recovery_adjust_rev_target_dist_m
+
+        # --- Completion Check ---
+        if not math.isnan(inner_dist) and inner_dist > target_dist:
+            self.get_logger().warn(
+                f"Recovery Adjust Rev: Position set ({inner_dist:.3f}m). "
+                "Restarting parking sequence from Step 2."
+            )
+            self.publish_twist_with_gain(0.0, 0.0)
+            
+            # --- Prepare to re-attempt the maneuver from Step 2 ---
+            # Reset the phase variables for Step 0 and Step 2 to ensure a clean start.
+            self.step1_log_sent = False 
+            self.parking_step0_phase = 0
+            self.parking_step2_phase = 0
+            
+            # By setting the step to Step 2, the 3-phase pre-turn will execute
+            # before attempting Step 3 again.
+            self.parking_maneuver_step = ParkingManeuverStep.STEP2_REVERSE_STRAIGHT
+            self.parking_recovery_base_yaw = None # Reset for next potential recovery
+            return
+
+        # --- Driving Logic (Dynamic Speed + Straight Reverse) ---
+        # 1. Dynamic Speed Calculation
+        fast_speed = self.recovery_adjust_rev_max_speed
+        slow_speed = self.recovery_adjust_rev_min_speed
+        
+        # Slowdown starts when distance is less than the forward target (0.49)
+        slowdown_start_dist = self.recovery_adjust_fwd_target_dist_m
+        # Slowdown ends 0.1m before the final reverse target
+        margin = 0.13
+        slowdown_end_dist = self.recovery_adjust_rev_target_dist_m - margin
+
+        final_speed = fast_speed # Default to fast speed
+
+        if not math.isnan(inner_dist):
+            if inner_dist < slowdown_start_dist:
+                # We are in the slowdown zone, calculate speed proportionally
+                slowdown_range = slowdown_start_dist - slowdown_end_dist
+                if slowdown_range <= 0.01: slowdown_range = 0.01
+
+                # Progress ratio: 0.0 (at start of slowdown) to 1.0 (at end)
+                progress_ratio = (slowdown_start_dist - inner_dist) / slowdown_range
+                progress_ratio = np.clip(progress_ratio, 0.0, 1.0)
+                
+                # Linearly interpolate speed from fast_speed down to slow_speed
+                final_speed = fast_speed - (fast_speed - slow_speed) * progress_ratio
+        
+        # If inner_dist is >= slowdown_start_dist, speed remains fast_speed.
+        # If inner_dist is <= slowdown_end_dist, speed becomes slow_speed.
+
+        self.get_logger().debug(
+            f"Recovery Adjust Rev... InnerDist: {inner_dist:.3f}m, Speed: {final_speed:.3f}", 
+            throttle_duration_sec=0.2
+        )
+        
+        self.publish_twist_with_gain(final_speed, 0.0)
+
+    def _transition_to_recovery_steer_adjust(self):
+        """Callback to switch from the initial stop to the steering adjustment for recovery."""
+        with self.state_lock:
+            if self.parking_recovery_timer: self.parking_recovery_timer.destroy()
+            
+            if self.parking_maneuver_step == ParkingManeuverStep.RECOVERY_PRE_TURN:
+                self.get_logger().info(f"Recovery Phase 2: Adjusting steer for {self.recovery_pre_turn_duration_sec}s.")
+                self.parking_recovery_phase = 2
+                self.parking_recovery_timer = self.create_timer(
+                    self.recovery_pre_turn_duration_sec,
+                    self._finish_recovery_pre_turn
+                )
+
+    def _finish_recovery_pre_turn(self):
+        """Callback to finish the recovery pre-turn and move to the execute turn step."""
+        with self.state_lock:
+            if self.parking_recovery_timer: self.parking_recovery_timer.destroy()
+
+            if self.parking_maneuver_step == ParkingManeuverStep.RECOVERY_PRE_TURN:
+                self.get_logger().info("Recovery Pre-turn: Complete.")
+                self.parking_recovery_phase = 0 # Reset phase
+                self.parking_geom_step1_start_yaw = None # Reset for execute_turn
+                self.parking_maneuver_step = ParkingManeuverStep.RECOVERY_EXECUTE_TURN
 
     def _calculate_geometric_parking_path(self, y_initial_lidar, theta_initial_rad):
         """
@@ -3859,6 +4167,21 @@ class ObstacleNavigatorNode(Node):
                     self._finish_step2
                 )
 
+    def _finish_step3_by_timeout(self):
+        """Callback triggered if Step 3 takes too long."""
+        with self.state_lock:
+            if self.parking_maneuver_step == ParkingManeuverStep.STEP3_ALIGN_TURN:
+                self.get_logger().error("Parking Step 3 TIMEOUT! Forcing transition to Step 4.")
+                
+                # Clean up the timer
+                if self.parking_step3_timer:
+                    self.parking_step3_timer.destroy()
+                self.parking_step3_timer = None
+                
+                # Force transition to the next step
+                self.publish_twist_with_gain(0.0, 0.0) # Stop current motion
+                self.parking_maneuver_step = ParkingManeuverStep.STEP4_FINAL_ADJUST
+
     def _finish_step2(self):
         """Callback to finish Step 2 and move to Step 3."""
         with self.state_lock:
@@ -3867,6 +4190,11 @@ class ObstacleNavigatorNode(Node):
             if self.parking_maneuver_step == ParkingManeuverStep.STEP2_REVERSE_STRAIGHT:
                 self.get_logger().info("Parking Step 2 (3-Phase Transition): Complete.")
                 self.parking_step2_phase = 0 # Reset phase for the next parking attempt
+
+                if self.parking_step3_timer:
+                    self.parking_step3_timer.destroy()
+                self.parking_step3_timer = None
+
                 self.parking_maneuver_step = ParkingManeuverStep.STEP3_ALIGN_TURN
 
     def _parking_recovery_forward(self, msg: LaserScan):
@@ -3900,39 +4228,55 @@ class ObstacleNavigatorNode(Node):
     def _finish_parking_maneuver(self):
         """
         Callback function triggered by the timer in step 4.
-        This function only sets the state to FINISHED. The main control loop
-        will handle the actual stopping command.
+        Validates the final posture and decides whether to finish or attempt recovery.
         """
-        # Acquire lock to prevent race conditions.
         with self.state_lock:
-            # Check if we are still in the final adjustment step.
             if self.parking_maneuver_step == ParkingManeuverStep.STEP4_FINAL_ADJUST:
                 self.get_logger().warn("--- PARKING MANEUVER COMPLETE ---")
                 
+                final_yaw_deviation_deg = float('nan')
+                final_outer_dist_lidar = float('nan')
+                
                 if self.latest_scan_msg is not None:
-                    # Final angle deviation relative to the parking start orientation
+                    # --- Calculate final posture ---
                     final_yaw_deviation_deg = self._angle_diff(self.current_yaw_deg, self.parking_base_yaw_deg)
-                    
-                    # Final distance to the outer wall
-                    outer_wall_angle = self._angle_normalize(self.parking_base_yaw_deg - 90.0 if self.direction == 'ccw' else self.parking_base_yaw_deg + 90.0)
-                    final_outer_dist = self.get_distance_at_world_angle(self.latest_scan_msg, outer_wall_angle)
+                    outer_wall_angle = self._angle_normalize(self.parking_base_yaw_deg - 90.0) # Assuming CCW
+                    final_outer_dist_lidar = self.get_distance_at_world_angle(self.latest_scan_msg, outer_wall_angle)
+                
+                # --- Validate the final posture ---
+                is_yaw_ok = abs(final_yaw_deviation_deg) < self.parking_recovery_max_yaw_dev_deg
+                is_dist_ok = final_outer_dist_lidar < self.parking_recovery_max_outer_dist_m
+                
+                # Check time condition (only if not in debug mode)
+                elapsed_time_sec = (self.get_clock().now() - self.start_time).nanoseconds / 1e9 if not self.force_start_debug_mode else 0.0
+                is_time_ok = self.force_start_debug_mode or (elapsed_time_sec < self.parking_recovery_time_limit_sec)
+                
+                is_posture_acceptable = is_yaw_ok and is_dist_ok
+                
+                should_recover = self.enable_parking_recovery_on_fail and not is_posture_acceptable and is_time_ok or self.recovery_force_once
 
-                    log_message = (
-                        f"\n"
-                        f"--- Final Parked Posture --- \n"
-                        f"  - Final Yaw Deviation : {final_yaw_deviation_deg:.4f} deg \n"
-                        f"  - Final Outer Dist    : {final_outer_dist:.4f} m \n"
-                        f"------------------------------"
-                    )
-                    self.get_logger().warn(log_message)
+                # --- Build and print a detailed log ---
+                log_message = (
+                    f"\n--- Final Parked Posture ---\n"
+                    f"  - Final Yaw Deviation : {final_yaw_deviation_deg:.4f} deg (Threshold: < {self.parking_recovery_max_yaw_dev_deg}, OK: {is_yaw_ok})\n"
+                    f"  - Final Outer Dist    : {final_outer_dist_lidar:.4f} m (Threshold: < {self.parking_recovery_max_outer_dist_m}, OK: {is_dist_ok})\n"
+                    f"  - Time Elapsed        : {elapsed_time_sec:.1f} s (Threshold: < {self.parking_recovery_time_limit_sec}, OK: {is_time_ok})\n"
+                    f"------------------------------"
+                )
+                self.get_logger().warn(log_message)
+
+                if should_recover:
+                    self.get_logger().warn(">>> Final posture is NOT acceptable. Preparing for recovery maneuver.")
+                    self.parking_maneuver_step = ParkingManeuverStep.RECOVERY_PRE_TURN
+                    self.parking_recovery_phase = 0
+                    self.recovery_force_once = False
                 else:
-                    self.get_logger().warn("Could not log final posture: latest_scan_msg is None.")
-
-                # Simply set the final state. Do NOT publish any commands from here.
-                self.state = State.FINISHED
-                # We can also reset the sub-state to be clean.
-                self.parking_maneuver_step = None
-
+                    if not self.enable_parking_recovery_on_fail:
+                        self.get_logger().info("Recovery on fail is disabled. Finishing run.")
+                    else:
+                        self.get_logger().info(">>> Final posture is acceptable. Finishing run.")
+                    self.state = State.FINISHED
+            
             # Clean up the timer regardless.
             if self.parking_step4_timer is not None and not self.parking_step4_timer.is_canceled():
                 self.parking_step4_timer.cancel()
