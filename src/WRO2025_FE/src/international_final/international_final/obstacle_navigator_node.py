@@ -204,6 +204,7 @@ class ObstacleNavigatorNode(Node):
         self.unparking_tilt_angle_deg_ccw = 70.0
         self.roi_unparking_cw_flat = [65, 60, 65, 145, 430, 260, 430, 95]
         self.roi_unparking_ccw_flat = [220, 70, 220, 240, 350, 240, 350, 70]
+        self.unparking_fresh_frame_wait_count = 3
 
         self.unparking_speed = 0.15 #0.05
         self.unparking_initial_turn_deg = 55.0
@@ -257,55 +258,55 @@ class ObstacleNavigatorNode(Node):
         # Format: self.turn_[current_lane]_to_[next_lane]_[value]
         # For Outer -> Outer 
         self.turn_outer_to_outer_dist_m = 0.29 # 0.55
-        self.turn_outer_to_outer_angle_deg = 85.0 # 40.0
+        self.turn_outer_to_outer_angle_deg = 88.0 # 40.0
         self.turn_outer_to_outer_approach_speed = 0.20
-        self.turn_outer_to_outer_turn_speed = 0.22
+        self.turn_outer_to_outer_turn_speed = 0.2
 
         # For Outer -> Outer (Clear) 
         self.turn_outer_to_outer_clear_dist_m = 0.29 # 0.55
-        self.turn_outer_to_outer_clear_angle_deg = 85.0 # 40.0
+        self.turn_outer_to_outer_clear_angle_deg = 88.0 # 40.0
         self.turn_outer_to_outer_clear_approach_speed = 0.20
         self.turn_outer_to_outer_clear_turn_speed = 0.2
 
         # For Outer -> Inner 
         self.turn_outer_to_inner_dist_m = 0.87
-        self.turn_outer_to_inner_angle_deg = 85.0
+        self.turn_outer_to_inner_angle_deg = 88.0
         self.turn_outer_to_inner_approach_speed = 0.18
         self.turn_outer_to_inner_turn_speed = 0.20
 
         # For Outer -> Inner (Clear) 
         self.turn_outer_to_inner_clear_dist_m = 0.87
-        self.turn_outer_to_inner_clear_angle_deg = 85.0 
+        self.turn_outer_to_inner_clear_angle_deg = 88.0 
         self.turn_outer_to_inner_clear_approach_speed = 0.18
         self.turn_outer_to_inner_clear_turn_speed = 0.20
 
         # For Inner -> Outer 
         self.turn_inner_to_outer_dist_m = 0.29
-        self.turn_inner_to_outer_angle_deg = 85.0
+        self.turn_inner_to_outer_angle_deg = 88.0
         self.turn_inner_to_outer_approach_speed = 0.15
         self.turn_inner_to_outer_turn_speed = 0.20
 
         # For Inner -> Outer (Clear) : Like Outer to Outer
         self.turn_inner_to_outer_clear_dist_m =  0.29 # 0.5
-        self.turn_inner_to_outer_clear_angle_deg = 85.0 # 40.0
+        self.turn_inner_to_outer_clear_angle_deg = 88.0 # 40.0
         self.turn_inner_to_outer_clear_approach_speed = 0.20
         self.turn_inner_to_outer_clear_turn_speed = 0.22
 
         # For Inner -> Inner 
-        self.turn_inner_to_inner_dist_m = 0.85
-        self.turn_inner_to_inner_angle_deg = 85.0
+        self.turn_inner_to_inner_dist_m = 0.87 # 0.85
+        self.turn_inner_to_inner_angle_deg = 88.0
         self.turn_inner_to_inner_approach_speed = 0.15
         self.turn_inner_to_inner_turn_speed = 0.18
 
         # For Inner -> Inner (Clear)
-        self.turn_inner_to_inner_clear_dist_m = 0.85
-        self.turn_inner_to_inner_clear_angle_deg = 85.0
+        self.turn_inner_to_inner_clear_dist_m = 0.87 # 0.85
+        self.turn_inner_to_inner_clear_angle_deg = 88.0
         self.turn_inner_to_inner_clear_approach_speed = 0.17
         self.turn_inner_to_inner_clear_turn_speed = 0.18
 
         # --- Special strategy for the final CCW corner to outer lane ---
         self.turn_final_ccw_outer_dist_m = 0.23
-        self.turn_final_ccw_outer_angle_deg = 85.0
+        self.turn_final_ccw_outer_angle_deg = 88.0
         self.turn_final_ccw_outer_approach_speed = 0.18
         self.turn_final_ccw_outer_turn_speed = 0.20
 
@@ -534,6 +535,7 @@ class ObstacleNavigatorNode(Node):
         self.unparking_base_yaw_deg = 0.0
         self.pre_detection_step = 0 # 0=start, 1=waiting
         self.pre_detection_timer = None
+        self.unparking_fresh_frame_counter = 0
         self.direction_detection_patience_counter = 0
         self.has_obstacle_at_parking_exit = False
         self.image_acquisition_retries = 0
@@ -632,7 +634,7 @@ class ObstacleNavigatorNode(Node):
         # ==================
 
         # --- FOR DEBUGGING: Force start from PARKING state ---
-        force_start_from_parking = False # True -> Parking Test mode
+        force_start_from_parking = True # True -> Parking Test mode
         if force_start_from_parking:
             self.get_logger().warn("############################################################")
             self.get_logger().warn("##  DEBUG MODE: Forcing start from PARKING in 5 seconds...  ##")
@@ -2355,7 +2357,7 @@ class ObstacleNavigatorNode(Node):
         """
         Sub-state: Moves the robot forward to the precise starting position for scanning.
         """
-        margin = 0.05
+        margin = 0.10
         target_dist = self.planning_scan_start_dist_m + margin
         front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
 
@@ -3793,6 +3795,7 @@ class ObstacleNavigatorNode(Node):
                 stable_yaw = self.current_yaw_deg
                 self.get_logger().info(f"Step 2, Phase 1 End: Stable yaw is {stable_yaw:.2f} deg.")
 
+                """
                 # --- NEW: Validate the yaw angle ---
                 is_yaw_in_range = (self.parking_step2_yaw_check_min_deg <= stable_yaw <= self.parking_step2_yaw_check_max_deg)
 
@@ -3833,6 +3836,15 @@ class ObstacleNavigatorNode(Node):
                                 self.parking_step2_steer_adjust_duration_sec,
                                 self._transition_to_step2_final_stop
                             )
+                """
+                # --- Always proceed with normal Step 2 ---
+                self.parking_geom_step3_start_yaw = stable_yaw
+                self.get_logger().info(f"-> (Recovery Disabled) Proceeding to Phase 2 (Steer Adjust).")
+                self.parking_step2_phase = 2
+                self.parking_step2_timer = self.create_timer(
+                    self.parking_step2_steer_adjust_duration_sec,
+                    self._transition_to_step2_final_stop
+                )
 
     def _transition_to_step2_final_stop(self):
         """Callback to switch from steering adjustment to the final stop phase."""
@@ -4102,95 +4114,104 @@ class ObstacleNavigatorNode(Node):
             )
 
             if is_fresh_image_available:
-                # --- SUCCESS: A fresh image was found, proceed with analysis ---
-                self.get_logger().info("Fresh image acquired. Processing for unparking strategy.")
-                
-                # --- Get color information (common for both modes) ---
-                dominant_color, max_red_area, max_green_area = self._find_and_save_dominant_blob(
-                    frame_rgb=self.latest_frame,
-                    turn_count=0,
-                    base_name="pre_unparking_detection"
+                # --- A fresh frame was found, start/increment the wait counter ---
+                self.unparking_fresh_frame_counter += 1
+                self.get_logger().debug(
+                    f"Fresh frame #{self.unparking_fresh_frame_counter} received. "
+                    f"Waiting for {self.unparking_fresh_frame_wait_count} frames..."
                 )
-                
-                strategy = UnparkingStrategy.UNDEFINED
-                
-                if self.unparking_logic_mode == "GREEN_ONLY":
-                    # --- Strategy 1: Based only on Green Obstacle Presence ---
-                    self.get_logger().info("Using GREEN_ONLY unparking logic.")
-                    self.green_presence_threshold = self.green_presence_threshold_cw if self.direction == 'cw' else self.green_presence_threshold_ccw
-                    is_green_present = max_green_area >= self.green_presence_threshold
+
+                # --- Check if we have waited for enough fresh frames ---
+                if self.unparking_fresh_frame_counter >= self.unparking_fresh_frame_wait_count:
+                    # --- SUCCESS: Waited long enough, proceed with analysis ---
+                    self.get_logger().info("Sufficient fresh frames acquired. Processing for unparking strategy.")
                     
-                    if self.direction == 'cw':
-                        strategy = UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE if is_green_present else UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW
-                    else: # 'ccw'
-                        strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW if is_green_present else UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE
-
-                else: # Default to the original, more complex logic
-                    # --- Strategy 2: Original Red/Green + Distance Logic ---
-                    self.get_logger().info("Using RED_GREEN_DISTANCE unparking logic.")
-                    close_obstacle_threshold = 3500.0
-                    has_obstacle_at_parking_exit = max(max_red_area, max_green_area) >= close_obstacle_threshold
+                    # --- Get color information (common for both modes) ---
+                    dominant_color, max_red_area, max_green_area = self._find_and_save_dominant_blob(
+                        frame_rgb=self.latest_frame,
+                        turn_count=0,
+                        base_name="pre_unparking_detection"
+                    )
                     
-                    # (The original complex if/elif chain for patterns 1-4 goes here)
-                    is_pattern1_case1 = self.direction == 'cw' and dominant_color == 'green'
-                    is_pattern1_case2 = self.direction == 'ccw' and dominant_color == 'red'
-                    is_pattern1_case3 = self.direction == 'ccw' and dominant_color == 'green' and not has_obstacle_at_parking_exit
-                    if is_pattern1_case1 or is_pattern1_case2 or is_pattern1_case3:
-                        strategy = UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE
+                    strategy = UnparkingStrategy.UNDEFINED
+                    
+                    if self.unparking_logic_mode == "GREEN_ONLY":
+                        # --- Strategy 1: Based only on Green Obstacle Presence ---
+                        self.get_logger().info("Using GREEN_ONLY unparking logic.")
+                        self.green_presence_threshold = self.green_presence_threshold_cw if self.direction == 'cw' else self.green_presence_threshold_ccw
+                        is_green_present = max_green_area >= self.green_presence_threshold
+                        
+                        if self.direction == 'cw':
+                            strategy = UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE if is_green_present else UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW
+                        else: # 'ccw'
+                            strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW if is_green_present else UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE
 
-                    is_pattern2 = self.direction == 'cw' and dominant_color == 'red' and not has_obstacle_at_parking_exit
-                    if is_pattern2:
-                        strategy = UnparkingStrategy.STANDARD_EXIT_TO_INNER_LANE
+                    else: # Default to the original, more complex logic
+                        # --- Strategy 2: Original Red/Green + Distance Logic ---
+                        self.get_logger().info("Using RED_GREEN_DISTANCE unparking logic.")
+                        close_obstacle_threshold = 3500.0
+                        has_obstacle_at_parking_exit = max(max_red_area, max_green_area) >= close_obstacle_threshold
+                        
+                        # (The original complex if/elif chain for patterns 1-4 goes here)
+                        is_pattern1_case1 = self.direction == 'cw' and dominant_color == 'green'
+                        is_pattern1_case2 = self.direction == 'ccw' and dominant_color == 'red'
+                        is_pattern1_case3 = self.direction == 'ccw' and dominant_color == 'green' and not has_obstacle_at_parking_exit
+                        if is_pattern1_case1 or is_pattern1_case2 or is_pattern1_case3:
+                            strategy = UnparkingStrategy.STANDARD_EXIT_TO_OUTER_LANE
 
-                    is_pattern3 = self.direction == 'cw' and dominant_color == 'red' and has_obstacle_at_parking_exit
-                    if is_pattern3:
-                        strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW
+                        is_pattern2 = self.direction == 'cw' and dominant_color == 'red' and not has_obstacle_at_parking_exit
+                        if is_pattern2:
+                            strategy = UnparkingStrategy.STANDARD_EXIT_TO_INNER_LANE
 
-                    is_pattern4 = self.direction == 'ccw' and dominant_color == 'green' and has_obstacle_at_parking_exit
-                    if is_pattern4:
-                        strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW
+                        is_pattern3 = self.direction == 'cw' and dominant_color == 'red' and has_obstacle_at_parking_exit
+                        if is_pattern3:
+                            strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CW
 
-                self.unparking_strategy = strategy
-                
-                # --- Build a detailed log message for debugging ---
-                log_details = ""
-                if self.unparking_logic_mode == "GREEN_ONLY":
-                    # For GREEN_ONLY mode, we only care about the green threshold
-                    threshold = self.green_presence_threshold_cw if self.direction == 'cw' else self.green_presence_threshold_ccw
-                    is_green_present = max_green_area >= threshold
-                    log_details = (
-                        f"      - Mode Logic     : GREEN_ONLY\n"
-                        f"      - Green Area     : {max_green_area:.1f}\n"
-                        f"      - Green Threshold: {threshold:.1f}\n"
-                        f"      - Green Present? : {is_green_present}"
+                        is_pattern4 = self.direction == 'ccw' and dominant_color == 'green' and has_obstacle_at_parking_exit
+                        if is_pattern4:
+                            strategy = UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW
+
+                    self.unparking_strategy = strategy
+                    
+                    # --- Build a detailed log message for debugging ---
+                    log_details = ""
+                    if self.unparking_logic_mode == "GREEN_ONLY":
+                        # For GREEN_ONLY mode, we only care about the green threshold
+                        threshold = self.green_presence_threshold_cw if self.direction == 'cw' else self.green_presence_threshold_ccw
+                        is_green_present = max_green_area >= threshold
+                        log_details = (
+                            f"      - Mode Logic     : GREEN_ONLY\n"
+                            f"      - Green Area     : {max_green_area:.1f}\n"
+                            f"      - Green Threshold: {threshold:.1f}\n"
+                            f"      - Green Present? : {is_green_present}"
+                        )
+                    else: # RED_GREEN_DISTANCE mode
+                        # For this mode, the dominant color and a different threshold are key
+                        threshold = 3500.0 # This is the close_obstacle_threshold from the logic
+                        has_close_obstacle = max(max_red_area, max_green_area) >= threshold
+                        log_details = (
+                            f"      - Mode Logic       : RED_GREEN_DISTANCE\n"
+                            f"      - Dominant Color   : '{dominant_color}'\n"
+                            f"      - Red Area         : {max_red_area:.1f}\n"
+                            f"      - Green Area       : {max_green_area:.1f}\n"
+                            f"      - Obstacle Threshold: {threshold:.1f}\n"
+                            f"      - Close Obstacle?  : {has_close_obstacle}"
+                        )
+
+                    log_message = (
+                        f"\n--- PRE-UNPARKING DETECTION RESULT ---\n"
+                        f"      - Direction      : {self.direction.upper()}\n"
+                        f"{log_details}\n"
+                        f"      >> Decided Strategy: {self.unparking_strategy.name} <<\n"
+                        f"----------------------------------------"
                     )
-                else: # RED_GREEN_DISTANCE mode
-                    # For this mode, the dominant color and a different threshold are key
-                    threshold = 3500.0 # This is the close_obstacle_threshold from the logic
-                    has_close_obstacle = max(max_red_area, max_green_area) >= threshold
-                    log_details = (
-                        f"      - Mode Logic       : RED_GREEN_DISTANCE\n"
-                        f"      - Dominant Color   : '{dominant_color}'\n"
-                        f"      - Red Area         : {max_red_area:.1f}\n"
-                        f"      - Green Area       : {max_green_area:.1f}\n"
-                        f"      - Obstacle Threshold: {threshold:.1f}\n"
-                        f"      - Close Obstacle?  : {has_close_obstacle}"
-                    )
+                    self.get_logger().warn(log_message)
 
-                log_message = (
-                    f"\n--- PRE-UNPARKING DETECTION RESULT ---\n"
-                    f"      - Direction      : {self.direction.upper()}\n"
-                    f"{log_details}\n"
-                    f"      >> Decided Strategy: {self.unparking_strategy.name} <<\n"
-                    f"----------------------------------------"
-                )
-                self.get_logger().warn(log_message)
-
-                # Reset and transition
-                self.analysis_start_time = None
-                self.pre_detection_step = 0
-                self.unparking_sub_state = UnparkingSubState.INITIAL_TURN
-                return # Processing is complete
+                    # Reset and transition
+                    self.analysis_start_time = None
+                    self.pre_detection_step = 0
+                    self.unparking_sub_state = UnparkingSubState.INITIAL_TURN
+                    return # Processing is complete
 
             # --- Condition 2: Check for timeout ---
             elapsed_time = (self.get_clock().now() - self.analysis_start_time).nanoseconds / 1e9
