@@ -62,6 +62,8 @@ class DetermineCourseSubState(Enum):
 class StraightSubState(Enum):
     ALIGN_WITH_OUTER_WALL = auto()
     ALIGN_WITH_INNER_WALL = auto()
+    APPROACH_SCAN_START = auto()
+    WAIT_FOR_FRESH_FRAME = auto()
     PLAN_NEXT_AVOIDANCE = auto()
     PRE_SCANNING_REVERSE = auto()
     PRE_LANE_CHANGE_REVERSE = auto()
@@ -396,7 +398,7 @@ class ObstacleNavigatorNode(Node):
         self.parking_step1_dynamic_angle_gain = 70.0 # New gain for dynamic adjustment
         self.parking_step1_yaw_tolerance_deg = 5.0 
 
-        self.parking_step1_completion_ratio = 0.92
+        self.parking_step1_completion_ratio = 0.85
 
         self.parking_step2_initial_stop_duration_sec = 0.1  # Duration for the first stop
         self.parking_step2_steer_adjust_duration_sec = 0.3 # Duration for stationary steering
@@ -578,6 +580,9 @@ class ObstacleNavigatorNode(Node):
         self.max_red_blob_sample_num = 0
         self.max_green_blob_sample_num = 0
 
+        self.scan_freshness_start_time = None
+        self.is_waiting_for_initial_scan_frame = False
+
         self.stale_frame_counter = 0
         self.max_stale_frames = 7
         self.early_scan_stale_check_frames = 5 # New: Number of initial frames to check
@@ -585,6 +590,7 @@ class ObstacleNavigatorNode(Node):
         self.scan_retry_count = 0 # New retry counter
         self.max_scan_retries = 100   # New retry limit
         self.early_scan_check_has_run = False
+        self.scan_freshness_start_time = None
 
         self.is_in_retry_mode = False
         self.last_successful_scan_front_dist = self.planning_scan_start_dist_m
@@ -1156,8 +1162,12 @@ class ObstacleNavigatorNode(Node):
             self._handle_straight_sub_align_with_outer_wall(msg)
         elif self.straight_sub_state == StraightSubState.ALIGN_WITH_INNER_WALL:
             self._handle_straight_sub_align_with_inner_wall(msg)
+        elif self.straight_sub_state == StraightSubState.APPROACH_SCAN_START:
+            self._handle_straight_sub_approach_scan_start(msg)
         elif self.straight_sub_state == StraightSubState.PLAN_NEXT_AVOIDANCE:
             self._handle_straight_sub_plan_next_avoidance(msg)
+        elif self.straight_sub_state == StraightSubState.WAIT_FOR_FRESH_FRAME:
+            self._handle_straight_sub_wait_for_fresh_frame(msg)
         elif self.straight_sub_state == StraightSubState.PRE_SCANNING_REVERSE:
             self._handle_straight_sub_pre_scanning_reverse(msg)
         elif self.straight_sub_state == StraightSubState.PRE_LANE_CHANGE_REVERSE:
@@ -2058,6 +2068,32 @@ class ObstacleNavigatorNode(Node):
         speed = self.forward_speed * 0.7 if self.turn_count == 0 else self.forward_speed
         self._execute_pid_alignment(msg, base_angle_deg, is_outer_wall=False, speed=speed)
 
+    def _handle_straight_sub_wait_for_fresh_frame(self, msg: LaserScan):
+        """
+        Sub-state: Stops the robot and waits for a guaranteed fresh camera frame
+        before starting the move-and-scan sequence.
+        """
+        # --- On first entry, record the start time ---
+        if self.scan_freshness_start_time is None:
+            self.get_logger().info("Waiting for a fresh image frame before starting scan...")
+            self.scan_freshness_start_time = self.get_clock().now()
+
+        # --- Check for a fresh image ---
+        is_fresh_image_available = (
+            self.latest_frame is not None and self.latest_frame_stamp is not None and
+            self.scan_freshness_start_time is not None and
+            (self.latest_frame_stamp.sec > self.scan_freshness_start_time.seconds_nanoseconds()[0] or
+             (self.latest_frame_stamp.sec == self.scan_freshness_start_time.seconds_nanoseconds()[0] and
+              self.latest_frame_stamp.nanosec > self.scan_freshness_start_time.seconds_nanoseconds()[1]))
+        )
+
+        if is_fresh_image_available:
+            self.get_logger().info("Initial fresh scan frame acquired. Proceeding to plan next avoidance.")
+            self.straight_sub_state = StraightSubState.PLAN_NEXT_AVOIDANCE
+            # Do NOT send a move command here; let the next state handle it.
+        else:
+            # Keep the robot stopped while waiting
+            self.publish_twist_with_gain(0.0, 0.0)
 
     def _handle_straight_sub_pre_scanning_reverse(self, msg: LaserScan):
         """
@@ -2084,7 +2120,15 @@ class ObstacleNavigatorNode(Node):
         if front_dist >= target_reverse_dist:
             self.get_logger().info(f"{log_prefix} complete (Front Dist: {front_dist:.3f}m).")
             self.state = State.STRAIGHT
-            self.straight_sub_state = StraightSubState.PLAN_NEXT_AVOIDANCE
+
+            if not self.is_in_retry_mode:
+                # On the first attempt, move to the approach state first.
+                self.straight_sub_state = StraightSubState.APPROACH_SCAN_START
+            else:
+                # During retries, we are already at the correct spot, so skip approach/wait.
+                self.get_logger().info("Retry mode: Skipping approach and wait states.")
+                self.straight_sub_state = StraightSubState.PLAN_NEXT_AVOIDANCE
+                
             self.publish_twist_with_gain(0.0, 0.0)
         else:
             self.get_logger().debug(
@@ -2306,6 +2350,44 @@ class ObstacleNavigatorNode(Node):
                 self.straight_sub_state = StraightSubState.ALIGN_WITH_OUTER_WALL
             else:
                 self.straight_sub_state = StraightSubState.ALIGN_WITH_INNER_WALL
+
+    def _handle_straight_sub_approach_scan_start(self, msg: LaserScan):
+        """
+        Sub-state: Moves the robot forward to the precise starting position for scanning.
+        """
+        margin = 0.05
+        target_dist = self.planning_scan_start_dist_m + margin
+        front_dist = self.get_distance_at_world_angle(msg, self.approach_base_yaw_deg)
+
+        # --- Completion Check ---
+        if not math.isnan(front_dist) and front_dist <= target_dist:
+            self.get_logger().info(f"Approach to scan start complete (Dist: {front_dist:.3f}m).")
+            self.straight_sub_state = StraightSubState.WAIT_FOR_FRESH_FRAME
+            self.publish_twist_with_gain(0.0, 0.0) # Stop at the precise position
+            return
+
+        # --- Pre-adjust camera tilt while approaching ---
+        if self.enable_dynamic_tilt:
+            base_path_angle_deg = self.approach_base_yaw_deg
+            
+            if self.direction == 'ccw':
+                viewing_offset_deg = 90.0
+            else: # cw
+                viewing_offset_deg = -90.0
+            
+            target_world_angle_deg = self._angle_normalize(base_path_angle_deg + viewing_offset_deg)
+            self._update_dynamic_tilt(target_world_angle_deg)
+
+        # --- Driving Logic ---
+        # Move forward using PID alignment (IMU only for stability)
+        self.get_logger().debug(f"Approaching scan start... Current: {front_dist:.3f}m", throttle_duration_sec=0.5)
+        self._execute_pid_alignment(
+            msg,
+            self.approach_base_yaw_deg,
+            is_outer_wall=self.last_avoidance_path_was_outer, # Use last known lane for PID
+            speed=self.planning_scan_fast_speed,
+            disable_dist_control=True # Use IMU_ONLY for a straight approach
+        )
 
     def _handle_straight_sub_plan_next_avoidance(self, msg: LaserScan):
         """
@@ -2861,6 +2943,8 @@ class ObstacleNavigatorNode(Node):
         self.turning_sub_state = None
         self.scan_retry_count = 0
         self.early_scan_check_has_run = False
+        self.scan_freshness_start_time = None
+        self.is_waiting_for_initial_scan_frame = False
 
         self.is_in_retry_mode = False
         self.last_successful_scan_front_dist = self.planning_scan_start_dist_m
