@@ -208,14 +208,15 @@ class ObstacleNavigatorNode(Node):
         self.unparking_tilt_angle_deg_ccw = 70.0
         self.roi_unparking_cw_flat = [65, 60, 65, 145, 430, 260, 430, 95]
         self.roi_unparking_ccw_flat = [220, 70, 220, 240, 350, 240, 350, 70]
-        self.unparking_fresh_frame_wait_count = 3
+        self.unparking_fresh_frame_wait_count = 6
 
-        self.unparking_speed = 0.15 #0.05
+        self.unparking_speed = 0.12 #0.05
         self.unparking_initial_turn_deg = 55.0
         self.unparking_exit_straight_dist_m = 0.23
         self.unparking_exit_straight_speed = 0.15
         self.unparking_cw_inner_dist_trigger_m = 0.58
         self.unparking_ccw_front_dist_trigger_m = 1.04
+        self.unparking_avoidance_reverse_timeout_sec = 3.0
 
         # --- Camera & Vision ---
         self.pan_servo_id = 1
@@ -264,55 +265,55 @@ class ObstacleNavigatorNode(Node):
         self.turn_outer_to_outer_dist_m = 0.29 # 0.55
         self.turn_outer_to_outer_angle_deg = 88.0 # 40.0
         self.turn_outer_to_outer_approach_speed = 0.20
-        self.turn_outer_to_outer_turn_speed = 0.2
+        self.turn_outer_to_outer_turn_speed = 0.17
 
         # For Outer -> Outer (Clear) 
         self.turn_outer_to_outer_clear_dist_m = 0.29 # 0.55
         self.turn_outer_to_outer_clear_angle_deg = 88.0 # 40.0
         self.turn_outer_to_outer_clear_approach_speed = 0.20
-        self.turn_outer_to_outer_clear_turn_speed = 0.2
+        self.turn_outer_to_outer_clear_turn_speed = 0.17
 
         # For Outer -> Inner 
         self.turn_outer_to_inner_dist_m = 0.87
         self.turn_outer_to_inner_angle_deg = 88.0
         self.turn_outer_to_inner_approach_speed = 0.18
-        self.turn_outer_to_inner_turn_speed = 0.20
+        self.turn_outer_to_inner_turn_speed = 0.17
 
         # For Outer -> Inner (Clear) 
         self.turn_outer_to_inner_clear_dist_m = 0.87
         self.turn_outer_to_inner_clear_angle_deg = 88.0 
         self.turn_outer_to_inner_clear_approach_speed = 0.18
-        self.turn_outer_to_inner_clear_turn_speed = 0.20
+        self.turn_outer_to_inner_clear_turn_speed = 0.17
 
         # For Inner -> Outer 
         self.turn_inner_to_outer_dist_m = 0.29
         self.turn_inner_to_outer_angle_deg = 88.0
         self.turn_inner_to_outer_approach_speed = 0.15
-        self.turn_inner_to_outer_turn_speed = 0.20
+        self.turn_inner_to_outer_turn_speed = 0.17
 
         # For Inner -> Outer (Clear) : Like Outer to Outer
         self.turn_inner_to_outer_clear_dist_m =  0.29 # 0.5
         self.turn_inner_to_outer_clear_angle_deg = 88.0 # 40.0
         self.turn_inner_to_outer_clear_approach_speed = 0.20
-        self.turn_inner_to_outer_clear_turn_speed = 0.22
+        self.turn_inner_to_outer_clear_turn_speed = 0.17
 
         # For Inner -> Inner 
         self.turn_inner_to_inner_dist_m = 0.87 # 0.85
         self.turn_inner_to_inner_angle_deg = 88.0
         self.turn_inner_to_inner_approach_speed = 0.15
-        self.turn_inner_to_inner_turn_speed = 0.18
+        self.turn_inner_to_inner_turn_speed = 0.16
 
         # For Inner -> Inner (Clear)
         self.turn_inner_to_inner_clear_dist_m = 0.87 # 0.85
         self.turn_inner_to_inner_clear_angle_deg = 88.0
         self.turn_inner_to_inner_clear_approach_speed = 0.17
-        self.turn_inner_to_inner_clear_turn_speed = 0.18
+        self.turn_inner_to_inner_clear_turn_speed = 0.16
 
         # --- Special strategy for the final CCW corner to outer lane ---
         self.turn_final_ccw_outer_dist_m = 0.23
         self.turn_final_ccw_outer_angle_deg = 88.0
         self.turn_final_ccw_outer_approach_speed = 0.18
-        self.turn_final_ccw_outer_turn_speed = 0.20
+        self.turn_final_ccw_outer_turn_speed = 0.17
 
         # --- Dynamic speed control for corner approach ---
         self.turn_approach_slowdown_start_offset_m = 0.5
@@ -335,13 +336,19 @@ class ObstacleNavigatorNode(Node):
 
         self.lc_turn_angle_deg = 65.0  # Lane Change turn angle
         self.lc_turn_kp = 0.02         # P-gain for turning during lane change
-        self.lc_step1_speed = 0.2
+        self.lc_step1_speed = 0.19
         self.lc_step2_speed = 0.2
-        self.lc_step3_speed = 0.2
+        self.lc_step3_speed = 0.17
+        self.lc_start_area_step1_speed = 0.18
+        self.lc_start_area_step2_speed = 0.17
+        self.lc_start_area_step3_speed = 0.16
         # Target distances for the straight part of the lane change
         self.lc_target_dist_inner_m = 0.22
         self.lc_target_dist_outer_m = 0.22
         self.lc_target_dist_outer_start_area_m = 0.42
+        self.lc_glitch_detection_threshold_m = 0.10
+        self.lc_glitch_emergency_stop_dist_m = self.lc_target_dist_outer_start_area_m - 0.20
+        self.lc_glitch_timeout_sec = 1.5
 
         # --- Parking ---
         # --- Prepare (U-Turn/Lane Change) ---
@@ -412,7 +419,7 @@ class ObstacleNavigatorNode(Node):
 
         self.parking_step2_yaw_check_min_deg = 60.0
         self.parking_step2_yaw_check_max_deg = 80.0
-        self.parking_recovery_time_limit_sec = 165.0 # 2 minutes 45 seconds
+        self.parking_recovery_time_limit_sec = 155.0 # 2 minutes 35 seconds
         self.parking_recovery_yaw_threshold_deg = 40.0
         self.parking_step2_recovery_speed = 0.1
 
@@ -553,6 +560,9 @@ class ObstacleNavigatorNode(Node):
         self.lane_change_step = None
         self.lane_change_base_yaw_deg = 0.0
         self.lane_change_target_is_outer = False
+        self.lc_last_outer_dist = -1.0
+        self.lc_is_in_glitch_mode = False
+        self.lc_glitch_timer = None
 
         self.lane_change_stability_counter = 0
         self.last_state = self.state 
@@ -563,6 +573,7 @@ class ObstacleNavigatorNode(Node):
         self.unparking_base_yaw_deg = 0.0
         self.pre_detection_step = 0 # 0=start, 1=waiting
         self.pre_detection_timer = None
+        self.unparking_avoidance_reverse_timer = None
         self.unparking_fresh_frame_counter = 0
         self.direction_detection_patience_counter = 0
         self.has_obstacle_at_parking_exit = False
@@ -1487,6 +1498,9 @@ class ObstacleNavigatorNode(Node):
             
             elif self.unparking_strategy == UnparkingStrategy.AVOID_EXIT_OBSTACLE_TO_INNER_LANE_CCW:
                 self.get_logger().warn("Strategy for CCW obstacle avoidance. Transitioning to AVOIDANCE_REVERSE.")
+                if self.unparking_avoidance_reverse_timer:
+                    self.unparking_avoidance_reverse_timer.destroy()
+                self.unparking_avoidance_reverse_timer = None
                 self.unparking_sub_state = UnparkingSubState.AVOIDANCE_REVERSE
             
             else: # UNDEFINED or any other case
@@ -1507,8 +1521,17 @@ class ObstacleNavigatorNode(Node):
     def _handle_unparking_sub_avoidance_reverse(self, msg: LaserScan):
         """
         Sub-state: Reverses straight back to create space from a close obstacle
-        at the parking exit.
+        at the parking exit. Includes a timeout for safety.
         """
+        # --- Start the timeout timer on the first entry ---
+        if self.unparking_avoidance_reverse_timer is None:
+            self.get_logger().warn(
+                f"Starting avoidance reverse timeout ({self.unparking_avoidance_reverse_timeout_sec}s)."
+            )
+            self.unparking_avoidance_reverse_timer = self.create_timer(
+                self.unparking_avoidance_reverse_timeout_sec,
+                self._finish_avoidance_reverse_by_timeout
+            )
         # --- 1. Determine the front direction (relative to the parking spot) ---
         # The "front" in this context is the original starting orientation.
         front_angle_deg = self.unparking_base_yaw_deg
@@ -1520,6 +1543,12 @@ class ObstacleNavigatorNode(Node):
             self.get_logger().info(
                 f"AVOIDANCE_REVERSE: Reverse complete. Front distance is now {front_dist:.2f}m."
             )
+            
+            # --- Clean up the timer on normal completion ---
+            if self.unparking_avoidance_reverse_timer:
+                self.unparking_avoidance_reverse_timer.cancel()
+                self.unparking_avoidance_reverse_timer = None
+            
             self.get_logger().info("--- Transitioning to EXIT_STRAIGHT sub-state ---")
             self.unparking_sub_state = UnparkingSubState.EXIT_STRAIGHT
             self.publish_twist_with_gain(0.0, 0.0)
@@ -2261,6 +2290,12 @@ class ObstacleNavigatorNode(Node):
             log_dir = "I->O" if self.lane_change_target_is_outer else "O->I"
             self.get_logger().info(f"Lane Change Direction: [{log_dir}]")
 
+            self.lc_last_outer_dist = -1.0
+            self.lc_is_in_glitch_mode = False
+            if self.lc_glitch_timer:
+                self.lc_glitch_timer.destroy()
+                self.lc_glitch_timer = None
+
             self.lane_change_step = LaneChangeStep.TURN_1_INTO_LANE
             self.can_start_new_turn = False # Disable corner detection during maneuver
 
@@ -2281,12 +2316,17 @@ class ObstacleNavigatorNode(Node):
         
         target_yaw = self._angle_normalize(self.lane_change_base_yaw_deg + (self.lc_turn_angle_deg * turn_direction))
         
+        # --- Select speed based on the area ---
+        is_start_area_lc = (self.lane_change_target_is_outer and self.wall_segment_index == 0)
+        speed = self.lc_start_area_step1_speed if is_start_area_lc else self.lc_step1_speed
+
+
         is_complete = self._execute_p_controlled_turn(
             target_yaw_deg=target_yaw,
             tolerance_deg=5.0,
             base_yaw_deg=self.lane_change_base_yaw_deg,
             turn_angle_deg=self.lc_turn_angle_deg,
-            base_speed=self.lc_step1_speed
+            base_speed=speed
         )
         
         if is_complete:
@@ -2295,9 +2335,6 @@ class ObstacleNavigatorNode(Node):
 
     def _lane_change_step2_straight(self, msg: LaserScan):
         """Lane Change Step 2: Drive straight until target wall is close."""
-        # This function has special logic for inner-to-outer changes in the start area
-        # to avoid misinterpreting the parking lot markers as the outer wall.
-
         # Determine target wall and distance based on the maneuver type
         if self.lane_change_target_is_outer:
             is_measuring_outer_wall = True
@@ -2307,39 +2344,58 @@ class ObstacleNavigatorNode(Node):
             target_dist = self.lc_target_dist_inner_m
 
         # --- Distance Measurement ---
-        # Get angles for both inner and outer walls
-        if self.direction == 'ccw':
-            outer_wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg - 90.0)
-            inner_wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg + 90.0)
-        else: # cw
-            outer_wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg + 90.0)
-            inner_wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg - 90.0)
+        wall_offset = -90.0 if (self.direction == 'ccw' and is_measuring_outer_wall) or \
+                      (self.direction == 'cw' and not is_measuring_outer_wall) else 90.0
+        wall_angle = self._angle_normalize(self.lane_change_base_yaw_deg + wall_offset)
+        wall_dist = self.get_distance_at_world_angle(msg, wall_angle)
 
-        # Measure distances to both walls
-        measured_outer_dist = self.get_distance_at_world_angle(msg, outer_wall_angle)
-        measured_inner_dist = self.get_distance_at_world_angle(msg, inner_wall_angle)
+        # --- Advanced Completion Check with Glitch Filter for Start Area ---
+        is_complete = False
+        is_start_area_lc = (self.lane_change_target_is_outer and self.wall_segment_index == 0)
 
-        # --- Approximation Logic for Start Area ---
-        # Determine the final distance to be used for the completion check
-        wall_dist = measured_outer_dist if is_measuring_outer_wall else measured_inner_dist
-        log_mode = "Direct"
+        if is_start_area_lc and not math.isnan(wall_dist):
+            # --- Glitch Filter Logic ---
+            exited_glitch_this_cycle = False
+            if self.lc_last_outer_dist < 0: self.lc_last_outer_dist = wall_dist
+            distance_change = self.lc_last_outer_dist - wall_dist
+            
+            if not self.lc_is_in_glitch_mode and distance_change > self.lc_glitch_detection_threshold_m:
+                self.get_logger().warn(f"LC Glitch Detected: Dist dropped from {self.lc_last_outer_dist:.2f} to {wall_dist:.2f} (Change: {distance_change:.2f}m). Entering glitch mode.")
+                self.lc_is_in_glitch_mode = True
+                if self.lc_glitch_timer: self.lc_glitch_timer.destroy()
+                self.get_logger().info(f"Starting glitch mode timeout ({self.lc_glitch_timeout_sec}s).")
+                self.lc_glitch_timer = self.create_timer(self.lc_glitch_timeout_sec, self._clear_glitch_mode_by_timeout)
 
-        # Check if the special approximation should be applied
-        use_approximation = (
-            self.lane_change_target_is_outer and
-            self.wall_segment_index == 0 and
-            not math.isnan(measured_inner_dist) and
-            measured_inner_dist > 0.2
+            if self.lc_is_in_glitch_mode:
+                if wall_dist > self.lc_last_outer_dist:
+                    self.get_logger().info(f"LC Glitch Cleared: Distance recovered to {wall_dist:.2f}m (was > {self.lc_last_outer_dist:.2f}m).")
+                    self.lc_is_in_glitch_mode = False
+                    if self.lc_glitch_timer: self.lc_glitch_timer.cancel(); self.lc_glitch_timer = None
+                    exited_glitch_this_cycle = True
+                
+                if wall_dist < self.lc_glitch_emergency_stop_dist_m:
+                    self.get_logger().error(f"LC Emergency Stop: Wall is too close ({wall_dist:.2f}m < {self.lc_glitch_emergency_stop_dist_m:.2f}m) during glitch. Forcing completion.")
+                    is_complete = True
+            
+            if not self.lc_is_in_glitch_mode and wall_dist < target_dist:
+                is_complete = True
+            
+            if not self.lc_is_in_glitch_mode and not exited_glitch_this_cycle:
+                self.lc_last_outer_dist = wall_dist
+        else:
+            # --- Normal Completion Check for other areas ---
+            if not math.isnan(wall_dist) and wall_dist < target_dist:
+                is_complete = True
+        
+        # --- DEBUG LOG for Step 2 State ---
+        self.get_logger().debug(
+            f"[LC Step 2] Dist: {wall_dist:.3f}m | Target: <{target_dist:.2f}m | "
+            f"GlitchMode: {self.lc_is_in_glitch_mode} | LastGoodDist: {self.lc_last_outer_dist:.2f}m",
+            throttle_duration_sec=0.2
         )
 
-        if use_approximation:
-            # Override wall_dist with the approximated value
-            wall_dist = 1.0 - measured_inner_dist
-            log_mode = f"Approx(I:{measured_inner_dist:.2f})"
-
-        # --- Completion Check ---
-        if not math.isnan(wall_dist) and wall_dist < target_dist:
-            self.get_logger().info(f"LC Step 2 ({log_mode}): Complete (WallDist: {wall_dist:.2f}m).")
+        if is_complete:
+            self.get_logger().info(f"LC Step 2 : Complete (Final WallDist: {wall_dist:.2f}m).")
             self.lane_change_step = LaneChangeStep.TURN_2_ALIGN_LANE
             self.publish_twist_with_gain(0.0, 0.0)
             return
@@ -2352,7 +2408,10 @@ class ObstacleNavigatorNode(Node):
         target_yaw = self._angle_normalize(self.lane_change_base_yaw_deg + (self.lc_turn_angle_deg * turn_direction))
         yaw_error_deg = self._angle_diff(target_yaw, self.current_yaw_deg)
 
-        final_speed = self.lc_step2_speed
+        # --- Select speed based on the area ---
+        is_start_area_lc = (self.lane_change_target_is_outer and self.wall_segment_index == 0)
+        final_speed = self.lc_start_area_step2_speed if is_start_area_lc else self.lc_step2_speed
+
         dynamic_max = self._get_dynamic_max_steer(final_speed)
         steer = np.clip(self.align_kp_angle * yaw_error_deg, -dynamic_max, dynamic_max)
 
@@ -2725,7 +2784,7 @@ class ObstacleNavigatorNode(Node):
 
         # --- Condition 1 (New): Dynamic distance based on next step ---
         approach_trigger_dist, _, _, _ = self._get_turn_strategy()
-        reverse_target_dist = approach_trigger_dist + 0.05
+        reverse_target_dist = approach_trigger_dist + 0.02
         condition_dynamic = front_dist >= reverse_target_dist
 
         # --- Condition 2 (Original): Failsafe based on side walls ---
@@ -4281,6 +4340,22 @@ class ObstacleNavigatorNode(Node):
             if self.parking_step4_timer is not None and not self.parking_step4_timer.is_canceled():
                 self.parking_step4_timer.cancel()
             self.parking_step4_timer = None
+
+    def _finish_avoidance_reverse_by_timeout(self):
+        """Callback triggered if the avoidance reverse takes too long."""
+        with self.state_lock:
+            # Only act if we are still in the avoidance reverse state
+            if self.unparking_sub_state == UnparkingSubState.AVOIDANCE_REVERSE:
+                self.get_logger().error("AVOIDANCE_REVERSE TIMEOUT! Forcing transition to EXIT_STRAIGHT.")
+                
+                # Clean up the timer
+                if self.unparking_avoidance_reverse_timer:
+                    self.unparking_avoidance_reverse_timer.destroy()
+                self.unparking_avoidance_reverse_timer = None
+                
+                # Force transition to the next step
+                self.publish_twist_with_gain(0.0, 0.0) # Stop current motion
+                self.unparking_sub_state = UnparkingSubState.EXIT_STRAIGHT
 
     def _execute_parking_initial_forward(self, msg: LaserScan, target_dist: float, is_outer: bool, next_step: Enum):
         """
@@ -6083,6 +6158,19 @@ class ObstacleNavigatorNode(Node):
         else:
             self.get_logger().info(f"Last path was INNER. Using standard threshold: {self.planning_detection_threshold:.1f}")
             return self.planning_detection_threshold
+
+    def _clear_glitch_mode_by_timeout(self):
+        """Callback to forcibly exit glitch mode after a timeout."""
+        with self.state_lock:
+            # Only act if we are still in glitch mode
+            if self.lc_is_in_glitch_mode:
+                self.get_logger().error("LC Glitch TIMEOUT! Forcibly clearing glitch mode.")
+                self.lc_is_in_glitch_mode = False
+
+            # Clean up the timer
+            if self.lc_glitch_timer:
+                self.lc_glitch_timer.destroy()
+            self.lc_glitch_timer = None
 
 def main(args=None):
     rclpy.init(args=args)
