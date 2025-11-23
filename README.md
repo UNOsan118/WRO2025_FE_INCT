@@ -113,6 +113,12 @@ A high-level introduction to our robot's design philosophy and key features.
 | Left_View | Top_View | Bottom_View |
 | <img src="v-photos\Left_View.jpg" alt="Left_View" style="  object-fit: contain;"> | <img src="v-photos\Top_View.jpg" alt="Top_View" style="  object-fit: contain;"> | <img src="v-photos\Bottom_View.jpg" alt="Bottom_View" style="  object-fit: contain;"> |
 
+<p align="center">
+  <img src="v-photos\PowerSwitch_and_StartButton.jpg" alt="Power Switch and Start Button" width="400">
+  <br>
+  <em>Power Switch and Start Button</em>
+</p>
+
 ---             
 
 ## 5. Mobility Management
