@@ -1,4 +1,9 @@
-Team's photos
-====
+# Team Photos
 
-This directory must contain 2 photos of the team (an official one and one funny photo with all team members)
+This directory contains photos of our team members.
+
+---
+
+### Related Documentation
+
+Our team introduction and member profiles, which feature these photos, can be found in **[Section 1: Team Members & Roles](../../README.md#1-team-members--roles)** in the main project README.
